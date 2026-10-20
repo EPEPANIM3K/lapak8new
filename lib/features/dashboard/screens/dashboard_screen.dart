@@ -122,11 +122,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-          const Positioned(
+          Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: LapakHeader(avatarUrl: _avatarUrl),
+            child: LapakHeader(
+              avatarUrl: _avatarUrl,
+              onAvatarTap: () => context.push('/profile'),
+            ),
           ),
           Positioned(
             bottom: 0,

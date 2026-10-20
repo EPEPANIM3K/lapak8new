@@ -91,38 +91,30 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: Stack(
+      body: Column(
         children: [
-          SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
-            padding: EdgeInsets.only(
-              top: LapakHeader.contentHeight + MediaQuery.paddingOf(context).top,
-              bottom: AppBottomNav.totalHeight + MediaQuery.paddingOf(context).bottom,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _searchBar(),
-                _titleAndFilters(filtered.length),
-                if (filtered.isEmpty) _emptyState() else _grid(filtered),
-              ],
+          LapakHeader(
+            avatarUrl: _avatarUrl,
+            onAvatarTap: () => context.push('/profile'),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _searchBar(),
+                  _titleAndFilters(filtered.length),
+                  if (filtered.isEmpty) _emptyState() else _grid(filtered),
+                ],
+              ),
             ),
           ),
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: LapakHeader(avatarUrl: _avatarUrl),
-          ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: AppBottomNav(
-              items: AppBottomNav.userItems,
-              currentIndex: 1,
-              onTap: (_) {},
-            ),
+          AppBottomNav(
+            items: AppBottomNav.userItems,
+            currentIndex: 1,
+            onTap: (_) {},
           ),
         ],
       ),

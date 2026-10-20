@@ -162,29 +162,13 @@ class _Card extends StatelessWidget {
                 const SizedBox(height: AppSpacing.sm),
                 Padding(
                   padding: const EdgeInsets.only(top: 4), // pt-1
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _PillButton(
-                          label: 'Tiket Akses QR',
-                          icon: Symbols.qr_code_2,
-                          background: AppColors.primary,
-                          foreground: AppColors.onPrimary,
-                          shadow: AppShadows.sm,
-                          onTap: onShowQrTap,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Expanded(
-                        child: _PillButton(
-                          label: 'Petunjuk Lab',
-                          icon: Symbols.directions,
-                          background: AppColors.surfaceContainer,
-                          foreground: AppColors.primary,
-                          onTap: onDirectionsTap,
-                        ),
-                      ),
-                    ],
+                  child: _PillButton(
+                    label: 'Tiket Akses QR',
+                    icon: Symbols.qr_code_2,
+                    background: AppColors.primary,
+                    foreground: AppColors.onPrimary,
+                    shadow: AppShadows.sm,
+                    onTap: onShowQrTap,
                   ),
                 ),
               ],

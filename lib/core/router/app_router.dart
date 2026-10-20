@@ -4,6 +4,7 @@ import 'package:lapak8new/features/facilities/screens/facility_list_screen.dart'
 import 'package:lapak8new/features/borrowings/screens/my_borrowings_screen.dart';
 import 'package:lapak8new/features/borrowings/screens/borrowing_form_screen.dart';
 import 'package:lapak8new/features/history/screens/history_screen.dart';
+import 'package:lapak8new/features/profile/screens/profile_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
@@ -27,6 +28,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/history',
       builder: (_, __) => const HistoryScreen(),
+    ),
+    GoRoute(
+      path: '/profile',
+      builder: (_, __) => const ProfileScreen(),
     ),
   ],
 );

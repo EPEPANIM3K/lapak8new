@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/lapak_header.dart';
@@ -74,7 +75,10 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
       body: Column(
         children: [
           // Header
-          const LapakHeader(avatarUrl: _avatarUrl),
+          LapakHeader(
+            avatarUrl: _avatarUrl,
+            onAvatarTap: () => context.push('/profile'),
+          ),
           // Content
           Expanded(
             child: SingleChildScrollView(
@@ -177,28 +181,19 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
       ),
     ),
     const SizedBox(height: 8),
-    Row(children: [
-      Expanded(child: OutlinedButton.icon(
-        onPressed: () {},
-        icon: const Icon(Icons.info_outline, size: 18),
-        label: const Text('Rincian Fasilitas'),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: cOnSurface, backgroundColor: cSurfaceContainer,
-          side: BorderSide.none, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-          minimumSize: const Size(0, 44),
-        ),
-      )),
-      const SizedBox(width: 8),
-      SizedBox(height: 44, child: TextButton(
+    SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: TextButton(
         onPressed: _cancelBooking,
         style: TextButton.styleFrom(
           backgroundColor: cErrorContainer.withValues(alpha: 0.4),
           foregroundColor: cError,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
         ),
-        child: const Text('Batalkan'),
-      )),
-    ]),
+        child: const Text('Batalkan Reservasi', style: TextStyle(fontWeight: FontWeight.w600)),
+      ),
+    ),
   ]);
 
   // ===== CARD MENUNGGU =====

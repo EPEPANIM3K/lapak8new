@@ -65,8 +65,9 @@ class QuickActionsSection extends StatelessWidget {
         QuickActionItem(
           label: 'Bantuan PIC',
           icon: Symbols.contact_support,
-          background: AppColors.tertiaryFixed,
-          foreground: AppColors.onTertiaryFixed,
+          background: AppColors.primaryContainer,
+          foreground: AppColors.onPrimary,
+          strongShadow: true,
           onTap: onHelp,
         ),
       ];

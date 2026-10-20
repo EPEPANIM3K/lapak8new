@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/lapak_header.dart';
@@ -85,66 +86,42 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final inset = MediaQuery.paddingOf(context);
     final filtered = _filtered;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: Stack(
+      body: Column(
         children: [
-          SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
-            padding: EdgeInsets.only(
-              top: LapakHeader.contentHeight + inset.top,
-              bottom: AppBottomNav.totalHeight + inset.bottom,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: _pageTitle(),
-                ),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                  child: _statsGrid(),
-                ),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                  child: _searchField(),
-                ),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                  child: _filterTabs(),
-                ),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: filtered.isEmpty
+          LapakHeader(
+            avatarUrl: _avatarUrl,
+            onAvatarTap: () => context.push('/profile'),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _pageTitle(),
+                  const SizedBox(height: 12),
+                  _statsGrid(),
+                  const SizedBox(height: 16),
+                  _searchField(),
+                  const SizedBox(height: 8),
+                  _filterTabs(),
+                  const SizedBox(height: 12),
+                  filtered.isEmpty
                       ? _emptyState()
                       : Column(children: filtered.map((h) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _historyCard(h))).toList()),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: LapakHeader(avatarUrl: _avatarUrl),
-          ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: AppBottomNav(
-              items: AppBottomNav.userItems,
-              currentIndex: 3,
-              onTap: (_) {},
-            ),
+          AppBottomNav(
+            items: AppBottomNav.userItems,
+            currentIndex: 3,
+            onTap: (_) {},
           ),
         ],
       ),
