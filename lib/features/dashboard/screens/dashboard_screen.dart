@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/lapak_header.dart';
 import '../widgets/greeting_section.dart';
 import '../widgets/popular_items_section.dart';
-import '../widgets/qr_ticket_sheet.dart';
 import '../widgets/quick_actions_section.dart';
 import '../widgets/summary_grid.dart';
 import '../widgets/upcoming_borrowing_section.dart';
+import '../widgets/bantuan_pic_modal.dart';
+import '../widgets/dashboard_modals.dart';
+import '../widgets/qr_ticket_modal.dart';
 
 /// Beranda siswa/guru.
 /// Data di bawah masih contoh (dummy) dari desain; nanti ganti dengan provider.
@@ -56,10 +59,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ),
   ];
 
-  void _showQr() => QrTicketSheet.show(
-        context,
-        title: 'Lab Komputer 2',
-        code: 'EDURSV-2025-0482',
+  void _showQr() => showDialog(
+        context: context,
+        builder: (_) => const QrTicketModal(),
       );
 
   @override
@@ -95,8 +97,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   approverRole: 'PIC Lab',
                   onShowQrTap: _showQr,
                 ),
-                QuickActionsSection(items: QuickActionsSection.defaults()),
-                const PopularItemsSection(items: _popularItems),
+                QuickActionsSection(
+                  items: QuickActionsSection.defaults(
+                    onQuickBorrow: () => context.push('/borrowing-form'),
+                    onSchedule: () => showDialog(
+                      context: context,
+                      builder: (_) => const AulaScheduleModal(),
+                    ),
+                    onRules: () => showDialog(
+                      context: context,
+                      builder: (_) => const PeraturanModal(),
+                    ),
+                    onHelp: () => showDialog(
+                      context: context,
+                      builder: (_) => const BantuanPicModal(),
+                    ),
+                  ),
+                ),
+                PopularItemsSection(
+                  items: _popularItems,
+                  onBorrowTap: (_) => context.push('/borrowing-form'),
+                  onSeeAllTap: () => context.push('/facilities'),
+                ),
               ],
             ),
           ),

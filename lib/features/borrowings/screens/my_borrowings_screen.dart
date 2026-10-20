@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/lapak_header.dart';
+import '../../dashboard/widgets/qr_ticket_modal.dart';
 
 class MyBorrowingsScreen extends StatefulWidget {
   const MyBorrowingsScreen({super.key});
@@ -39,11 +40,9 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
   void _switchTab(String t) => setState(() => _tab = t);
 
   void _showQrModal() {
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => _QrSheet(),
+      builder: (_) => const QrTicketModal(),
     );
   }
 
@@ -441,74 +440,4 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
   );
 }
 
-// ===== QR MODAL SHEET =====
-class _QrSheet extends StatelessWidget {
-  static const cSurfaceLowest = Color(0xFFFFFFFF);
-  static const cSurfaceHigh = Color(0xFFE2E7FF);
-  static const cOnSurface = Color(0xFF131B2E);
-  static const cOnSurfaceVariant = Color(0xFF434655);
-  static const cPrimary = Color(0xFF0037B0);
-  static const cOutlineVariant = Color(0xFFC4C5D7);
-  static const cTertiary = Color(0xFF004F35);
-  static const cSurfaceContainer = Color(0xFFEAEDFF);
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: cSurfaceLowest,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-      child: SafeArea(top: false, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 48, height: 4, decoration: BoxDecoration(color: cOutlineVariant.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(999))),
-        const SizedBox(height: 16),
-        const Text('BOARDING & CHECK-IN PASS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: cPrimary, letterSpacing: 2)),
-        const SizedBox(height: 4),
-        const Text('Laboratorium Komputer & RPL 1', style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.w700, color: cOnSurface)),
-        const Text('Kode: #BK-20250912-004', style: TextStyle(fontSize: 12, color: cOnSurfaceVariant)),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: cSurfaceHigh, borderRadius: BorderRadius.circular(24)),
-          child: Column(children: [
-            const Icon(Icons.qr_code_2, size: 180, color: cOnSurface),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(color: cSurfaceLowest, borderRadius: BorderRadius.circular(999)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: const [
-                Icon(Icons.circle, size: 8, color: cTertiary),
-                SizedBox(width: 6),
-                Text('Aktif • Refresh otomatis dlm 60s', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cOnSurface)),
-              ]),
-            ),
-          ]),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: cSurfaceContainer, borderRadius: BorderRadius.circular(16)),
-          child: Row(children: const [
-            Icon(Icons.badge_outlined, color: cPrimary, size: 20),
-            SizedBox(width: 8),
-            Expanded(child: Text('Tunjukkan kode QR ini ke Petugas Sarpras atau Satpam saat mengambil kunci & check-in.',
-              style: TextStyle(fontSize: 12, color: cOnSurfaceVariant, height: 1.4))),
-          ]),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity, height: 48,
-          child: ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: cSurfaceHigh, foregroundColor: cOnSurface,
-              elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-            ),
-            child: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        ),
-      ])),
-    );
-  }
-}
