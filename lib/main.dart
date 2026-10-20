@@ -1,6 +1,6 @@
 
 import 'package:flutter/material.dart';
-import 'features/dashboard/screens/dashboard_screen.dart';
+import 'core/router/app_router.dart';
 
 void main() {
   runApp(const Lapak8App());
@@ -11,7 +11,7 @@ class Lapak8App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'LAPAK8',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -22,7 +22,7 @@ class Lapak8App extends StatelessWidget {
           seedColor: const Color(0xFF2563EB),
         ),
       ),
-      home: const DashboardScreen(),
+      routerConfig: appRouter,
     );
   }
 }

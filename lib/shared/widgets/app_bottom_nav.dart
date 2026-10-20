@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -13,11 +14,13 @@ class AppBottomNavItem {
     required this.icon,
     required this.label,
     this.showBadge = false,
+    this.route = '/',
   });
 
   final IconData icon;
   final String label;
   final bool showBadge;
+  final String route;
 }
 
 /// Navigasi bawah melayang: putih 90% + blur 40, radius 48, tinggi 72.
@@ -36,11 +39,11 @@ class AppBottomNav extends StatelessWidget {
 
   /// Menu untuk siswa/guru (sesuai desain).
   static const userItems = [
-    AppBottomNavItem(icon: Symbols.home, label: 'Beranda'),
-    AppBottomNavItem(icon: Symbols.category, label: 'Item'),
+    AppBottomNavItem(icon: Symbols.home, label: 'Beranda', route: '/'),
+    AppBottomNavItem(icon: Symbols.category, label: 'Item', route: '/facilities'),
     AppBottomNavItem(
-        icon: Symbols.event_available, label: 'Pinjaman', showBadge: true),
-    AppBottomNavItem(icon: Symbols.history, label: 'Riwayat'),
+        icon: Symbols.event_available, label: 'Pinjaman', showBadge: true, route: '/borrowings'),
+    AppBottomNavItem(icon: Symbols.history, label: 'Riwayat', route: '/history'),
   ];
 
   /// Tinggi total area nav (pt 4 + bar 72 + pb 12), belum termasuk safe area bawah.
@@ -115,7 +118,10 @@ class _NavItem extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 60), // min-w-[3.75rem]
       child: InkWell(
         customBorder: const StadiumBorder(),
-        onTap: onTap,
+        onTap: () {
+          context.go(item.route);
+          onTap();
+        },
         child: SizedBox(
           height: AppSpacing.touchTargetMin,
           child: Stack(
