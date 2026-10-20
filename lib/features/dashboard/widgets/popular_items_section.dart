@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -264,7 +265,7 @@ class _BorrowButton extends StatelessWidget {
         type: MaterialType.transparency,
         child: InkWell(
           customBorder: const StadiumBorder(),
-          onTap: onTap,
+          onTap: () => context.push('/borrowing-form'),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 10), // py-2.5
             child: Center(

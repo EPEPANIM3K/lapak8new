@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -24,6 +26,14 @@ class _ItemData {
     required this.imageUrl,
   });
 }
+
+/// Ikon pin lokasi (heroicons outline, stroke 2) persis seperti di Dashboard.
+const _pinSvg = '''
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+<path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+</svg>
+''';
 
 class _FacilityListScreenState extends State<FacilityListScreen> {
   static const _avatarUrl =
@@ -267,7 +277,7 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.location_on, size: 14, color: AppColors.primary),
+                      SvgPicture.string(_pinSvg, width: 14, height: 14),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -287,12 +297,9 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
               const SizedBox(height: 14),
               _BorrowButton(
                 available: item.available,
-                onTap: item.available ? () {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('Ajukan pinjam: ${item.name}'),
-                    behavior: SnackBarBehavior.floating,
-                  ));
-                } : null,
+                onTap: item.available
+                    ? () => context.push('/borrowing-form')
+                    : null,
               ),
             ],
           ),
