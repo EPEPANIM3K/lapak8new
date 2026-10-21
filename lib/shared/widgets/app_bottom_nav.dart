@@ -46,6 +46,14 @@ class AppBottomNav extends StatelessWidget {
     AppBottomNavItem(icon: Symbols.history, label: 'Riwayat', route: '/history'),
   ];
 
+  /// Menu untuk pengelola sarpras (dashboard admin).
+   static const dashboardItems = [
+     AppBottomNavItem(icon: Symbols.home, label: 'Beranda', route: '/dashboard'),
+     AppBottomNavItem(icon: Symbols.event_available, label: 'Pinjaman', route: '/admin/borrowings'),
+     AppBottomNavItem(icon: Symbols.category, label: 'Item', route: '/admin/items'),
+     AppBottomNavItem(icon: Symbols.tune, label: 'Kelola', route: '/admin/manage'),
+   ];
+
   /// Tinggi total area nav (pt 4 + bar 72 + pb 12), belum termasuk safe area bawah.
   static const double totalHeight = 4 + AppSpacing.bottomNavHeight + 12;
 

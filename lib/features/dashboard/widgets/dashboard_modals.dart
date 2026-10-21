@@ -386,7 +386,7 @@ class PeraturanModal extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF).withOpacity(0.7),
+                        color: const Color(0xFFEFF6FF).withValues(alpha: 0.7),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: const Color(0xFFDBEAFE)),
                       ),

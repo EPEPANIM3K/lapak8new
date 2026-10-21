@@ -47,7 +47,7 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
               child: Container(
                 width: 40, height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFC4C5D7).withOpacity(0.5),
+                  color: const Color(0xFFC4C5D7).withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -215,7 +215,7 @@ class _ChangePhoneModalState extends State<ChangePhoneModal> {
               child: Container(
                 width: 40, height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFC4C5D7).withOpacity(0.5),
+                  color: const Color(0xFFC4C5D7).withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),

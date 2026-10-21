@@ -111,7 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: cSurface,
       appBar: AppBar(
-        backgroundColor: cSurfaceLowest.withOpacity(0.8),
+        backgroundColor: cSurfaceLowest.withValues(alpha: 0.8),
         elevation: 0.5,
         leading: IconButton(
           onPressed: () => Navigator.maybePop(context),
@@ -205,7 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ],
                         ),
                       ),
-                      Container(width: 1, height: 32, color: cOutline.withOpacity(0.2)),
+                      Container(width: 1, height: 32, color: cOutline.withValues(alpha: 0.2)),
                       Expanded(
                         child: Column(
                           children: const [
@@ -299,7 +299,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             _isNotificationEnabled = val;
                           });
                         },
-                        activeColor: cPrimary,
+                        activeThumbColor: cPrimary,
                       ),
                     ],
                   ),
