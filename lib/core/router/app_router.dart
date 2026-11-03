@@ -5,52 +5,42 @@ import 'package:lapak8new/features/borrowings/screens/my_borrowings_screen.dart'
 import 'package:lapak8new/features/borrowings/screens/borrowing_form_screen.dart';
 import 'package:lapak8new/features/history/screens/history_screen.dart';
 import 'package:lapak8new/features/profile/screens/profile_screen.dart';
+import 'package:lapak8new/features/qr/screens/qr_scanner_screen.dart';
 
 import 'package:lapak8new/features/admin/screens/admin_dashboard_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_borrowings_screen.dart';
-import 'package:lapak8new/features/qr/screens/qr_scanner_screen.dart';
+import 'package:lapak8new/features/admin/screens/manage_facilities_screen.dart';
+import 'package:lapak8new/features/admin/screens/facility_form_screen.dart';
 import 'package:lapak8new/features/admin/screens/manage_users_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_profile_screen.dart';
 
 final GoRouter appRouter = GoRouter(
-  // DIUBAH: sementara buka admin dulu saat development.
+  // Sementara buka admin dulu saat development.
   // Balikin ke '/' kalau mau buka user.
   initialLocation: '/admin/dashboard',
   routes: [
-    // ---------- USER (tidak diubah) ----------
+    // ---------- USER ----------
     GoRoute(path: '/', builder: (_, __) => const DashboardScreen()),
-    GoRoute(
-      path: '/facilities',
-      builder: (_, __) => const FacilityListScreen(),
-    ),
-    GoRoute(
-      path: '/borrowings',
-      builder: (_, __) => const MyBorrowingsScreen(),
-    ),
-    GoRoute(
-      path: '/borrowing-form',
-      builder: (_, __) => const BorrowingFormScreen(),
-    ),
+    GoRoute(path: '/facilities', builder: (_, __) => const FacilityListScreen()),
+    GoRoute(path: '/borrowings', builder: (_, __) => const MyBorrowingsScreen()),
+    GoRoute(path: '/borrowing-form', builder: (_, __) => const BorrowingFormScreen()),
     GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
     GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+
+    // ---------- UMUM ----------
     GoRoute(path: '/scan', builder: (_, __) => const QrScannerScreen()),
 
-    // ---------- ADMIN (BARU) ----------
+    // ---------- ADMIN ----------
+    GoRoute(path: '/admin/dashboard', builder: (_, __) => const AdminDashboardScreen()),
+    GoRoute(path: '/admin/borrowings', builder: (_, __) => const AdminBorrowingsScreen()),
+    GoRoute(path: '/admin/items', builder: (_, __) => const ManageFacilitiesScreen()),
     GoRoute(
-      path: '/admin/dashboard',
-      builder: (_, __) => const AdminDashboardScreen(),
+      path: '/admin/items/form',
+      builder: (_, state) => FacilityFormScreen(
+        initial: state.extra as FacilityFormData?,
+      ),
     ),
-    GoRoute(
-      path: '/admin/borrowings',
-      builder: (_, __) => const AdminBorrowingsScreen(),
-    ),
-     GoRoute(
-  path: '/admin/manage',
-  builder: (_, __) => const ManageUsersScreen(),
-),
-GoRoute(
-     path: '/admin/profile',
-     builder: (_, __) => const AdminProfileScreen(),
-   ),
+    GoRoute(path: '/admin/manage', builder: (_, __) => const ManageUsersScreen()),
+    GoRoute(path: '/admin/profile', builder: (_, __) => const AdminProfileScreen()),
   ],
 );
