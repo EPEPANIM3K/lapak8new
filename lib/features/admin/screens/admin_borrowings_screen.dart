@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // <- TAMBAHAN
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:lapak8new/core/constants/app_colors.dart';
@@ -346,7 +347,9 @@ class _TopBar extends StatelessWidget {
                   ],
                 ),
               ),
-              Container(
+              GestureDetector( // <- TAMBAHAN
+                onTap: () => context.push('/admin/profile'), // <- TAMBAHAN
+                child: Container(
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -359,6 +362,7 @@ class _TopBar extends StatelessWidget {
                       Icon(Icons.person, size: 20, color: AppColors.primary),
                 ),
               ),
+              ), // <- TAMBAHAN (penutup GestureDetector)
             ],
           ),
         ),

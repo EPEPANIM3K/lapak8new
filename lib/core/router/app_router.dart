@@ -9,6 +9,8 @@ import 'package:lapak8new/features/profile/screens/profile_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_dashboard_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_borrowings_screen.dart';
 import 'package:lapak8new/features/qr/screens/qr_scanner_screen.dart';
+import 'package:lapak8new/features/admin/screens/manage_users_screen.dart';
+import 'package:lapak8new/features/admin/screens/admin_profile_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   // DIUBAH: sementara buka admin dulu saat development.
@@ -42,5 +44,13 @@ final GoRouter appRouter = GoRouter(
       path: '/admin/borrowings',
       builder: (_, __) => const AdminBorrowingsScreen(),
     ),
+     GoRoute(
+  path: '/admin/manage',
+  builder: (_, __) => const ManageUsersScreen(),
+),
+GoRoute(
+     path: '/admin/profile',
+     builder: (_, __) => const AdminProfileScreen(),
+   ),
   ],
 );
