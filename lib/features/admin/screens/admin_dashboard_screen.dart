@@ -254,7 +254,9 @@ class _TopBar extends StatelessWidget {
                 ),
               ),
               // Ganti child dengan foto profil: backgroundImage: AssetImage(...)
-              Container(
+              GestureDetector( // <- TAMBAHAN
+                onTap: () => context.push('/admin/profile'), // <- TAMBAHAN
+                child: Container(
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -266,6 +268,7 @@ class _TopBar extends StatelessWidget {
                   child: Icon(Icons.person, size: 20, color: AppColors.primary),
                 ),
               ),
+              ), // <- TAMBAHAN (penutup GestureDetector)
             ],
           ),
         ),

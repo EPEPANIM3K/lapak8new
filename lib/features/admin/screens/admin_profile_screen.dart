@@ -4,6 +4,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/admin/screens/user_form_screen.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 // Simpan di: lib/features/admin/screens/admin_profile_screen.dart
@@ -32,6 +33,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   static const _idNumber = '2122.10.408';
   static const _email = 'masadmin@gmail.com';
   static const _unit = 'Admin Lab RPL';
+  static const _phone = '081234567890'; // TODO: dari backend
   static const String? _avatarUrl = null; // isi bila sudah ada foto profil
 
   bool _notifOn = true;
@@ -249,8 +251,24 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 ),
               ),
               GestureDetector(
-                onTap: () {
-                  // TODO: buka form ubah data pribadi
+                onTap: () async {
+                  // Buka form "Kelola Akun Admin"
+                  final data = await UserFormScreen.show(
+                    context,
+                    isAdmin: true,
+                    initial: const UserFormData(
+                      name: _name,
+                      password: '',
+                      email: _email,
+                      idNumber: _idNumber,
+                      phone: _phone,
+                      roleClass: _unit,
+                      active: true,
+                    ),
+                  );
+                  if (data != null) {
+                    // TODO: kirim perubahan data admin ke backend
+                  }
                 },
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
