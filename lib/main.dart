@@ -1,4 +1,5 @@
 
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/material.dart';
 import 'core/router/app_router.dart';
 
@@ -22,6 +23,7 @@ class Lapak8App extends StatelessWidget {
           seedColor: const Color(0xFF2563EB),
         ),
       ),
+      builder: (context, child) => AdaptiveToolbarHost(child: child!),
       routerConfig: appRouter,
     );
   }

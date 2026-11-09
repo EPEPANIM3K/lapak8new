@@ -31,11 +31,16 @@ class AppBottomNav extends StatelessWidget {
     required this.items,
     required this.currentIndex,
     required this.onTap,
+    this.useRouter = true,
   });
 
   final List<AppBottomNavItem> items;
   final int currentIndex;
   final ValueChanged<int> onTap;
+
+  /// Jika `true` (default), tap item akan memanggil `context.go(route)`.
+  /// Set `false` untuk shell yang mengelola halaman sendiri lewat IndexedStack.
+  final bool useRouter;
 
   /// Menu untuk siswa/guru (sesuai desain).
   static const userItems = [
@@ -50,6 +55,7 @@ class AppBottomNav extends StatelessWidget {
   static const dashboardItems = [
     AppBottomNavItem(icon: Symbols.home, label: 'Beranda', route: '/admin/dashboard'),
     AppBottomNavItem(icon: Symbols.event_available, label: 'Pinjaman', route: '/admin/borrowings'),
+    AppBottomNavItem(icon: Symbols.history, label: 'Riwayat', route: '/admin/history'),
     AppBottomNavItem(icon: Symbols.category, label: 'Item', route: '/admin/items'),
     AppBottomNavItem(icon: Symbols.tune, label: 'Kelola', route: '/admin/manage'),
   ];
@@ -95,6 +101,7 @@ class AppBottomNav extends StatelessWidget {
                       _NavItem(
                         item: items[i],
                         selected: i == currentIndex,
+                        useRouter: useRouter,
                         onTap: () => onTap(i),
                       ),
                   ],
@@ -113,10 +120,12 @@ class _NavItem extends StatelessWidget {
     required this.item,
     required this.selected,
     required this.onTap,
+    required this.useRouter,
   });
 
   final AppBottomNavItem item;
   final bool selected;
+  final bool useRouter;
   final VoidCallback onTap;
 
   @override
@@ -127,7 +136,7 @@ class _NavItem extends StatelessWidget {
       child: InkWell(
         customBorder: const StadiumBorder(),
         onTap: () {
-          context.go(item.route);
+          if (useRouter) context.go(item.route);
           onTap();
         },
         child: SizedBox(

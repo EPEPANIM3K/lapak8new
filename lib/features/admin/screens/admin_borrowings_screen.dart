@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // <- TAMBAHAN
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
-import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 
 // Simpan di: lib/features/admin/borrowings/admin_borrowings_screen.dart
 
@@ -174,11 +172,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
     final loans = _visible;
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLow,
-      body: Column(
-        children: [
-          const _TopBar(),
-          Expanded(
-            child: ListView(
+      body: ListView(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.mobileGutter,
                 AppSpacing.md,
@@ -234,29 +228,24 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
-              ],
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _SummaryBar(
-            total: _loans.length,
-            onExport: () {
-              // TODO: export rekap ke XLS
-            },
-            onScan: () {
-              // TODO: Navigator.push ke qr_scanner_screen
-            },
-          ),
-          AppBottomNav(
-            items: AppBottomNav.dashboardItems,
-            currentIndex: 1, // Pinjaman
-            onTap: (_) {},
-          ),
-        ],
+               ],
+             ),
+       bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.mobileGutter,
+          AppSpacing.md,
+          AppSpacing.mobileGutter,
+          AppSpacing.md,
+        ),
+        child: _SummaryBar(
+          total: _loans.length,
+          onExport: () {
+            // TODO: export rekap ke XLS
+          },
+          onScan: () {
+            // TODO: Navigator.push ke qr_scanner_screen
+          },
+        ),
       ),
     );
   }
@@ -294,78 +283,6 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Top bar
-// ---------------------------------------------------------------------------
-class _TopBar extends StatelessWidget {
-  const _TopBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        boxShadow: AppShadows.sm,
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.school, color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'LAPAK8',
-                      style: AppTextStyles.headlineSm(color: AppColors.primary)
-                          .copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    Text(
-                      'SMKN 8 MALANG',
-                      style: AppTextStyles.labelSm(
-                        weight: FontWeight.w600,
-                        color: AppColors.slate500,
-                      ).copyWith(fontSize: 10),
-                    ),
-                  ],
-                ),
-              ),
-              GestureDetector( // <- TAMBAHAN
-                onTap: () => context.push('/admin/profile'), // <- TAMBAHAN
-                child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.primaryFixed, width: 2),
-                ),
-                child: const CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AppColors.primaryFixed,
-                  child:
-                      Icon(Icons.person, size: 20, color: AppColors.primary),
-                ),
-              ),
-              ), // <- TAMBAHAN (penutup GestureDetector)
-            ],
-          ),
-        ),
       ),
     );
   }

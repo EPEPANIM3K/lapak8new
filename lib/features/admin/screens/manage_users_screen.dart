@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
-import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 import 'package:lapak8new/features/admin/screens/user_form_screen.dart';
 
@@ -166,137 +164,125 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     final users = _visible;
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLow,
-      body: Column(
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.mobileGutter,
+          AppSpacing.md,
+          AppSpacing.mobileGutter,
+          AppSpacing.md,
+        ),
         children: [
-          const _TopBar(),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.mobileGutter,
-                AppSpacing.md,
-                AppSpacing.mobileGutter,
-                AppSpacing.md,
-              ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Data Peminjaman',
-                          style: AppTextStyles.headlineMd(
-                              color: AppColors.onSurface)),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Kelola Akun Pengguna',
-                        style: AppTextStyles.bodyMd(color: AppColors.slate600),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _AddAccountButton(
-                  onPressed: () async {
-                    final data = await UserFormScreen.show(context);
-                    if (data != null) {
-                      // TODO: kirim data akun baru ke backend
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _StatCard(
-                          label: 'Siswa Terdaftar',
-                          value: '${_stats.students}'),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _StatCard(
-                          label: 'Guru & Staf', value: '${_stats.teachers}'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _StatCard(
-                          label: 'Perlu Tinjauan', value: '${_stats.review}'),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _StatCard(
-                          label: 'Rerata Kepatuhan',
-                          value: _stats.compliance),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                _SearchField(onChanged: (v) => setState(() => _query = v)),
-                const SizedBox(height: 16),
-                _buildFilterChips(),
-                const SizedBox(height: 16),
-                if (users.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 48),
-                    child: Center(
-                      child: Text(
-                        'Tidak ada data pengguna',
-                        style: AppTextStyles.bodyMd(color: AppColors.slate500),
-                      ),
-                    ),
-                  ),
-                for (final u in users) ...[
-                  _UserCard(
-                    user: u,
-                    onManage: () async {
-                      final data = await UserFormScreen.show(
-                        context,
-                        initial: u.toFormData(),
-                      );
-                      if (data != null) {
-                        // TODO: kirim perubahan akun ke backend
-                      }
-                    },
-                    onUnsuspend: () {
-                      showDialog(
-                        context: context,
-                        barrierColor: Colors.black54,
-                        builder: (_) => ConfirmDialog(
-                          icon: Symbols.lock_open,
-                          title: 'Buka Suspend Akun?',
-                          message: 'Akses peminjaman sarpras untuk akun '
-                              'siswa ini akan diaktifkan kembali secara '
-                              'normal dan status sanksi keterlambatan akan '
-                              'direset.',
-                          confirmText: 'Buka Akses',
-                          confirmIcon: Symbols.key,
-                          onConfirm: () {
-                            // TODO: panggil backend untuk buka suspend + reset sanksi
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                const SizedBox(height: 4),
-                _Pagination(
-                  page: _page,
-                  totalPages: 3,
-                  onChanged: (p) => setState(() => _page = p),
+                Text('Data Peminjaman',
+                    style: AppTextStyles.headlineMd(
+                        color: AppColors.onSurface)),
+                const SizedBox(height: 2),
+                Text(
+                  'Kelola Akun Pengguna',
+                  style: AppTextStyles.bodyMd(color: AppColors.slate600),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          _AddAccountButton(
+            onPressed: () async {
+              final data = await UserFormScreen.show(context);
+              if (data != null) {
+                // TODO: kirim data akun baru ke backend
+              }
+            },
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _StatCard(
+                    label: 'Siswa Terdaftar',
+                    value: '${_stats.students}'),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatCard(
+                    label: 'Guru & Staf', value: '${_stats.teachers}'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _StatCard(
+                    label: 'Perlu Tinjauan', value: '${_stats.review}'),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatCard(
+                    label: 'Rerata Kepatuhan',
+                    value: _stats.compliance),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _SearchField(onChanged: (v) => setState(() => _query = v)),
+          const SizedBox(height: 16),
+          _buildFilterChips(),
+          const SizedBox(height: 16),
+          if (users.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 48),
+              child: Center(
+                child: Text(
+                  'Tidak ada data pengguna',
+                  style: AppTextStyles.bodyMd(color: AppColors.slate500),
+                ),
+              ),
+            ),
+          for (final u in users) ...[
+            _UserCard(
+              user: u,
+              onManage: () async {
+                final data = await UserFormScreen.show(
+                  context,
+                  initial: u.toFormData(),
+                );
+                if (data != null) {
+                  // TODO: kirim perubahan akun ke backend
+                }
+              },
+              onUnsuspend: () {
+                showDialog(
+                  context: context,
+                  barrierColor: Colors.black54,
+                  builder: (_) => ConfirmDialog(
+                    icon: Symbols.lock_open,
+                    title: 'Buka Suspend Akun?',
+                    message: 'Akses peminjaman sarpras untuk akun '
+                        'siswa ini akan diaktifkan kembali secara '
+                        'normal dan status sanksi keterlambatan akan '
+                        'direset.',
+                    confirmText: 'Buka Akses',
+                    confirmIcon: Symbols.key,
+                    onConfirm: () {
+                      // TODO: panggil backend untuk buka suspend + reset sanksi
+                    },
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            ],
+          const SizedBox(height: 4),
+          _Pagination(
+            page: _page,
+            totalPages: 3,
+            onChanged: (p) => setState(() => _page = p),
+          ),
         ],
-      ),
-      bottomNavigationBar: AppBottomNav(
-        items: AppBottomNav.dashboardItems,
-        currentIndex: 3, // Kelola
-        onTap: (_) {},
       ),
     );
   }
@@ -340,80 +326,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Top bar
-// ---------------------------------------------------------------------------
-class _TopBar extends StatelessWidget {
-  const _TopBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        boxShadow: AppShadows.sm,
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.school, color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'LAPAK8',
-                      style: AppTextStyles.headlineSm(color: AppColors.primary)
-                          .copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    Text(
-                      'SMKN 8 MALANG',
-                      style: AppTextStyles.labelSm(
-                        weight: FontWeight.w600,
-                        color: AppColors.slate500,
-                      ).copyWith(fontSize: 10),
-                    ),
-                  ],
-                ),
-              ),
-              // Ketuk avatar -> buka halaman Pengaturan Profil admin
-              GestureDetector(
-                onTap: () => context.push('/admin/profile'),
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border:
-                        Border.all(color: AppColors.primaryFixed, width: 2),
-                  ),
-                  child: const CircleAvatar(
-                    radius: 16,
-                    backgroundColor: AppColors.primaryFixed,
-                    child: Icon(Icons.person,
-                        size: 20, color: AppColors.primary),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

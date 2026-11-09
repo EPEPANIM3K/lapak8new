@@ -8,7 +8,6 @@ import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/admin/screens/facility_form_screen.dart';
-import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 // Simpan di: lib/features/admin/screens/manage_facilities_screen.dart
@@ -194,11 +193,7 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLow,
-      body: Column(
-        children: [
-          const _TopBar(),
-          Expanded(
-            child: CustomScrollView(
+      body: CustomScrollView(
               slivers: [
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(
@@ -308,17 +303,9 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: AppBottomNav(
-        items: AppBottomNav.dashboardItems,
-        currentIndex: 2, // Item
-        onTap: (_) {},
-      ),
-    );
+               ],
+             ),
+     );
   }
 
   Widget _buildFilters() {
@@ -365,75 +352,6 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Top bar
-// ---------------------------------------------------------------------------
-class _TopBar extends StatelessWidget {
-  const _TopBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        boxShadow: AppShadows.sm,
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.school, color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'LAPAK8',
-                      style: AppTextStyles.headlineSm(color: AppColors.primary)
-                          .copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    Text(
-                      'SMKN 8 MALANG',
-                      style: AppTextStyles.labelSm(
-                        weight: FontWeight.w600,
-                        color: AppColors.slate500,
-                      ).copyWith(fontSize: 10),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.primaryFixed, width: 2),
-                ),
-                child: const CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AppColors.primaryFixed,
-                  child:
-                      Icon(Icons.person, size: 20, color: AppColors.primary),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
