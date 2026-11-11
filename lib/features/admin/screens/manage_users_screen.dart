@@ -68,11 +68,6 @@ class _User {
   }
 }
 
-// Warna yang belum ada di AppColors.
-const _greenBg = Color(0xFFD1FAE5);
-const _greenFg = Color(0xFF065F46);
-const _onlineDot = Color(0xFF34D399);
-
 class ManageUsersScreen extends StatefulWidget {
   const ManageUsersScreen({super.key});
 
@@ -440,13 +435,11 @@ class _Pill extends StatelessWidget {
     required this.label,
     required this.background,
     required this.foreground,
-    this.dot = false,
   });
 
   final String label;
   final Color background;
   final Color foreground;
-  final bool dot;
 
   @override
   Widget build(BuildContext context) {
@@ -456,24 +449,10 @@ class _Pill extends StatelessWidget {
         color: background,
         borderRadius: BorderRadius.circular(AppRadius.full),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (dot) ...[
-            Container(
-              width: 6,
-              height: 6,
-              decoration:
-                  BoxDecoration(color: foreground, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 6),
-          ],
-          Text(
-            label,
-            style: AppTextStyles.labelSm(
-                weight: FontWeight.w700, color: foreground),
-          ),
-        ],
+      child: Text(
+        label,
+        style: AppTextStyles.labelSm(
+            weight: FontWeight.w700, color: foreground),
       ),
     );
   }
@@ -508,8 +487,6 @@ class _UserCard extends StatelessWidget {
         children: [
           _buildHeader(),
           const SizedBox(height: 12),
-          _buildStatsBar(),
-          const SizedBox(height: 12),
           if (user.suspended)
             _ActionButton(
               label: 'Buka Suspend',
@@ -532,245 +509,72 @@ class _UserCard extends StatelessWidget {
   }
 
   Widget _buildAvatar() {
-    final showOnline = user.role == _Role.student && !user.suspended;
-    return SizedBox(
-      width: 52,
-      height: 52,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.primaryFixed,
-              shape: BoxShape.circle,
-              image: user.avatarUrl == null
-                  ? null
-                  : DecorationImage(
-                      image: NetworkImage(user.avatarUrl!),
-                      fit: BoxFit.cover,
-                    ),
-            ),
-            child: user.avatarUrl == null
-                ? Text(
-                    user.initials,
-                    style: AppTextStyles.headlineSm(color: AppColors.primary)
-                        .copyWith(fontSize: 16, fontWeight: FontWeight.w700),
-                  )
-                : null,
-          ),
-          if (showOnline)
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: Container(
-                width: 16,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: _onlineDot,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                      color: AppColors.surfaceContainerLowest, width: 2),
-                ),
+    return Container(
+      width: 48,
+      height: 48,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.primaryFixed,
+        shape: BoxShape.circle,
+        image: user.avatarUrl == null
+            ? null
+            : DecorationImage(
+                image: NetworkImage(user.avatarUrl!),
+                fit: BoxFit.cover,
               ),
-            ),
-        ],
       ),
+      child: user.avatarUrl == null
+          ? Text(
+              user.initials,
+              style: AppTextStyles.headlineSm(color: AppColors.primary)
+                  .copyWith(fontSize: 16, fontWeight: FontWeight.w700),
+            )
+          : null,
     );
   }
 
   Widget _buildHeader() {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _buildAvatar(),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 6,
-                runSpacing: 4,
-                children: [
-                  Text(
-                    user.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.headlineSm(color: AppColors.onSurface)
-                        .copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  if (user.className != null)
-                    _Pill(
-                      label: user.className!,
-                      background: AppColors.primaryFixed,
-                      foreground: AppColors.primary,
-                    ),
-                ],
+              Text(
+                user.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.headlineSm(color: AppColors.onSurface)
+                    .copyWith(fontWeight: FontWeight.w700),
               ),
-              if (user.subtitle != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  user.subtitle!,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodySm(
-                    weight: FontWeight.w500,
-                    color: AppColors.slate600,
-                  ),
+              if (user.className != null) ...[
+                const SizedBox(height: 4),
+                _Pill(
+                  label: user.className!,
+                  background: AppColors.primaryFixed,
+                  foreground: AppColors.primary,
                 ),
               ],
-              if (user.email != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  user.email!,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodySm(
-                    weight: FontWeight.w500,
-                    color: AppColors.slate600,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
                 user.idLabel,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.bodySm(
-                  weight: FontWeight.w700,
+                  weight: FontWeight.w500,
                   color: AppColors.slate600,
                 ),
               ),
-              if (user.warning != null) ...[
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    const Icon(Symbols.warning,
-                        size: 14, color: AppColors.error),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        user.warning!,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.bodySm(
-                          weight: FontWeight.w600,
-                          color: AppColors.error,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
             ],
           ),
-        ),
-        const SizedBox(width: 6),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (user.isTeacher) ...[
-              const _Pill(
-                label: 'Pengajar',
-                background: _greenBg,
-                foreground: _greenFg,
-              ),
-              const SizedBox(height: 4),
-            ],
-            if (user.suspended)
-              const _Pill(
-                label: 'Ditangguhkan',
-                background: AppColors.errorContainer,
-                foreground: AppColors.error,
-              )
-            else
-              _Pill(
-                label: 'Aktif',
-                background: AppColors.surfaceContainerLow,
-                foreground: AppColors.onSurface,
-                dot: true,
-              ),
-          ],
         ),
       ],
     );
   }
 
-  Widget _buildStatsBar() {
-    final loanLabel =
-        user.previousLoans ? '${user.loanCount}× Pinjam Sebelumnya' : '${user.loanCount}× Pinjam';
-
-    Widget? right;
-    if (user.suspended) {
-      right = Text(
-        'Akses Dibekukan',
-        style: AppTextStyles.labelSm(
-          weight: FontWeight.w700,
-          color: AppColors.error,
-        ),
-      );
-    } else if (user.onTimeText != null) {
-      right = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Symbols.verified_user, size: 16, color: _greenFg),
-          const SizedBox(width: 4),
-          Text(
-            user.onTimeText!,
-            style: AppTextStyles.labelSm(
-              weight: FontWeight.w700,
-              color: _greenFg,
-            ),
-          ),
-        ],
-      );
-    } else if (user.lateCount != null) {
-      right = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Symbols.schedule, size: 16, color: AppColors.slate600),
-          const SizedBox(width: 4),
-          Text(
-            '${user.lateCount}× Terlambat',
-            style: AppTextStyles.labelSm(
-              weight: FontWeight.w700,
-              color: AppColors.slate600,
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(AppRadius.base),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            user.previousLoans ? Symbols.history : Symbols.sync_alt,
-            size: 16,
-            color: user.previousLoans ? AppColors.slate600 : AppColors.primary,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              loanLabel,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.labelSm(
-                weight: FontWeight.w700,
-                color: AppColors.onSurface,
-              ),
-            ),
-          ),
-          if (right != null) right,
-        ],
-      ),
-    );
-  }
 }
 
 class _ActionButton extends StatelessWidget {

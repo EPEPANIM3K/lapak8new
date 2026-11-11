@@ -1,0 +1,15 @@
+{
+  "name": "lapak8-storage-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Object storage + metadata API for LAPAK8 return-inspection documentation (foto & video).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "selftest": "node test/selftest.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

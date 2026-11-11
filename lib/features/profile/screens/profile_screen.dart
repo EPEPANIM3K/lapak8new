@@ -1,5 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../widgets/profile_modals.dart';
+
+import 'package:lapak8new/core/constants/app_colors.dart';
+import 'package:lapak8new/core/constants/app_dimens.dart';
+import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/admin/models/return_documentation.dart';
+import 'package:lapak8new/features/admin/services/media_picker_service.dart';
+import 'package:lapak8new/features/admin/widgets/avatar_preview_dialog.dart';
+import 'package:lapak8new/features/admin/widgets/documentation_media_previews.dart';
+import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
+import 'package:lapak8new/features/dashboard/widgets/bantuan_pic_modal.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -11,6 +22,68 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   // State untuk Switch Notifikasi
   bool _isNotificationEnabled = true;
+
+  // Foto profil hasil pilihan lokal (frontend saja, belum tersimpan permanen).
+  final MediaPickerService _picker = MediaPickerService();
+  String _avatarPath = '';
+  List<int>? _avatarBytes;
+  bool get _hasAvatar => _avatarBytes != null || _avatarPath.isNotEmpty;
+
+  // ---- Ganti foto profil ----------------------------------------------------
+  Future<void> _changeAvatar() async {
+    final source = await showMediaSourceSheet(
+      context,
+      isPhoto: true,
+      title: 'Ganti Foto Profil',
+      subtitle: 'Pilih sumber foto profil Anda.',
+    );
+    if (source == null || !mounted) return;
+
+    final outcome =
+        await _picker.pickPhotos(source: source, remainingSlots: 1);
+    if (!mounted) return;
+
+    if (outcome.files.isEmpty) {
+      if (outcome.message != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text(outcome.message!),
+          ),
+        );
+      }
+      return;
+    }
+
+    await _showAvatarPreview(outcome.files.first);
+  }
+
+  Future<void> _showAvatarPreview(PendingDocumentationFile file) async {
+    final use = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => AvatarPreviewDialog(file: file),
+    );
+    if (use != true || !mounted) return;
+
+    setState(() {
+      _avatarPath = file.localPath;
+      _avatarBytes = file.bytes;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.primary,
+        content: const Text(
+          'Foto profil diperbarui.',
+          style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white),
+        ),
+      ),
+    );
+  }
 
   // ===== Palette Warna =====
   static const cSurface = Color(0xFFFAF8FF);
@@ -71,13 +144,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 SizedBox(
                   width: double.infinity, height: 48,
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context); // Tutup modal
-                      // TODO: Tambahkan logika logout di sini
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Berhasil keluar dari akun LAPAK8.'), behavior: SnackBarBehavior.floating),
-                      );
-                    },
+                     onPressed: () {
+                       Navigator.pop(context); // Tutup modal
+                       context.go('/login');
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         const SnackBar(content: Text('Berhasil keluar dari akun LAPAK8.'), behavior: SnackBarBehavior.floating),
+                       );
+                     },
                     icon: const Icon(Icons.logout, size: 18),
                     label: const Text('Ya, Keluar', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                     style: ElevatedButton.styleFrom(
@@ -106,32 +179,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ---- Top bar (sama dengan Pengaturan Profil Admin) ------------------------
+  Widget _buildTopBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        boxShadow: AppShadows.sm,
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 56,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: () => Navigator.maybePop(context),
+                  icon: const Icon(Icons.arrow_back, color: AppColors.onSurface),
+                ),
+              ),
+              Text(
+                'Pengaturan Profil',
+                style: AppTextStyles.headlineSm(color: AppColors.onSurface)
+                    .copyWith(fontWeight: FontWeight.w700, fontSize: 18),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: cSurface,
-      appBar: AppBar(
-        backgroundColor: cSurfaceLowest.withValues(alpha: 0.8),
-        elevation: 0.5,
-        leading: IconButton(
-          onPressed: () => Navigator.maybePop(context),
-          icon: const Icon(Icons.arrow_back, color: cOnSurface),
-        ),
-        title: const Text('Pengaturan Profil',
-          style: TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.w600, color: cOnSurface)),
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: cSurfaceContainer,
-              child: const Icon(Icons.person, size: 18, color: cPrimary), // Placeholder Foto
-            ),
-          ),
-        ],
-      ),
-      body: ListView(
+      body: Column(
+        children: [
+          _buildTopBar(),
+          Expanded(
+            child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         children: [
           // ================= PROFILE HEADER CARD =================
@@ -150,8 +239,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Container(
                       width: 96, height: 96,
+                      clipBehavior: Clip.antiAlias,
                       decoration: const BoxDecoration(color: cSurfaceContainerHigh, shape: BoxShape.circle),
-                      child: const Icon(Icons.person, size: 48, color: cPrimary), // Placeholder
+                      child: _hasAvatar
+                          ? LocalImagePreview(path: _avatarPath, bytes: _avatarBytes)
+                          : const Icon(Icons.person, size: 48, color: cPrimary), // Placeholder
                     ),
                     // Verified Badge
                     Positioned(
@@ -165,10 +257,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Edit Camera Button
                     Positioned(
                       top: -4, right: -4,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(color: cSurfaceLowest, shape: BoxShape.circle),
-                        child: const Icon(Icons.photo_camera, size: 18, color: cPrimary),
+                      child: GestureDetector(
+                        onTap: _changeAvatar,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(color: cSurfaceLowest, shape: BoxShape.circle),
+                          child: const Icon(Icons.photo_camera, size: 18, color: cPrimary),
+                        ),
                       ),
                     ),
                   ],
@@ -312,6 +407,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: 'Pusat Bantuan & PIC Sarpras',
                   subtitle: 'WhatsApp admin SMKN 8',
                   trailing: const Icon(Icons.chevron_right, color: cOutline),
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      barrierColor: Colors.black54,
+                      builder: (_) => const BantuanPicModal(),
+                    );
+                  },
                 ),
               ],
             ),
@@ -347,6 +449,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 32),
+        ],
+      ),
+          ),
         ],
       ),
     );

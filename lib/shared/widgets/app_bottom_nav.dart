@@ -54,7 +54,7 @@ class AppBottomNav extends StatelessWidget {
   /// Menu untuk pengelola sarpras (admin).
   static const dashboardItems = [
     AppBottomNavItem(icon: Symbols.home, label: 'Beranda', route: '/admin/dashboard'),
-    AppBottomNavItem(icon: Symbols.event_available, label: 'Pinjaman', route: '/admin/borrowings'),
+    AppBottomNavItem(icon: Symbols.swap_horiz, label: 'Aktivitas', route: '/admin/borrowings'),
     AppBottomNavItem(icon: Symbols.history, label: 'Riwayat', route: '/admin/history'),
     AppBottomNavItem(icon: Symbols.category, label: 'Item', route: '/admin/items'),
     AppBottomNavItem(icon: Symbols.tune, label: 'Kelola', route: '/admin/manage'),

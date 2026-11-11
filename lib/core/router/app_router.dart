@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 import 'package:lapak8new/features/auth/screens/login_screen.dart';
+import 'package:lapak8new/features/auth/screens/welcome_screen.dart';
 import 'package:lapak8new/features/dashboard/screens/dashboard_screen.dart';
 import 'package:lapak8new/features/facilities/screens/facility_list_screen.dart';
 import 'package:lapak8new/features/borrowings/screens/my_borrowings_screen.dart';
@@ -13,10 +14,11 @@ import 'package:lapak8new/features/admin/screens/facility_form_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_profile_screen.dart';
 
 final GoRouter appRouter = GoRouter(
-  // Set login sebagai halaman awal
-  initialLocation: '/login',
+  // Set welcome sebagai halaman awal
+  initialLocation: '/welcome',
   routes: [
     // ---------- AUTH ----------
+    GoRoute(path: '/welcome', builder: (_, __) => const IntroScreen()),
     GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
 
     // ---------- USER ----------

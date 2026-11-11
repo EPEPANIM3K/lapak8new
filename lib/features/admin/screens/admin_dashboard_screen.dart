@@ -8,7 +8,11 @@ import 'package:lapak8new/features/dashboard/widgets/summary_card.dart';
 import 'package:lapak8new/shared/widgets/status_badge.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  const AdminDashboardScreen({super.key, this.onReviewTap});
+
+  /// Dipanggil saat tombol "Tinjau" ditekan (diteruskan dari AdminShell
+  /// agar langsung pindah ke halaman Aktivitas > tab Peminjaman).
+  final VoidCallback? onReviewTap;
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -97,7 +101,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const _SectionHeader(title: 'Peminjaman Terbaru', badge: '3'),
                 const SizedBox(height: 12),
                 for (final b in _borrowings) ...[
-                  _BorrowingCard(data: b),
+                  _BorrowingCard(
+                    data: b,
+                    onReviewTap: widget.onReviewTap,
+                  ),
                   const SizedBox(height: 12),
                 ],
                ],
@@ -569,7 +576,8 @@ class _Borrowing {
 
 class _BorrowingCard extends StatelessWidget {
   final _Borrowing data;
-  const _BorrowingCard({required this.data});
+  final VoidCallback? onReviewTap;
+  const _BorrowingCard({required this.data, this.onReviewTap});
 
   @override
   Widget build(BuildContext context) {
@@ -657,9 +665,7 @@ class _BorrowingCard extends StatelessWidget {
                 ),
                 if (data.showReview)
                   ElevatedButton(
-                    onPressed: () {
-                      // TODO: buka konfirmasi / detail pengajuan
-                    },
+                    onPressed: onReviewTap,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: AppColors.onPrimary,

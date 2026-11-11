@@ -21,12 +21,12 @@ class _AdminShellState extends State<AdminShell> {
   int _selectedIndex = 0;
 
   // Halaman admin yang sebenarnya, diurutkan sesuai dengan items di bawah.
-  final List<Widget> _pages = const [
-    AdminDashboardScreen(),      // 0
-    AdminBorrowingsScreen(),     // 1
-    AdminHistoryScreen(),        // 2
-    ManageFacilitiesScreen(),    // 3
-    ManageUsersScreen(),         // 4
+  late final List<Widget> _pages = [
+    AdminDashboardScreen(onReviewTap: _goToBorrowings), // 0
+    const AdminBorrowingsScreen(), // 1
+    const AdminHistoryScreen(), // 2
+    const ManageFacilitiesScreen(), // 3
+    const ManageUsersScreen(), // 4
   ];
 
   // Avatar URL untuk admin (bisa diganti dengan data dari provider nanti)
@@ -38,6 +38,12 @@ class _AdminShellState extends State<AdminShell> {
     if (index >= 0 && index < _pages.length) {
       setState(() => _selectedIndex = index);
     }
+  }
+
+  /// Dari tombol "Tinjau" di Dashboard → pindah ke halaman Aktivitas
+  /// (index 1 = AdminBorrowingsScreen, tab default Peminjaman).
+  void _goToBorrowings() {
+    _onNavTap(1);
   }
 
   @override

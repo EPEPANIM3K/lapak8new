@@ -368,7 +368,7 @@ class _AddButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: 52,
       child: ElevatedButton.icon(
         onPressed: onPressed,
         icon: const Icon(Symbols.add_circle, size: 22),

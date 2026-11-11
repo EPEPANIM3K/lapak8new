@@ -88,33 +88,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Header dengan ambient glow di belakang
+  /// Header logo & teks sambutan
   Widget _buildHeader() {
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.topCenter,
-      children: [
-        // Ambient glow background
-        Positioned(
-          top: -48,
-          child: Container(
-            width: 256,
-            height: 128,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppRadius.full),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.primaryFixed.fade(0.40),
-                  AppColors.surfaceContainerHigh.fade(0.20),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-        ),
-        Column(
+    return Column(
           children: [
             // Logo icon box
             Container(
@@ -146,8 +122,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   .copyWith(letterSpacing: -0.02 * 28),
             ),
           ],
-        ),
-      ],
     );
   }
 
