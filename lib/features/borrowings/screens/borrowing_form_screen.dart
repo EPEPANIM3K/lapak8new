@@ -161,16 +161,6 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
           onPressed: () => Navigator.maybePop(context),
           icon: const Icon(Icons.arrow_back, size: 24, color: cOnSurface),
         ),
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: cPrimary,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: const Icon(Icons.school, color: Colors.white, size: 18),
-        ),
-        const SizedBox(width: 8),
         const Expanded(
           child: Text(
             'Formulir Booking',
@@ -184,24 +174,6 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
               letterSpacing: -0.3,
             ),
           ),
-        ),
-        IconButton(
-          onPressed: () {},
-          icon: const Icon(
-            Icons.help_outline,
-            size: 22,
-            color: cOnSurfaceVariant,
-          ),
-        ),
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: cPrimaryFixed),
-            color: cSurfaceContainer,
-          ),
-          child: const Icon(Icons.person, size: 18, color: cSecondary),
         ),
       ],
     ),

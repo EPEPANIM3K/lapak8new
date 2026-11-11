@@ -6,6 +6,7 @@ import 'package:lapak8new/features/facilities/screens/facility_list_screen.dart'
 import 'package:lapak8new/features/borrowings/screens/my_borrowings_screen.dart';
 import 'package:lapak8new/features/borrowings/screens/borrowing_form_screen.dart';
 import 'package:lapak8new/features/history/screens/history_screen.dart';
+import 'package:lapak8new/features/notifications/screens/notifications_screen.dart';
 import 'package:lapak8new/features/profile/screens/profile_screen.dart';
 import 'package:lapak8new/features/qr/screens/qr_scanner_screen.dart';
 
@@ -31,6 +32,10 @@ final GoRouter appRouter = GoRouter(
 
     // ---------- UMUM ----------
     GoRoute(path: '/scan', builder: (_, __) => const QrScannerScreen()),
+    GoRoute(
+      path: '/notifications',
+      builder: (_, __) => const NotificationsScreen(),
+    ),
 
     // ---------- ADMIN ----------
     GoRoute(

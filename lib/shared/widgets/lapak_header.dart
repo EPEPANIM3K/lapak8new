@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -50,7 +51,8 @@ class LapakHeader extends StatelessWidget {
                     children: [
                       _NotificationButton(
                         showDot: hasUnreadNotification,
-                        onTap: onNotificationTap,
+                        onTap: onNotificationTap ??
+                            () => context.push('/notifications'),
                       ),
                       const SizedBox(width: AppSpacing.xs),
                       _Avatar(url: avatarUrl, onTap: onAvatarTap),

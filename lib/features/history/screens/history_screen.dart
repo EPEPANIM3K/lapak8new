@@ -295,7 +295,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         const SizedBox(height: 10),
         Row(children: [
           Expanded(child: SizedBox(height: 44, child: ElevatedButton.icon(
-            onPressed: () {},
+            onPressed: () => context.push('/borrowing-form'),
             icon: const Icon(Icons.cached, size: 18),
             label: Text(isRejected ? 'Ajukan Ulang / Pilih Item Lain' : 'Pinjam Lagi', style: const TextStyle(fontSize: 13)),
             style: ElevatedButton.styleFrom(
