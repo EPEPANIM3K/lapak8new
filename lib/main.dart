@@ -1,8 +1,18 @@
-
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/material.dart';
-import 'core/router/app_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
+import 'core/config/supabase_config.dart';
+import 'core/router/app_router.dart';
+import 'features/auth/providers/auth_provider.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
+  );
+  await authProvider.init(); // pulihkan sesi login yang tersimpan
   runApp(const Lapak8App());
 }
 
@@ -22,6 +32,7 @@ class Lapak8App extends StatelessWidget {
           seedColor: const Color(0xFF2563EB),
         ),
       ),
+      builder: (context, child) => AdaptiveToolbarHost(child: child!),
       routerConfig: appRouter,
     );
   }

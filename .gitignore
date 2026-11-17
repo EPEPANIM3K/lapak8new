@@ -43,3 +43,5 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+ios\Flutter\ephemeral\flutter_native_integration.env
+macos\Flutter\ephemeral\flutter_native_integration.env

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
+import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/lapak_header.dart';
 import '../../dashboard/widgets/qr_ticket_modal.dart';
 
@@ -50,18 +51,25 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
   void _cancelBooking() {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Batalkan Reservasi?'),
-        content: const Text('Apakah Anda yakin ingin membatalkan reservasi Lab Komputer & RPL 1?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tidak')),
-          FilledButton(
-            onPressed: () { Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Permohonan pembatalan sedang diproses ke petugas Sarpras.')),
-            ); },
-            child: const Text('Ya, Batalkan'),
-          ),
-        ],
+      barrierColor: Colors.black54,
+      builder: (_) => ConfirmDialog(
+        icon: Icons.event_busy,
+        title: 'Batalkan Reservasi?',
+        message:
+            'Apakah Anda yakin ingin membatalkan reservasi Lab Komputer & RPL 1?',
+        cancelText: 'Tidak',
+        confirmText: 'Ya, Batalkan',
+        confirmIcon: Icons.cancel_outlined,
+        confirmColor: AppColors.error,
+        iconColor: AppColors.error,
+        iconBackground: AppColors.errorContainer,
+        onConfirm: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content:
+                    Text('Permohonan pembatalan sedang diproses ke petugas Sarpras.')),
+          );
+        },
       ),
     );
   }

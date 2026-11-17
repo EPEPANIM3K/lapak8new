@@ -5,19 +5,20 @@ import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/dashboard/widgets/summary_card.dart';
-import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/status_badge.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  const AdminDashboardScreen({super.key, this.onReviewTap});
+
+  /// Dipanggil saat tombol "Tinjau" ditekan (diteruskan dari AdminShell
+  /// agar langsung pindah ke halaman Aktivitas > tab Peminjaman).
+  final VoidCallback? onReviewTap;
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  int _navIndex = 0;
-
   static const List<_Borrowing> _borrowings = [
     _Borrowing(
       initials: 'AP',
@@ -60,11 +61,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       // Desain memakai latar lavender (surfaceContainerLow), bukan background.
       backgroundColor: AppColors.surfaceContainerLow,
-      body: Column(
-        children: [
-          const _TopBar(),
-          Expanded(
-            child: ListView(
+      body: ListView(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.mobileGutter,
                 AppSpacing.md,
@@ -83,10 +80,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const _WelcomeCard(),
                 const SizedBox(height: 16),
                 _ScanButton(
-                  onPressed: () {
-                    onPressed:
-                    () => context.push('/scan');
-                  },
+                  onPressed: () => context.push('/scan'),
                 ),
                 const SizedBox(height: 24),
                 _SectionHeader(
@@ -107,23 +101,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const _SectionHeader(title: 'Peminjaman Terbaru', badge: '3'),
                 const SizedBox(height: 12),
                 for (final b in _borrowings) ...[
-                  _BorrowingCard(data: b),
+                  _BorrowingCard(
+                    data: b,
+                    onReviewTap: widget.onReviewTap,
+                  ),
                   const SizedBox(height: 12),
                 ],
-              ],
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: AppBottomNav(
-          items: AppBottomNav.dashboardItems,
-          currentIndex: _navIndex,
-          onTap: (i) => setState(() => _navIndex = i),
-        ),
-      ),
-    );
+               ],
+             ),
+           );
   }
 
   Widget _buildSummaryGrid() {
@@ -200,76 +186,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ],
         ),
       ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Top bar (logo + avatar)
-// ---------------------------------------------------------------------------
-class _TopBar extends StatelessWidget {
-  const _TopBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        boxShadow: AppShadows.sm,
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.school, color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'LAPAK8',
-                      style: AppTextStyles.headlineSm(
-                        color: AppColors.primary,
-                      ).copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    Text(
-                      'SMKN 8 MALANG',
-                      style: AppTextStyles.labelSm(
-                        weight: FontWeight.w600,
-                        color: AppColors.slate500,
-                      ).copyWith(fontSize: 10),
-                    ),
-                  ],
-                ),
-              ),
-              // Ganti child dengan foto profil: backgroundImage: AssetImage(...)
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.primaryFixed, width: 2),
-                ),
-                child: const CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AppColors.primaryFixed,
-                  child: Icon(Icons.person, size: 20, color: AppColors.primary),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -660,7 +576,8 @@ class _Borrowing {
 
 class _BorrowingCard extends StatelessWidget {
   final _Borrowing data;
-  const _BorrowingCard({required this.data});
+  final VoidCallback? onReviewTap;
+  const _BorrowingCard({required this.data, this.onReviewTap});
 
   @override
   Widget build(BuildContext context) {
@@ -748,9 +665,7 @@ class _BorrowingCard extends StatelessWidget {
                 ),
                 if (data.showReview)
                   ElevatedButton(
-                    onPressed: () {
-                      // TODO: buka konfirmasi / detail pengajuan
-                    },
+                    onPressed: onReviewTap,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: AppColors.onPrimary,

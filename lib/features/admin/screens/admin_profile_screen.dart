@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/admin/models/return_documentation.dart';
+import 'package:lapak8new/features/admin/services/media_picker_service.dart';
+import 'package:lapak8new/features/admin/widgets/admin_change_password_sheet.dart';
+import 'package:lapak8new/features/admin/widgets/avatar_preview_dialog.dart';
+import 'package:lapak8new/features/admin/widgets/documentation_media_previews.dart';
+import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
+import 'package:lapak8new/features/dashboard/widgets/bantuan_pic_modal.dart';
+import 'package:lapak8new/features/dashboard/widgets/dashboard_modals.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 // Simpan di: lib/features/admin/screens/admin_profile_screen.dart
@@ -30,11 +39,38 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   static const _name = 'Masadmin';
   static const _role = 'admin';
   static const _idNumber = '2122.10.408';
-  static const _email = 'masadmin@gmail.com';
   static const _unit = 'Admin Lab RPL';
-  static const String? _avatarUrl = null; // isi bila sudah ada foto profil
+
+  /// Email tersimpan (bisa diubah lewat mode edit Data Pribadi).
+  String _savedEmail = 'masadmin@gmail.com';
+
+  /// Foto profil hasil pilihan lokal (frontend saja, belum tersimpan permanen).
+  String _avatarPath = '';
+  List<int>? _avatarBytes;
+
+  late final MediaPickerService _picker = MediaPickerService();
+
+  // Mode edit Data Pribadi (hanya email yang dapat diubah).
+  bool _editingEmail = false;
+  late final TextEditingController _emailCtrl =
+      TextEditingController(text: _savedEmail);
+  bool _emailTouched = false;
 
   bool _notifOn = true;
+
+  static final RegExp _emailRegex =
+      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  bool get _emailChanged => _emailCtrl.text.trim() != _savedEmail;
+  bool get _emailValid => _emailRegex.hasMatch(_emailCtrl.text.trim());
+  bool get _canSaveEmail => _emailChanged && _emailValid;
+  bool get _hasAvatar => _avatarBytes != null || _avatarPath.isNotEmpty;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    super.dispose();
+  }
 
   void _logout() {
     showDialog(
@@ -49,10 +85,65 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         confirmColor: AppColors.error,
         iconColor: AppColors.error,
         iconBackground: AppColors.errorContainer,
-        onConfirm: () {
-          // TODO: hapus sesi / token, lalu arahkan ke halaman login
-          // contoh: context.go('/login');
-        },
+          onConfirm: () {
+            context.go('/login');
+          },
+      ),
+    );
+  }
+
+  // ---- Ganti foto profil ----------------------------------------------------
+  Future<void> _changeAvatar() async {
+    final source = await showMediaSourceSheet(
+      context,
+      isPhoto: true,
+      title: 'Ganti Foto Profil',
+      subtitle: 'Pilih sumber foto profil Anda.',
+    );
+    if (source == null || !mounted) return;
+
+    final outcome =
+        await _picker.pickPhotos(source: source, remainingSlots: 1);
+    if (!mounted) return;
+
+    if (outcome.files.isEmpty) {
+      if (outcome.message != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text(outcome.message!),
+          ),
+        );
+      }
+      return;
+    }
+
+    await _showAvatarPreview(outcome.files.first);
+  }
+
+  Future<void> _showAvatarPreview(PendingDocumentationFile file) async {
+    final use = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => AvatarPreviewDialog(file: file),
+    );
+    if (use != true || !mounted) return;
+
+    setState(() {
+      _avatarPath = file.localPath;
+      _avatarBytes = file.bytes;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.primary,
+        content: Text(
+          'Foto profil diperbarui.',
+          style: AppTextStyles.bodySm(
+            weight: FontWeight.w600,
+            color: AppColors.onPrimary,
+          ),
+        ),
       ),
     );
   }
@@ -140,31 +231,25 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                   width: 96,
                   height: 96,
                   margin: const EdgeInsets.only(top: 4, right: 4),
+                  clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     color: AppColors.primaryFixed,
                     shape: BoxShape.circle,
                     border: Border.all(
                         color: AppColors.surfaceContainerLow, width: 4),
-                    image: _avatarUrl == null
-                        ? null
-                        : DecorationImage(
-                            image: NetworkImage(_avatarUrl!),
-                            fit: BoxFit.cover,
-                          ),
                   ),
-                  child: _avatarUrl == null
-                      ? const Icon(Symbols.person,
-                          size: 44, color: AppColors.primary)
-                      : null,
+                  child: _hasAvatar
+                      ? LocalImagePreview(
+                          path: _avatarPath, bytes: _avatarBytes)
+                      : const Icon(Symbols.person,
+                          size: 44, color: AppColors.primary),
                 ),
                 // Tombol kamera (kanan atas)
                 Positioned(
                   right: -6,
                   top: -6,
                   child: GestureDetector(
-                    onTap: () {
-                      // TODO: ganti foto profil
-                    },
+                    onTap: _changeAvatar,
                     child: Container(
                       width: 32,
                       height: 32,
@@ -248,26 +333,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                       .copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
-              GestureDetector(
-                onTap: () {
-                  // TODO: buka form ubah data pribadi
-                },
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Symbols.edit,
-                        size: 16, color: AppColors.primary),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Ubah',
-                      style: AppTextStyles.labelMd(
-                        weight: FontWeight.w700,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildEditButton(),
             ],
           ),
           const SizedBox(height: 14),
@@ -278,13 +344,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             trailing: Icon(Symbols.lock, size: 20, color: AppColors.slate500),
           ),
           const SizedBox(height: 10),
-          const _InfoRow(
-            icon: Symbols.alternate_email,
-            label: 'Email Belajar',
-            value: _email,
-            trailing:
-                Icon(Symbols.check_circle, size: 22, color: _greenFg),
-          ),
+          _buildEmailRow(),
           const SizedBox(height: 10),
           const _InfoRow(
             icon: Symbols.school,
@@ -293,6 +353,98 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             trailing: Icon(Symbols.lock, size: 20, color: AppColors.slate500),
           ),
         ],
+      ),
+    );
+  }
+
+  // Tombol Ubah / Simpan Data Pribadi (satu mekanisme state).
+  Widget _buildEditButton() {
+    final editing = _editingEmail;
+    // Netral saat mode edit belum ada perubahan valid; biru saat siap simpan.
+    final color = editing
+        ? (_canSaveEmail ? AppColors.primary : AppColors.slate500)
+        : AppColors.primary;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        if (!editing) {
+          setState(() {
+            _editingEmail = true;
+            _emailTouched = false;
+            _emailCtrl.text = _savedEmail;
+          });
+          return;
+        }
+        if (_canSaveEmail) {
+          _saveEmail();
+        } else if (!_emailChanged) {
+          // Tidak ada perubahan -> keluar dari mode edit.
+          setState(() => _editingEmail = false);
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(editing ? Symbols.check : Symbols.edit,
+                size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(
+              editing ? 'Simpan' : 'Ubah',
+              style: AppTextStyles.labelMd(
+                weight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmailRow() {
+    if (!_editingEmail) {
+      return _InfoRow(
+        icon: Symbols.alternate_email,
+        label: 'Email Belajar',
+        value: _savedEmail,
+        trailing: const Icon(Symbols.check_circle, size: 22, color: _greenFg),
+      );
+    }
+    return _EditableEmailRow(
+      controller: _emailCtrl,
+      errorText: _emailErrorText,
+      onChanged: (_) => setState(() => _emailTouched = true),
+    );
+  }
+
+  String? get _emailErrorText {
+    if (!_emailTouched) return null;
+    if (_emailCtrl.text.trim().isEmpty) return 'Email wajib diisi.';
+    if (!_emailValid) return 'Format email tidak valid.';
+    return null;
+  }
+
+  void _saveEmail() {
+    if (!_canSaveEmail) return;
+    setState(() {
+      _savedEmail = _emailCtrl.text.trim();
+      _editingEmail = false;
+      _emailTouched = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.primary,
+        content: Text(
+          'Data pribadi berhasil disimpan.',
+          style: AppTextStyles.bodySm(
+            weight: FontWeight.w600,
+            color: AppColors.onPrimary,
+          ),
+        ),
       ),
     );
   }
@@ -316,7 +468,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             subtitle: 'Pembaruan rutin disarankan',
             trailing: const _Chevron(),
             onTap: () {
-              // TODO: buka halaman ubah kata sandi
+              showDialog(
+                context: context,
+                barrierColor: Colors.black54,
+                builder: (_) => const AdminChangePasswordSheet(),
+              );
             },
           ),
           _SettingRow(
@@ -332,7 +488,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             subtitle: 'Panduan pemakaian fasilitas',
             trailing: const _Chevron(),
             onTap: () {
-              // TODO: buka syarat & ketentuan
+              showDialog(
+                context: context,
+                barrierColor: Colors.black54,
+                builder: (_) => const PeraturanModal(),
+              );
             },
           ),
           _SettingRow(
@@ -341,7 +501,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             subtitle: 'WhatsApp admin SMKN 8',
             trailing: const _Chevron(),
             onTap: () {
-              // TODO: buka WhatsApp admin
+              showDialog(
+                context: context,
+                barrierColor: Colors.black54,
+                builder: (_) => const BantuanPicModal(),
+              );
             },
           ),
         ],
@@ -575,3 +739,82 @@ class _Chevron extends StatelessWidget {
   Widget build(BuildContext context) =>
       const Icon(Symbols.chevron_right, size: 24, color: AppColors.slate600);
 }
+
+class _EditableEmailRow extends StatelessWidget {
+  const _EditableEmailRow({
+    required this.controller,
+    required this.onChanged,
+    this.errorText,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final String? errorText;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasError = errorText != null;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 14, 10),
+      decoration: BoxDecoration(
+        color: _fieldBg,
+        borderRadius: BorderRadius.circular(AppRadius.base),
+        border: Border.all(
+          color: hasError ? AppColors.error : AppColors.primary,
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _IconCircle(icon: Symbols.alternate_email),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Email Belajar',
+                  style: AppTextStyles.labelSm(
+                    weight: FontWeight.w600,
+                    color: AppColors.slate600,
+                  ),
+                ),
+                TextField(
+                  controller: controller,
+                  onChanged: onChanged,
+                  keyboardType: TextInputType.emailAddress,
+                  style: AppTextStyles.bodyMd(
+                    weight: FontWeight.w600,
+                    color: AppColors.onSurface,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    hintText: 'nama@email.com',
+                    hintStyle: AppTextStyles.bodyMd(
+                        color: AppColors.outlineVariant),
+                  ),
+                ),
+                if (hasError) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    errorText!,
+                    style: AppTextStyles.bodySm(
+                      weight: FontWeight.w600,
+                      color: AppColors.error,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(Symbols.check_circle, size: 22, color: _greenFg),
+        ],
+      ),
+    );
+  }
+}
+
