@@ -30,8 +30,7 @@ class _User {
     this.warning,
     this.previousLoans = false,
     this.phone,
-    this.avatarUrl,
-  });
+  }) : avatarUrl = null;
 
   final String name;
   final _Role role;

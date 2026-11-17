@@ -221,7 +221,7 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
                       const _FieldLabel('Lokasi Penyimpanan / Peminjaman',
                           required: true),
                       DropdownButtonFormField<String>(
-                        value: _location,
+                        initialValue: _location,
                         isExpanded: true,
                         icon: const Icon(Symbols.keyboard_arrow_down,
                             color: AppColors.slate600),

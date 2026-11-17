@@ -29,8 +29,7 @@ class _Loan {
     this.highlightColor,
     this.trailingDetail,
     this.note,
-    this.avatarUrl,
-  });
+  }) : avatarUrl = null;
 
   final String code;
   final String name;
