@@ -16,7 +16,7 @@ import 'package:lapak8new/features/admin/screens/admin_profile_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   // Sementara buka admin dulu saat development.
-  // Balikin ke '/' kalau mau buka user.
+  // Balikin ke '/' kalau mau buka user, /user/dashboard
   initialLocation: '/admin/dashboard',
   routes: [
     // ---------- USER ----------
