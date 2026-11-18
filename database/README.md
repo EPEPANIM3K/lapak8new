@@ -1,9 +1,10 @@
 # Skema database LAPAK8
 
-Skema ini ditujukan untuk **Supabase PostgreSQL** dan berada di `schema.sql`.
-Jalankan isinya pada SQL Editor proyek Supabase. Tabel kredensial tidak dibuat
-sendiri: Supabase Auth menyimpan akun di `auth.users`; trigger membuat baris
-profil aplikasi pada `public.profiles` saat akun baru dibuat.
+Skema ini ditujukan untuk **Supabase PostgreSQL**. Untuk instalasi baru,
+jalankan `schema.sql` pada SQL Editor proyek Supabase. Jika skema utama sudah
+terpasang, jalankan `admin_users_migration.sql` untuk menambahkan dukungan
+pengelolaan akun admin. Kredensial tetap disimpan Supabase Auth (`auth.users`);
+profil aplikasi berada di `public.profiles`.
 
 ## Temuan struktur project
 
@@ -11,9 +12,9 @@ profil aplikasi pada `public.profiles` saat akun baru dibuat.
 - `lib/features` mengelompokkan layar berdasarkan auth, dashboard, fasilitas,
   peminjaman, QR, riwayat, chat, profil, aturan, dan admin.
 - `lib/shared/widgets` berisi komponen UI yang dipakai lintas fitur.
-- Data inventaris, peminjaman, pengguna, status, dan riwayat yang terlihat saat
-  ini berasal dari data contoh/UI. Model dan service auth, fasilitas,
-  peminjaman, serta chat masih kosong; belum ada integrasi database.
+- Data inventaris, peminjaman, dan riwayat belum seluruhnya terhubung ke
+  backend. Login dan pengelolaan akun memakai Supabase Auth dan
+  `public.profiles`.
 - Rute aktif diarahkan ke dashboard admin untuk pengembangan. File ini hanya
   menyiapkan struktur database dan belum menghubungkan Flutter ke Supabase.
 
@@ -51,6 +52,28 @@ chat_threads 1--* chat_messages
 - Role baru otomatis `student`. Pemberian role `staff`/`admin` harus dilakukan
   dari proses tepercaya (misalnya Supabase Edge Function), bukan dari aplikasi
   klien.
+- Pengelolaan akun memanggil Edge Function `manage-users` untuk membuat akun
+  Auth serta mengubah email/password. Deploy dari direktori
+  `supabase/functions/manage-users`; function memakai environment standar
+  Supabase. Jika perlu mengatur secret secara manual, lakukan lewat CLI dan
+  jangan pernah memasukkan `SUPABASE_SERVICE_ROLE_KEY` ke aplikasi Flutter.
+- Perubahan profil/status dilakukan lewat RPC
+  `admin_update_managed_profile`. RPC membatasi pemanggil ke staf/admin dan
+  tidak mengizinkan halaman pengguna mengubah akun ber-role `admin`.
+- Untuk memberi akses admin pertama, buat/login akun melalui Supabase Auth,
+  lalu jalankan di SQL Editor dengan email yang benar:
+
+  ```sql
+  update public.profiles
+  set role = 'admin'
+  where email = 'admin@sekolah.sch.id';
+  ```
+
+- Setelah Supabase CLI terhubung ke proyek, deploy function dengan
+  `supabase functions deploy manage-users`. Environment standar Supabase Edge
+  Functions (`SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY`) harus tersedia; jangan salin service-role key
+  ke Flutter atau Git.
 - RLS aktif. Profil hanya dapat dibaca pemiliknya atau staf/admin; perubahan
   data profil dan transisi status peminjaman sebaiknya dilakukan lewat operasi
   server yang tervalidasi. Kebijakan RLS bukan pengganti validasi bisnis.

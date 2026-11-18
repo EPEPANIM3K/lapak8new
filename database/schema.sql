@@ -6,6 +6,7 @@ begin;
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   full_name text not null,
+  email text,
   phone text,
   identity_number text unique,
   class_or_unit text,
@@ -16,6 +17,7 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table public.profiles add column if not exists email text;
 
 create table if not exists public.locations (
   id uuid primary key default gen_random_uuid(),
@@ -234,7 +236,14 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce(public.current_profile_role() in ('staff', 'admin'), false)
+  select coalesce(
+    (
+      select role in ('staff', 'admin') and is_active
+      from public.profiles
+      where id = auth.uid()
+    ),
+    false
+  )
 $$;
 
 revoke all on function public.current_profile_role() from public;
@@ -249,16 +258,29 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, full_name)
+  insert into public.profiles (id, full_name, email)
   values (
     new.id,
     coalesce(
       nullif(new.raw_user_meta_data ->> 'full_name', ''),
       nullif(split_part(coalesce(new.email, ''), '@', 1), ''),
       'Pengguna'
-    )
+    ),
+    new.email
   )
   on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+create or replace function public.sync_auth_user_email()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.profiles set email = new.email where id = new.id;
   return new;
 end;
 $$;
@@ -267,6 +289,17 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_auth_user();
+drop trigger if exists on_auth_user_email_updated on auth.users;
+create trigger on_auth_user_email_updated
+  after update of email on auth.users
+  for each row when (old.email is distinct from new.email)
+  execute function public.sync_auth_user_email();
+
+update public.profiles p
+set email = u.email
+from auth.users u
+where u.id = p.id
+  and p.email is distinct from u.email;
 
 alter table public.profiles enable row level security;
 alter table public.locations enable row level security;
@@ -286,6 +319,59 @@ drop policy if exists profiles_read_self_or_staff on public.profiles;
 create policy profiles_read_self_or_staff on public.profiles
   for select to authenticated
   using (id = auth.uid() or public.is_staff_or_admin());
+
+create or replace function public.admin_update_managed_profile(
+  p_profile_id uuid,
+  p_full_name text,
+  p_phone text,
+  p_identity_number text,
+  p_class_or_unit text,
+  p_role text,
+  p_is_active boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_staff_or_admin() then
+    raise exception 'Akses hanya untuk admin atau staf';
+  end if;
+  if p_role is not null and p_role not in ('student', 'teacher', 'staff') then
+    raise exception 'Peran akun tidak valid';
+  end if;
+  if p_full_name is not null and nullif(trim(p_full_name), '') is null then
+    raise exception 'Nama pengguna wajib diisi';
+  end if;
+
+  if p_full_name is null then
+    update public.profiles
+    set is_active = coalesce(p_is_active, is_active)
+    where id = p_profile_id and role <> 'admin';
+  else
+    update public.profiles
+    set full_name = p_full_name,
+        phone = p_phone,
+        identity_number = p_identity_number,
+        class_or_unit = p_class_or_unit,
+        role = coalesce(p_role, role),
+        is_active = coalesce(p_is_active, is_active)
+    where id = p_profile_id and role <> 'admin';
+  end if;
+
+  if not found then
+    raise exception 'Pengguna tidak ditemukan atau akun admin tidak dapat diubah dari halaman ini';
+  end if;
+end;
+$$;
+
+revoke all on function public.admin_update_managed_profile(
+  uuid, text, text, text, text, text, boolean
+) from public;
+grant execute on function public.admin_update_managed_profile(
+  uuid, text, text, text, text, text, boolean
+) to authenticated;
 
 drop policy if exists locations_read_authenticated on public.locations;
 create policy locations_read_authenticated on public.locations

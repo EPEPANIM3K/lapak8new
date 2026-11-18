@@ -16,8 +16,7 @@ class AppUser {
     required this.role,
   });
 
-  // admin dan petugas dianggap satu kelompok (admin)
-  bool get isAdmin => role == 'admin' || role == 'petugas';
+  bool get isAdmin => role == 'admin' || role == 'staff';
 }
 
 class AuthProvider extends ChangeNotifier {
@@ -86,9 +85,9 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> _loadProfile(String authId) async {
     final row = await _client
-        .from('users')
-        .select('name, email, id_number, role, is_active')
-        .eq('auth_id', authId)
+        .from('profiles')
+        .select('full_name, email, identity_number, role, is_active')
+        .eq('id', authId)
         .maybeSingle();
 
     if (row == null) {
@@ -102,9 +101,9 @@ class AuthProvider extends ChangeNotifier {
 
     _user = AppUser(
       authId: authId,
-      name: row['name'] as String,
+      name: row['full_name'] as String,
       email: row['email'] as String?,
-      idNumber: row['id_number'] as String,
+      idNumber: row['identity_number'] as String? ?? '',
       role: row['role'] as String,
     );
     notifyListeners(); // router otomatis pindah halaman

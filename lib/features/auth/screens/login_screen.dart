@@ -32,9 +32,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     if (identifier.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Silakan isi semua field')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Silakan isi semua field')));
       return;
     }
 
@@ -61,10 +61,12 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     // Set system UI style untuk Android
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -134,8 +136,9 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           'LAPAK8 - Selamat Datang Kembali!',
           textAlign: TextAlign.center,
-          style: AppTextStyles.headlineLg(color: AppColors.onSurface)
-              .copyWith(letterSpacing: -0.02 * 28),
+          style: AppTextStyles.headlineLg(
+            color: AppColors.onSurface,
+          ).copyWith(letterSpacing: -0.02 * 28),
         ),
       ],
     );
@@ -207,9 +210,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(width: AppSpacing.xs),
                       Text(
                         'Ingat Saya',
-                        style: AppTextStyles.bodySm(
-                          color: AppColors.secondary,
-                        ),
+                        style: AppTextStyles.bodySm(color: AppColors.secondary),
                       ),
                     ],
                   ),

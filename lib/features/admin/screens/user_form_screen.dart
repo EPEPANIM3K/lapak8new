@@ -23,6 +23,7 @@ class UserFormData {
     required this.email,
     required this.idNumber,
     required this.roleClass,
+    this.role = 'student',
     required this.active,
     this.phone = '',
     this.photo,
@@ -33,6 +34,7 @@ class UserFormData {
   final String email;
   final String idNumber; // NISN / NIP
   final String? roleClass; // kelas / unit
+  final String role;
   final bool active;
   final String phone; // no. telepon (dipakai di mode edit)
   final Uint8List? photo;
@@ -86,7 +88,14 @@ class _UserFormScreenState extends State<UserFormScreen> {
     'Staf Sarpras',
   ];
 
+  static const _accountRoles = <(String, String)>[
+    ('student', 'Siswa'),
+    ('teacher', 'Guru'),
+    ('staff', 'Staf'),
+  ];
+
   String? _roleClass;
+  String _accountRole = 'student';
   bool _active = true;
   bool _hidePass = true;
   Uint8List? _photo;
@@ -111,6 +120,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
       _idCtrl.text = i.idNumber;
       _phoneCtrl.text = i.phone;
       _roleClass = i.roleClass;
+      _accountRole = i.role;
       _active = i.active;
       _photo = i.photo;
     }
@@ -143,6 +153,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
       idNumber: _idCtrl.text.trim(),
       phone: _phoneCtrl.text.trim(),
       roleClass: _roleClass,
+      role: _accountRole,
       active: _active,
       photo: _photo,
     );
@@ -243,7 +254,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
                             : null,
                       ),
                       const SizedBox(height: 16),
-                      const _FieldLabel('Password', required: true),
+                      _FieldLabel('Password', required: !_isEdit),
                       _textField(
                         controller: _passCtrl,
                         hint: 'Masukkan Password',
@@ -305,6 +316,9 @@ class _UserFormScreenState extends State<UserFormScreen> {
                           },
                         ),
                       ],
+                      const SizedBox(height: 16),
+                      const _FieldLabel('Jenis Akun', required: true),
+                      _buildAccountRoleDropdown(),
                       const SizedBox(height: 16),
                       const _FieldLabel('Nomor Induk Siswa (NISN / NIP)'),
                       _textField(
@@ -506,6 +520,25 @@ class _UserFormScreenState extends State<UserFormScreen> {
           DropdownMenuItem(value: o, child: Text(o)),
       ],
       onChanged: (v) => setState(() => _roleClass = v),
+    );
+  }
+
+  Widget _buildAccountRoleDropdown() {
+    return DropdownButtonFormField<String>(
+      initialValue: _accountRole,
+      isExpanded: true,
+      icon: const Icon(Symbols.keyboard_arrow_down,
+          color: AppColors.slate600),
+      decoration: _decoration(hint: 'Pilih jenis akun', icon: Symbols.badge),
+      style: AppTextStyles.bodyMd(color: AppColors.onSurface),
+      borderRadius: BorderRadius.circular(16),
+      items: [
+        for (final (value, label) in _accountRoles)
+          DropdownMenuItem(value: value, child: Text(label)),
+      ],
+      onChanged: (value) {
+        if (value != null) setState(() => _accountRole = value);
+      },
     );
   }
 
