@@ -141,6 +141,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
               onTap: (i) => setState(() => _navIndex = i),
             ),
           ),
+          Positioned(
+            right: 16,
+            bottom: 100 + inset.bottom,
+            child: FloatingActionButton(
+              heroTag: 'lapak8-chat',
+              tooltip: 'Chat dengan AI LAPAK8',
+              onPressed: () => context.push('/chat'),
+              child: const Icon(Icons.chat_rounded),
+            ),
+          ),
         ],
       ),
     );

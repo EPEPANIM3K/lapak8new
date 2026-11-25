@@ -1,8 +1,12 @@
 
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/material.dart';
+import 'features/auth/providers/auth_provider.dart';
 import 'core/router/app_router.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await authProvider.restoreSession();
   runApp(const Lapak8App());
 }
 
@@ -22,6 +26,7 @@ class Lapak8App extends StatelessWidget {
           seedColor: const Color(0xFF2563EB),
         ),
       ),
+      builder: (context, child) => AdaptiveToolbarHost(child: child!),
       routerConfig: appRouter,
     );
   }
