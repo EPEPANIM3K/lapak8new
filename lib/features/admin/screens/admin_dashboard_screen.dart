@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 import 'package:lapak8new/features/dashboard/widgets/summary_card.dart';
+import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/status_badge.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -61,7 +63,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       // Desain memakai latar lavender (surfaceContainerLow), bukan background.
       backgroundColor: AppColors.surfaceContainerLow,
-      body: ListView(
+      bottomNavigationBar: const AdminBottomNav(currentIndex: 0),
+      body: Column(
+        children: [
+          _buildAdminHeader(context),
+          Expanded(
+            child: ListView(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.mobileGutter,
                 AppSpacing.md,
@@ -107,9 +114,108 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                   const SizedBox(height: 12),
                 ],
-               ],
-             ),
-           );
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminHeader(BuildContext context) {
+    final name = authProvider.user?.name.trim() ?? '';
+    final initials = name
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part[0].toUpperCase())
+        .join();
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        boxShadow: AppShadows.sm,
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 64,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.mobileGutter,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.school,
+                    size: 20,
+                    color: AppColors.onPrimary,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'LAPAK8',
+                        style: AppTextStyles.headlineSm(
+                          color: AppColors.primary,
+                        ).copyWith(letterSpacing: -0.45),
+                      ),
+                      Text(
+                        'SMK 8 MALANG',
+                        style: AppTextStyles.labelSm(
+                          weight: FontWeight.w500,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Semantics(
+                  button: true,
+                  label: 'Buka profil admin',
+                  child: InkWell(
+                    onTap: () => context.push('/admin/profile'),
+                    customBorder: const CircleBorder(),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryFixed,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.surfaceContainerLowest,
+                          width: 2,
+                        ),
+                      ),
+                      child: Text(
+                        initials.isEmpty ? 'A' : initials,
+                        style: AppTextStyles.labelMd(
+                          weight: FontWeight.w800,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildSummaryGrid() {

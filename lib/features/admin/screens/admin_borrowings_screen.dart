@@ -10,6 +10,7 @@ import 'package:lapak8new/features/admin/services/media_picker_service.dart';
 import 'package:lapak8new/features/borrowings/models/borrowing.dart';
 import 'package:lapak8new/features/borrowings/services/borrowing_service.dart';
 import 'package:lapak8new/features/admin/widgets/documentation_section.dart';
+import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 import 'package:lapak8new/shared/widgets/ms_icon.dart';
 
@@ -389,8 +390,18 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
         confirmColor: AppColors.primary,
         iconColor: AppColors.primary,
         iconBackground: AppColors.primaryFixed,
+<<<<<<< HEAD
         onConfirm: () =>
             _updateBorrowingStatus(l, 'approved', 'Peminjaman disetujui.'),
+=======
+        onConfirm: () {
+          if (!mounted) return;
+          // TODO: kirim aksi setujui ke backend, lalu refresh daftar.
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Peminjaman disetujui')));
+        },
+>>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
       ),
     );
   }
@@ -410,8 +421,18 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
         confirmColor: AppColors.error,
         iconColor: AppColors.error,
         iconBackground: AppColors.errorContainer,
+<<<<<<< HEAD
         onConfirm: () =>
             _updateBorrowingStatus(l, 'rejected', 'Peminjaman ditolak.'),
+=======
+        onConfirm: () {
+          if (!mounted) return;
+          // TODO: kirim aksi tolak ke backend, lalu refresh daftar.
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Peminjaman ditolak')));
+        },
+>>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
       ),
     );
   }
@@ -657,19 +678,25 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
             ],
         ],
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.mobileGutter,
-          AppSpacing.md,
-          AppSpacing.mobileGutter,
-          AppSpacing.md,
-        ),
-        child: _SummaryBar(
-          total: _activeTotal,
-          onExport: () {
-            // TODO: export rekap ke XLS (sesuai tab aktif).
-          },
-        ),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.mobileGutter,
+              AppSpacing.md,
+              AppSpacing.mobileGutter,
+              AppSpacing.md,
+            ),
+            child: _SummaryBar(
+              total: _activeTotal,
+              onExport: () {
+                // TODO: export rekap ke XLS (sesuai tab aktif).
+              },
+            ),
+          ),
+          const AdminBottomNav(currentIndex: 1),
+        ],
       ),
     );
   }

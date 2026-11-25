@@ -24,7 +24,7 @@ class AppBottomNavItem {
 }
 
 /// Navigasi bawah melayang: putih 90% + blur 40, radius 48, tinggi 72.
-/// Letakkan di `Positioned(bottom: 0, ...)` di dalam Stack.
+/// Dapat dipasang di `Positioned(bottom: 0, ...)` atau `Scaffold.bottomNavigationBar`.
 class AppBottomNav extends StatelessWidget {
   const AppBottomNav({
     super.key,
@@ -113,6 +113,19 @@ class AppBottomNav extends StatelessWidget {
       ),
     );
   }
+}
+
+class AdminBottomNav extends StatelessWidget {
+  const AdminBottomNav({super.key, required this.currentIndex});
+
+  final int currentIndex;
+
+  @override
+  Widget build(BuildContext context) => AppBottomNav(
+        items: AppBottomNav.dashboardItems,
+        currentIndex: currentIndex,
+        onTap: (_) {},
+      );
 }
 
 class _NavItem extends StatelessWidget {

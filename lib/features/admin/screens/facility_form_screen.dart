@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -37,6 +36,18 @@ class FacilityFormScreen extends StatefulWidget {
   const FacilityFormScreen({super.key, this.initial});
 
   final FacilityFormData? initial;
+
+  static Future<FacilityFormData?> show(
+    BuildContext context, {
+    FacilityFormData? initial,
+  }) {
+    return showDialog<FacilityFormData>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
+      builder: (_) => FacilityFormScreen(initial: initial),
+    );
+  }
 
   @override
   State<FacilityFormScreen> createState() => _FacilityFormScreenState();
@@ -143,7 +154,7 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
 
   void _submit() {
     if (!mounted) return;
-    context.pop(
+    Navigator.of(context).pop(
       FacilityFormData(
         name: _nameCtrl.text.trim(),
         category: _categoryCtrl.text.trim(),
@@ -160,9 +171,15 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
   // -------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.9;
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       backgroundColor: AppColors.surfaceContainerLowest,
-      body: SafeArea(
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 480, maxHeight: maxHeight),
         child: Column(
           children: [
             _buildHeader(context),
@@ -289,7 +306,7 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
-              onTap: () => context.pop(),
+              onTap: () => Navigator.of(context).pop(),
               child: const SizedBox(
                 width: 40,
                 height: 40,
@@ -317,7 +334,7 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
             child: SizedBox(
               height: 52,
               child: OutlinedButton(
-                onPressed: () => context.pop(),
+                onPressed: () => Navigator.of(context).pop(),
                 style: OutlinedButton.styleFrom(
                   shape: const StadiumBorder(),
                   side: const BorderSide(color: AppColors.slate500),

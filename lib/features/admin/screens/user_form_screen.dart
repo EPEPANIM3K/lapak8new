@@ -23,6 +23,7 @@ class UserFormData {
     required this.email,
     required this.idNumber,
     required this.roleClass,
+    this.role = 'student',
     required this.active,
     this.phone = '',
     this.photo,
@@ -33,6 +34,7 @@ class UserFormData {
   final String email;
   final String idNumber; // NISN / NIP
   final String? roleClass; // kelas / unit
+  final String role;
   final bool active;
   final String phone; // no. telepon (dipakai di mode edit)
   final Uint8List? photo;
@@ -47,7 +49,7 @@ class UserFormScreen extends StatefulWidget {
   /// Bila diisi, form berjalan dalam mode edit ("Kelola Akun ...").
   final UserFormData? initial;
 
-  /// Bila true, judul menjadi "Kelola Akun Admin".
+  /// Bila true, form ditampilkan dalam konteks menu administrator.
   final bool isAdmin;
 
   static Future<UserFormData?> show(
@@ -55,10 +57,11 @@ class UserFormScreen extends StatefulWidget {
     UserFormData? initial,
     bool isAdmin = false,
   }) {
-    return Navigator.of(context).push<UserFormData>(
-      MaterialPageRoute<UserFormData>(
-        builder: (_) => UserFormScreen(initial: initial, isAdmin: isAdmin),
-      ),
+    return showDialog<UserFormData>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
+      builder: (_) => UserFormScreen(initial: initial, isAdmin: isAdmin),
     );
   }
 
@@ -74,31 +77,43 @@ class _UserFormScreenState extends State<UserFormScreen> {
   final _idCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
 
-  // TODO: ganti dengan daftar kelas / unit dari backend.
-  static const _roleOptions = <String>[
-    'X RPL 1',
-    'XI RPL 1',
-    'XII RPL 1',
-    'X TKJ 3',
-    'XI MM 2',
-    'XII DKV 1',
-    'Guru Kejuruan',
-    'Staf Sarpras',
+  static const _roleClassOptions = <(String, String, String)>[
+    ('student', 'XI Multimedia (DKV)', 'Siswa - XI Multimedia (DKV)'),
+    ('student', 'X RPL 1', 'Siswa - X RPL 1'),
+    ('student', 'XI RPL 1', 'Siswa - XI RPL 1'),
+    ('student', 'XII RPL 1', 'Siswa - XII RPL 1'),
+    ('student', 'X TKJ 3', 'Siswa - X TKJ 3'),
+    ('student', 'XI MM 2', 'Siswa - XI MM 2'),
+    ('student', 'XII DKV 1', 'Siswa - XII DKV 1'),
+    ('teacher', 'Guru Kejuruan', 'Guru - Guru Kejuruan'),
+    ('staff', 'Staf Sarpras', 'Staf - Staf Sarpras'),
   ];
 
   String? _roleClass;
+  String _accountRole = 'student';
   bool _active = true;
   bool _hidePass = true;
   Uint8List? _photo;
 
   bool get _isEdit => widget.initial != null;
 
-  // Pastikan nilai awal selalu ada di daftar dropdown.
-  List<String> get _options => [
-        ..._roleOptions,
-        if (_roleClass != null && !_roleOptions.contains(_roleClass))
-          _roleClass!,
-      ];
+  List<(String, String, String)> get _roleClassChoices {
+    final options = [..._roleClassOptions];
+    if (_roleClass != null &&
+        !options.any((option) =>
+            option.$1 == _accountRole && option.$2 == _roleClass)) {
+      final label = switch (_accountRole) {
+        'teacher' => 'Guru',
+        'staff' => 'Staf',
+        _ => 'Siswa',
+      };
+      options.add((_accountRole, _roleClass!, '$label - $_roleClass'));
+    }
+    return options;
+  }
+
+  String _roleOptionValue(String role, String roleClass) =>
+      '$role::$roleClass';
 
   @override
   void initState() {
@@ -111,6 +126,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
       _idCtrl.text = i.idNumber;
       _phoneCtrl.text = i.phone;
       _roleClass = i.roleClass;
+      _accountRole = i.role;
       _active = i.active;
       _photo = i.photo;
     }
@@ -143,6 +159,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
       idNumber: _idCtrl.text.trim(),
       phone: _phoneCtrl.text.trim(),
       roleClass: _roleClass,
+      role: _accountRole,
       active: _active,
       photo: _photo,
     );
@@ -177,9 +194,15 @@ class _UserFormScreenState extends State<UserFormScreen> {
   // -------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.9;
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       backgroundColor: AppColors.surfaceContainerLowest,
-      body: SafeArea(
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 480, maxHeight: maxHeight),
         child: Column(
           children: [
             _buildHeader(),
@@ -201,37 +224,14 @@ class _UserFormScreenState extends State<UserFormScreen> {
                     children: [
                       const _FieldLabel('Foto Pengguna'),
                       _buildPhoto(),
-                      if (_photo != null) ...[
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: _removePhoto,
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.error,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10),
-                              minimumSize: const Size(0, 32),
-                            ),
-                            child: Text(
-                              'Hapus Foto',
-                              style: AppTextStyles.labelSm(
-                                weight: FontWeight.w700,
-                                color: AppColors.error,
-                              ),
-                            ),
-                          ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Format yang didukung: JPG, PNG (maks. 2MB)',
+                        style: AppTextStyles.labelSm(
+                          weight: FontWeight.w500,
+                          color: AppColors.slate600,
                         ),
-                      ] else ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          'Format yang didukung: JPG, PNG (maks. 2MB)',
-                          style: AppTextStyles.labelSm(
-                            weight: FontWeight.w500,
-                            color: AppColors.slate600,
-                          ),
-                        ),
-                      ],
+                      ),
                       const SizedBox(height: 16),
                       const _FieldLabel('Nama Lengkap', required: true),
                       _textField(
@@ -243,7 +243,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
                             : null,
                       ),
                       const SizedBox(height: 16),
-                      const _FieldLabel('Password', required: true),
+                      _FieldLabel('Password', required: !_isEdit),
                       _textField(
                         controller: _passCtrl,
                         hint: 'Masukkan Password',
@@ -287,35 +287,38 @@ class _UserFormScreenState extends State<UserFormScreen> {
                           return null;
                         },
                       ),
-                      if (_isEdit) ...[
-                        const SizedBox(height: 16),
-                        const _FieldLabel('No telepon', required: true),
-                        _textField(
-                          controller: _phoneCtrl,
-                          hint: 'Masukkan no telepon',
-                          icon: Symbols.call,
-                          keyboardType: TextInputType.phone,
-                          validator: (v) {
-                            final t = v?.trim() ?? '';
-                            if (t.isEmpty) return 'No telepon wajib diisi';
-                            if (t.replaceAll(RegExp(r'\D'), '').length < 8) {
-                              return 'No telepon tidak valid';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
                       const SizedBox(height: 16),
-                      const _FieldLabel('Nomor Induk Siswa (NISN / NIP)'),
+                      const _FieldLabel('No telepon', required: true),
+                      _textField(
+                        controller: _phoneCtrl,
+                        hint: 'Masukkan no telepon',
+                        icon: Symbols.call,
+                        keyboardType: TextInputType.phone,
+                        validator: (v) {
+                          final t = v?.trim() ?? '';
+                          if (t.isEmpty) return 'No telepon wajib diisi';
+                          if (t.replaceAll(RegExp(r'\D'), '').length < 8) {
+                            return 'No telepon tidak valid';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      const _FieldLabel('Nomor Induk Siswa (NISN / NIP)',
+                          required: true),
                       _textField(
                         controller: _idCtrl,
                         hint: 'Masukkan NISN / NIP',
                         icon: Symbols.badge,
                         keyboardType: TextInputType.number,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Nomor induk wajib diisi'
+                            : null,
                       ),
                       const SizedBox(height: 16),
-                      const _FieldLabel('Peran & Kelas / Unit'),
-                      _buildRoleDropdown(),
+                      const _FieldLabel('Peran & Kelas / Unit',
+                          required: true),
+                      _buildRoleClassDropdown(),
                       const SizedBox(height: 16),
                       const _FieldLabel('Status Akun'),
                       _buildStatusToggle(),
@@ -343,7 +346,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
               children: [
                 Text(
                   widget.isAdmin
-                      ? 'Kelola Akun Admin'
+                      ? (_isEdit ? 'Kelola Akun Admin' : 'Tambah Akun Pengguna')
                       : (_isEdit
                           ? 'Kelola Akun Pengguna'
                           : 'Tambah Akun Pengguna'),
@@ -385,58 +388,74 @@ class _UserFormScreenState extends State<UserFormScreen> {
 
   // ---- Foto pengguna ------------------------------------------------------
   Widget _buildPhoto() {
-    if (_photo == null) {
-      return CustomPaint(
-        painter: _DashedRRectPainter(color: AppColors.primary.fade(0.35)),
-        child: Container(
-          width: double.infinity,
-          height: 160,
-          decoration: BoxDecoration(
-            color: AppColors.primaryFixed.fade(0.3),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: const BoxDecoration(
-                  color: AppColors.surfaceContainerLowest,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Symbols.add_a_photo,
-                    color: AppColors.primary, size: 24),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Unggah foto pengguna',
-                style: AppTextStyles.bodySm(
-                  weight: FontWeight.w600,
-                  color: AppColors.onSurface,
-                ),
-              ),
-              const SizedBox(height: 10),
-              _PhotoButton(label: 'Pilih Foto', onTap: _pickPhoto),
-            ],
-          ),
+    return CustomPaint(
+      painter: _DashedRRectPainter(color: AppColors.primary.fade(0.35)),
+      child: Container(
+        height: 100,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppColors.primaryFixed.fade(0.3),
+          borderRadius: BorderRadius.circular(20),
         ),
-      );
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: SizedBox(
-        width: double.infinity,
-        height: 160,
-        child: Stack(
-          fit: StackFit.expand,
+        child: Row(
           children: [
-            Image.memory(_photo!, fit: BoxFit.cover),
-            Positioned(
-              right: 12,
-              bottom: 12,
-              child: _PhotoButton(label: 'Ganti Foto', onTap: _pickPhoto),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: SizedBox(
+                width: 76,
+                height: 76,
+                child: _photo == null
+                    ? const ColoredBox(
+                        color: AppColors.surfaceContainerLowest,
+                        child: Icon(Symbols.person,
+                            color: AppColors.primary, size: 36),
+                      )
+                    : Image.memory(_photo!, fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Unggah foto pengguna',
+                    style: AppTextStyles.bodySm(
+                      weight: FontWeight.w600,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      _PhotoButton(
+                        label: _photo == null ? 'Pilih Foto' : 'Ganti Foto',
+                        onTap: _pickPhoto,
+                      ),
+                      if (_photo != null)
+                        TextButton(
+                          onPressed: _removePhoto,
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.error,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: const Size(0, 32),
+                          ),
+                          child: Text(
+                            'Hapus',
+                            style: AppTextStyles.labelSm(
+                              weight: FontWeight.w700,
+                              color: AppColors.error,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -492,20 +511,38 @@ class _UserFormScreenState extends State<UserFormScreen> {
     );
   }
 
-  Widget _buildRoleDropdown() {
+  Widget _buildRoleClassDropdown() {
+    final choices = _roleClassChoices;
+    final value = _roleClass == null
+        ? null
+        : _roleOptionValue(_accountRole, _roleClass!);
     return DropdownButtonFormField<String>(
-      initialValue: _roleClass,
+      initialValue: value,
       isExpanded: true,
       icon: const Icon(Symbols.keyboard_arrow_down,
           color: AppColors.slate600),
-      decoration: _decoration(hint: 'Pilih kelas / unit', icon: Symbols.school),
+      decoration:
+          _decoration(hint: 'Pilih peran dan kelas / unit', icon: Symbols.school),
       style: AppTextStyles.bodyMd(color: AppColors.onSurface),
       borderRadius: BorderRadius.circular(16),
       items: [
-        for (final o in _options)
-          DropdownMenuItem(value: o, child: Text(o)),
+        for (final option in choices)
+          DropdownMenuItem(
+            value: _roleOptionValue(option.$1, option.$2),
+            child: Text(option.$3, overflow: TextOverflow.ellipsis),
+          ),
       ],
-      onChanged: (v) => setState(() => _roleClass = v),
+      validator: (v) => v == null ? 'Peran dan kelas / unit wajib dipilih' : null,
+      onChanged: (value) {
+        if (value == null) return;
+        final selected = choices.firstWhere(
+          (option) => _roleOptionValue(option.$1, option.$2) == value,
+        );
+        setState(() {
+          _accountRole = selected.$1;
+          _roleClass = selected.$2;
+        });
+      },
     );
   }
 

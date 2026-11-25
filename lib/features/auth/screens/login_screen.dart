@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
+<<<<<<< HEAD
 import '../../../core/network/lapak8_api_client.dart';
+=======
+>>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -20,7 +22,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = false;
+<<<<<<< HEAD
   bool _isSubmitting = false;
+=======
+  bool _loading = false;
+>>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
 
   @override
   void dispose() {
@@ -34,12 +40,20 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text;
 
     if (identifier.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Silakan isi semua field')));
+      return;
+    }
+
+    if (!identifier.contains('@')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Silakan isi semua field')),
+        const SnackBar(content: Text('Untuk sementara, masuk memakai email')),
       );
       return;
     }
 
+<<<<<<< HEAD
     setState(() => _isSubmitting = true);
     try {
       final user = await authProvider.signIn(
@@ -57,15 +71,30 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+=======
+    setState(() => _loading = true);
+    final ok = await authProvider.signIn(identifier, password);
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(authProvider.error ?? 'Login gagal')),
+      );
+    }
+    // Kalau berhasil tidak perlu context.go(): router otomatis pindah.
+>>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
   }
 
   @override
   Widget build(BuildContext context) {
     // Set system UI style untuk Android
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -108,37 +137,38 @@ class _LoginScreenState extends State<LoginScreen> {
   /// Header logo & teks sambutan
   Widget _buildHeader() {
     return Column(
-          children: [
-            // Logo icon box
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(AppRadius.base),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x0A000000),
-                    blurRadius: 6,
-                    offset: Offset(0, 2),
-                  ),
-                ],
+      children: [
+        // Logo icon box
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(AppRadius.base),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0A000000),
+                blurRadius: 6,
+                offset: Offset(0, 2),
               ),
-              child: const Icon(
-                Icons.school_outlined,
-                size: 32,
-                color: AppColors.primary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            // Welcome text
-            Text(
-              'LAPAK8 - Selamat Datang Kembali!',
-              textAlign: TextAlign.center,
-              style: AppTextStyles.headlineLg(color: AppColors.onSurface)
-                  .copyWith(letterSpacing: -0.02 * 28),
-            ),
-          ],
+            ],
+          ),
+          child: const Icon(
+            Icons.school_outlined,
+            size: 32,
+            color: AppColors.primary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        // Welcome text
+        Text(
+          'LAPAK8 - Selamat Datang Kembali!',
+          textAlign: TextAlign.center,
+          style: AppTextStyles.headlineLg(
+            color: AppColors.onSurface,
+          ).copyWith(letterSpacing: -0.02 * 28),
+        ),
+      ],
     );
   }
 
@@ -167,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: _identifierController,
             icon: Icons.badge_outlined,
             placeholder: 'Contoh: 20241088 atau nama@sekolah.sch.id',
-            keyboardType: TextInputType.text,
+            keyboardType: TextInputType.emailAddress,
           ),
           const SizedBox(height: AppSpacing.md),
 
@@ -208,9 +238,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(width: AppSpacing.xs),
                       Text(
                         'Ingat Saya',
-                        style: AppTextStyles.bodySm(
-                          color: AppColors.secondary,
-                        ),
+                        style: AppTextStyles.bodySm(color: AppColors.secondary),
                       ),
                     ],
                   ),
@@ -241,7 +269,11 @@ class _LoginScreenState extends State<LoginScreen> {
           SizedBox(
             height: AppSpacing.touchTargetMin,
             child: ElevatedButton(
+<<<<<<< HEAD
               onPressed: _isSubmitting ? null : _onLogin,
+=======
+              onPressed: _loading ? null : _onLogin,
+>>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.onPrimary,
@@ -252,13 +284,22 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 padding: EdgeInsets.zero,
               ),
+<<<<<<< HEAD
               child: _isSubmitting
+=======
+              child: _loading
+>>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
                   ? const SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(
+<<<<<<< HEAD
                         strokeWidth: 2,
                         color: AppColors.onPrimary,
+=======
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+>>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
                       ),
                     )
                   : Row(
@@ -350,6 +391,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: TextField(
               controller: _passwordController,
               obscureText: _obscurePassword,
+              onSubmitted: (_) => _loading ? null : _onLogin(),
               style: AppTextStyles.bodyMd(color: AppColors.onSurface),
               decoration: InputDecoration(
                 isDense: true,

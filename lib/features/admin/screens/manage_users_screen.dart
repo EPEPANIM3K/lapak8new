@@ -1,34 +1,26 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
-import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 import 'package:lapak8new/features/admin/screens/user_form_screen.dart';
-
-// Simpan di: lib/features/admin/screens/manage_users_screen.dart
-
-enum _Role { student, teacher }
+import 'package:lapak8new/features/admin/services/user_repository.dart';
+import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
+import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 enum _UserFilter { all, student, teacher, suspended }
 
+<<<<<<< HEAD
 class _User {
   const _User({
     required this.name,
     required this.role,
     required this.idLabel,
     required this.loanCount,
-    this.className,
-    this.email,
-    this.subtitle,
-    this.suspended = false,
-    this.onTimeText,
-    this.lateCount,
-    this.warning,
-    this.previousLoans = false,
-    this.phone,
-  }) : avatarUrl = null;
+  }) : className = null, email = null, subtitle = null, suspended = false, onTimeText = null, lateCount = null, warning = null, previousLoans = false, phone = null, avatarUrl = null;
 
   final String name;
   final _Role role;
@@ -67,6 +59,8 @@ class _User {
   }
 }
 
+=======
+>>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
 class ManageUsersScreen extends StatefulWidget {
   const ManageUsersScreen({super.key});
 
@@ -75,89 +69,210 @@ class ManageUsersScreen extends StatefulWidget {
 }
 
 class _ManageUsersScreenState extends State<ManageUsersScreen> {
+  static const _pageSize = 10;
+
   _UserFilter _filter = _UserFilter.all;
   String _query = '';
   int _page = 1;
+  int _requestId = 0;
+  List<AppUser> _users = const [];
+  UserStats _stats = const UserStats(students: 0, staff: 0, suspended: 0);
+  int _total = 0;
+  bool _loading = true;
+  String? _error;
+  Timer? _searchTimer;
 
-  // TODO: ganti dengan data dari backend.
-  static const List<_User> _users = [
-    _User(
-      name: 'Nabila Az-Zahra',
-      role: _Role.student,
-      className: 'XI MM 2',
-      email: 'nabila.azzahra@smkn8malang.sch',
-      idLabel: 'NISN: 0068194021',
-      phone: '082345671827391',
-      loanCount: 14,
-      onTimeText: '100% Tepat Waktu',
-    ),
-    _User(
-      name: 'Dimas Arya Pratama',
-      role: _Role.student,
-      className: 'XII RPL 1',
-      email: 'dimas.arya@smkn8malang.sch.id',
-      idLabel: 'NISN: 0074128954',
-      phone: '081234567890',
-      loanCount: 22,
-      lateCount: 1,
-    ),
-    _User(
-      name: 'Ibu Ratna Dewi, S.Pd',
-      role: _Role.teacher,
-      subtitle: 'Guru Kejuruan RPL',
-      idLabel: 'NIP: 198204152008012011',
-      phone: '081298765432',
-      loanCount: 22,
-    ),
-    _User(
-      name: 'Fajar Kurniawan',
-      role: _Role.student,
-      className: 'X TKJ 3',
-      idLabel: 'NISN: 0071983321',
-      phone: '085712345678',
-      loanCount: 3,
-      suspended: true,
-      warning: '2× Terlambat > 3 Hari',
-      previousLoans: true,
-    ),
-  ];
+  int get _totalPages => _total == 0 ? 1 : (_total / _pageSize).ceil();
 
-  // TODO: ambil dari backend.
-  static const _stats = (
-    students: 840,
-    teachers: 48,
-    review: 12,
-    compliance: '98.4%',
-  );
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
-  int get _total => _stats.students + _stats.teachers;
+  @override
+  void dispose() {
+    _searchTimer?.cancel();
+    super.dispose();
+  }
 
-  List<_User> get _visible {
-    final q = _query.trim().toLowerCase();
-    return _users.where((u) {
-      switch (_filter) {
-        case _UserFilter.all:
-          break;
-        case _UserFilter.student:
-          if (u.role != _Role.student) return false;
-        case _UserFilter.teacher:
-          if (u.role != _Role.teacher) return false;
-        case _UserFilter.suspended:
-          if (!u.suspended) return false;
+  Future<void> _load() async {
+    final requestId = ++_requestId;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final results = await Future.wait([
+        userRepository.fetchUsers(
+          query: _query,
+          page: _page - 1,
+          pageSize: _pageSize,
+          role: _filter == _UserFilter.student ? 'student' : null,
+          roles: _filter == _UserFilter.teacher ? ['teacher', 'staff'] : null,
+          suspended: _filter == _UserFilter.suspended ? true : null,
+        ),
+        userRepository.fetchStats(),
+      ]);
+      if (!mounted || requestId != _requestId) return;
+      final page = results[0] as UserPage;
+      setState(() {
+        _users = page.items;
+        _total = page.total;
+        _stats = results[1] as UserStats;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted || requestId != _requestId) return;
+      setState(() {
+        _error = error.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _search(String value) {
+    _searchTimer?.cancel();
+    _query = value;
+    _page = 1;
+    _searchTimer = Timer(const Duration(milliseconds: 350), _load);
+  }
+
+  void _selectFilter(_UserFilter filter) {
+    setState(() {
+      _filter = filter;
+      _page = 1;
+    });
+    _load();
+  }
+
+  Future<void> _createAccount() async {
+    final data = await UserFormScreen.show(context, isAdmin: true);
+    if (data == null || !mounted) return;
+    try {
+      await userRepository.createAccount(
+        nama: data.name,
+        email: data.email,
+        password: data.password,
+        role: data.role,
+        kelas: data.roleClass,
+        nisn: data.idNumber,
+        nomorTelepon: data.phone,
+        active: data.active,
+      );
+      if (!mounted) return;
+      _showMessage('Akun berhasil dibuat.');
+      await _load();
+    } catch (error) {
+      if (mounted) _showMessage(error.toString(), isError: true);
+    }
+  }
+
+  Future<void> _editAccount(AppUser user) async {
+    final data = await UserFormScreen.show(
+      context,
+      isAdmin: true,
+      initial: UserFormData(
+        name: user.nama,
+        password: '',
+        email: user.email,
+        idNumber: user.nisn ?? '',
+        roleClass: user.kelas,
+        role: user.role,
+        active: user.isActive,
+        phone: user.nomorTelepon ?? '',
+      ),
+    );
+    if (data == null || !mounted) return;
+
+    try {
+      await userRepository.updateUser(
+        user.id,
+        nama: data.name,
+        phone: data.phone,
+        kelas: data.roleClass,
+        nisn: data.idNumber,
+        role: data.role,
+        active: data.active,
+      );
+      if (data.email != user.email) {
+        await userRepository.updateEmail(user.id, data.email);
       }
-      if (q.isEmpty) return true;
-      return u.name.toLowerCase().contains(q) ||
-          u.idLabel.toLowerCase().contains(q) ||
-          (u.className ?? '').toLowerCase().contains(q) ||
-          (u.email ?? '').toLowerCase().contains(q);
-    }).toList();
+      if (data.password.isNotEmpty) {
+        await userRepository.resetPassword(user.id, data.password);
+      }
+      if (!mounted) return;
+      _showMessage('Perubahan akun berhasil disimpan.');
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Tidak semua perubahan tersimpan: $error', isError: true);
+      await _load();
+    }
+  }
+
+  Future<void> _reactivate(AppUser user) async {
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => ConfirmDialog(
+        icon: Symbols.lock_open,
+        title: 'Buka Suspend Akun?',
+        message: 'Akun ${user.nama} akan dapat digunakan kembali.',
+        confirmText: 'Buka Akses',
+        confirmIcon: Symbols.key,
+        onConfirm: () => _setActive(user, true),
+      ),
+    );
+  }
+
+  Future<void> _confirmSuspend(AppUser user) async {
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => ConfirmDialog(
+        icon: Symbols.lock,
+        title: 'Tangguhkan Akun?',
+        message: 'Akun ${user.nama} tidak dapat digunakan sampai diaktifkan '
+            'kembali oleh admin.',
+        confirmText: 'Tangguhkan',
+        confirmIcon: Symbols.lock,
+        confirmColor: AppColors.error,
+        iconColor: AppColors.error,
+        iconBackground: AppColors.errorContainer,
+        onConfirm: () => _setActive(user, false),
+      ),
+    );
+  }
+
+  Future<void> _setActive(AppUser user, bool active) async {
+    try {
+      await userRepository.setActive(user.id, active);
+      if (!mounted) return;
+      _showMessage(active ? 'Akun diaktifkan kembali.' : 'Akun ditangguhkan.');
+      await _load();
+    } catch (error) {
+      if (mounted) _showMessage(error.toString(), isError: true);
+    }
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? AppColors.error : null,
+        ),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
-    final users = _visible;
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLow,
+      bottomNavigationBar: const AdminBottomNav(currentIndex: 4),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.mobileGutter,
@@ -171,38 +286,54 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Data Peminjaman',
-                    style: AppTextStyles.headlineMd(
-                        color: AppColors.onSurface)),
+                Text(
+                  'Kelola Pengguna',
+                  style: AppTextStyles.headlineMd(color: AppColors.onSurface),
+                ),
                 const SizedBox(height: 2),
                 Text(
-                  'Kelola Akun Pengguna',
+                  'Kelola akun siswa, guru, dan staf',
                   style: AppTextStyles.bodyMd(color: AppColors.slate600),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
-          _AddAccountButton(
-            onPressed: () async {
-              final data = await UserFormScreen.show(context);
-              if (data != null) {
-                // TODO: kirim data akun baru ke backend
-              }
-            },
+          SizedBox(
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: _createAccount,
+              icon: const Icon(Symbols.add_circle, size: 22),
+              label: Text(
+                'Tambah Akun Baru',
+                style: AppTextStyles.labelLg(
+                  weight: FontWeight.w700,
+                  color: AppColors.onPrimary,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.onPrimary,
+                elevation: 0,
+                shape: const StadiumBorder(),
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: _StatCard(
-                    label: 'Siswa Terdaftar',
-                    value: '${_stats.students}'),
+                  label: 'Siswa Terdaftar',
+                  value: '${_stats.students}',
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _StatCard(
-                    label: 'Guru & Staf', value: '${_stats.teachers}'),
+                  label: 'Guru & Staf',
+                  value: '${_stats.staff}',
+                ),
               ),
             ],
           ),
@@ -211,22 +342,49 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             children: [
               Expanded(
                 child: _StatCard(
-                    label: 'Perlu Tinjauan', value: '${_stats.review}'),
+                  label: 'Akun Ditangguhkan',
+                  value: '${_stats.suspended}',
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _StatCard(
-                    label: 'Rerata Kepatuhan',
-                    value: _stats.compliance),
+                  label: 'Total Pengguna',
+                  value: '${_stats.students + _stats.staff}',
+                ),
               ),
             ],
           ),
           const SizedBox(height: 24),
-          _SearchField(onChanged: (v) => setState(() => _query = v)),
+          _SearchField(onChanged: _search),
           const SizedBox(height: 16),
           _buildFilterChips(),
           const SizedBox(height: 16),
-          if (users.isEmpty)
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 48),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Column(
+                children: [
+                  Text(
+                    'Gagal memuat data: $_error',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.bodyMd(color: AppColors.error),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton.icon(
+                    onPressed: _load,
+                    icon: const Icon(Symbols.refresh),
+                    label: const Text('Coba lagi'),
+                  ),
+                ],
+              ),
+            )
+          else if (_users.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 48),
               child: Center(
@@ -235,46 +393,25 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   style: AppTextStyles.bodyMd(color: AppColors.slate500),
                 ),
               ),
-            ),
-          for (final u in users) ...[
-            _UserCard(
-              user: u,
-              onManage: () async {
-                final data = await UserFormScreen.show(
-                  context,
-                  initial: u.toFormData(),
-                );
-                if (data != null) {
-                  // TODO: kirim perubahan akun ke backend
-                }
-              },
-              onUnsuspend: () {
-                showDialog(
-                  context: context,
-                  barrierColor: Colors.black54,
-                  builder: (_) => ConfirmDialog(
-                    icon: Symbols.lock_open,
-                    title: 'Buka Suspend Akun?',
-                    message: 'Akses peminjaman sarpras untuk akun '
-                        'siswa ini akan diaktifkan kembali secara '
-                        'normal dan status sanksi keterlambatan akan '
-                        'direset.',
-                    confirmText: 'Buka Akses',
-                    confirmIcon: Symbols.key,
-                    onConfirm: () {
-                      // TODO: panggil backend untuk buka suspend + reset sanksi
-                    },
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 16),
+            )
+          else
+            for (final user in _users) ...[
+              _UserCard(
+                user: user,
+                onManage: () => _editAccount(user),
+                onReactivate: () => _reactivate(user),
+                onSuspend: () => _confirmSuspend(user),
+              ),
+              const SizedBox(height: 16),
             ],
           const SizedBox(height: 4),
           _Pagination(
             page: _page,
-            totalPages: 3,
-            onChanged: (p) => setState(() => _page = p),
+            totalPages: _totalPages,
+            onChanged: (page) {
+              setState(() => _page = page);
+              _load();
+            },
           ),
         ],
       ),
@@ -285,8 +422,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     final filters = <(String, _UserFilter)>[
       ('Semua ($_total)', _UserFilter.all),
       ('Siswa (${_stats.students})', _UserFilter.student),
-      ('Guru & Staf (${_stats.teachers})', _UserFilter.teacher),
-      ('Ditangguhkan', _UserFilter.suspended),
+      ('Guru & Staf (${_stats.staff})', _UserFilter.teacher),
+      ('Ditangguhkan (${_stats.suspended})', _UserFilter.suspended),
     ];
     return SizedBox(
       height: 40,
@@ -294,11 +431,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         scrollDirection: Axis.horizontal,
         itemCount: filters.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final (label, value) = filters[i];
+        itemBuilder: (context, index) {
+          final (label, value) = filters[index];
           final selected = _filter == value;
           return GestureDetector(
-            onTap: () => setState(() => _filter = value),
+            onTap: () => _selectFilter(value),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               alignment: Alignment.center,
@@ -314,7 +451,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 label,
                 style: AppTextStyles.labelMd(
                   weight: FontWeight.w700,
-                  color: selected ? AppColors.onPrimary : AppColors.onSurface,
+                  color:
+                      selected ? AppColors.onPrimary : AppColors.onSurface,
                 ),
               ),
             ),
@@ -325,42 +463,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Tombol "Tambah Akun Baru"
-// ---------------------------------------------------------------------------
-class _AddAccountButton extends StatelessWidget {
-  const _AddAccountButton({required this.onPressed});
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton.icon(
-        onPressed: onPressed,
-        icon: const Icon(Symbols.add_circle, size: 22),
-        label: Text(
-          'Tambah Akun Baru',
-          style: AppTextStyles.labelLg(
-              weight: FontWeight.w700, color: AppColors.onPrimary),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.onPrimary,
-          elevation: 0,
-          shape: const StadiumBorder(),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Kartu statistik
-// ---------------------------------------------------------------------------
 class _StatCard extends StatelessWidget {
   const _StatCard({required this.label, required this.value});
+
   final String label;
   final String value;
 
@@ -395,11 +500,9 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Kolom pencarian
-// ---------------------------------------------------------------------------
 class _SearchField extends StatelessWidget {
   const _SearchField({required this.onChanged});
+
   final ValueChanged<String> onChanged;
 
   @override
@@ -415,7 +518,7 @@ class _SearchField extends StatelessWidget {
         onChanged: onChanged,
         style: AppTextStyles.bodyMd(color: AppColors.onSurface),
         decoration: InputDecoration(
-          hintText: 'Cari nama siswa, NISN, atau kelas...',
+          hintText: 'Cari nama, email, NISN / NIP, atau kelas...',
           hintStyle: AppTextStyles.bodyMd(color: AppColors.slate500),
           prefixIcon: const Icon(Symbols.search, color: AppColors.slate600),
           border: InputBorder.none,
@@ -426,53 +529,34 @@ class _SearchField extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Chip kecil (kelas / status)
-// ---------------------------------------------------------------------------
-class _Pill extends StatelessWidget {
-  const _Pill({
-    required this.label,
-    required this.background,
-    required this.foreground,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(AppRadius.full),
-      ),
-      child: Text(
-        label,
-        style: AppTextStyles.labelSm(
-            weight: FontWeight.w700, color: foreground),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Kartu pengguna
-// ---------------------------------------------------------------------------
 class _UserCard extends StatelessWidget {
   const _UserCard({
     required this.user,
     required this.onManage,
-    required this.onUnsuspend,
+    required this.onReactivate,
+    required this.onSuspend,
   });
 
-  final _User user;
+  final AppUser user;
   final VoidCallback onManage;
-  final VoidCallback onUnsuspend;
+  final VoidCallback onReactivate;
+  final VoidCallback onSuspend;
+
+  String get _initials {
+    final words = user.nama.trim().split(RegExp(r'\s+'));
+    return words.take(2).map((word) => word[0]).join().toUpperCase();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final roleLabel = switch (user.role) {
+      'student' => 'Siswa',
+      'teacher' => 'Guru',
+      'staff' => 'Staf',
+      _ => user.role,
+    };
+    final idLabel = user.role == 'student' ? 'NISN' : 'NIP';
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -484,111 +568,125 @@ class _UserCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(),
-          const SizedBox(height: 12),
-          if (user.suspended)
-            _ActionButton(
-              label: 'Buka Suspend',
-              icon: Symbols.lock_open,
-              background: AppColors.errorContainer,
-              foreground: AppColors.error,
-              onPressed: onUnsuspend,
-            )
-          else
-            _ActionButton(
-              label: 'Kelola Akun',
-              icon: Symbols.manage_accounts,
-              background: AppColors.primaryFixed,
-              foreground: AppColors.primary,
-              onPressed: onManage,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvatar() {
-    return Container(
-      width: 48,
-      height: 48,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.primaryFixed,
-        shape: BoxShape.circle,
-        image: user.avatarUrl == null
-            ? null
-            : DecorationImage(
-                image: NetworkImage(user.avatarUrl!),
-                fit: BoxFit.cover,
-              ),
-      ),
-      child: user.avatarUrl == null
-          ? Text(
-              user.initials,
-              style: AppTextStyles.headlineSm(color: AppColors.primary)
-                  .copyWith(fontSize: 16, fontWeight: FontWeight.w700),
-            )
-          : null,
-    );
-  }
-
-  Widget _buildHeader() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        _buildAvatar(),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
             children: [
-              Text(
-                user.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.headlineSm(color: AppColors.onSurface)
-                    .copyWith(fontWeight: FontWeight.w700),
-              ),
-              if (user.className != null) ...[
-                const SizedBox(height: 4),
-                _Pill(
-                  label: user.className!,
-                  background: AppColors.primaryFixed,
-                  foreground: AppColors.primary,
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: AppColors.primaryFixed,
+                child: Text(
+                  _initials,
+                  style: AppTextStyles.labelLg(
+                    weight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
                 ),
-              ],
-              const SizedBox(height: 4),
-              Text(
-                user.idLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodySm(
-                  weight: FontWeight.w500,
-                  color: AppColors.slate600,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.nama,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.headlineSm(
+                        color: AppColors.onSurface,
+                      ).copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      user.email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodySm(color: AppColors.slate600),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _Pill(label: roleLabel),
+              if (user.kelas != null && user.kelas!.isNotEmpty)
+                _Pill(label: user.kelas!),
+              _Pill(label: '$idLabel: ${user.nisn ?? '-'}'),
+              _Pill(label: user.isActive ? 'Aktif' : 'Ditangguhkan'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _ActionButton(
+                  label: 'Kelola Akun',
+                  icon: Symbols.manage_accounts,
+                  onPressed: onManage,
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (!user.isActive)
+                Expanded(
+                  child: _ActionButton(
+                    label: 'Buka Suspend',
+                    icon: Symbols.lock_open,
+                    onPressed: onReactivate,
+                  ),
+                )
+              else
+                IconButton(
+                  tooltip: 'Tangguhkan akun',
+                  onPressed: onSuspend,
+                  icon: const Icon(
+                    Symbols.lock,
+                    color: AppColors.error,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
+}
 
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.primaryFixed,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.labelSm(
+          weight: FontWeight.w700,
+          color: AppColors.primary,
+        ),
+      ),
+    );
+  }
 }
 
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
     required this.label,
     required this.icon,
-    required this.background,
-    required this.foreground,
     required this.onPressed,
   });
 
   final String label;
   final IconData icon;
-  final Color background;
-  final Color foreground;
   final VoidCallback onPressed;
 
   @override
@@ -602,11 +700,13 @@ class _ActionButton extends StatelessWidget {
         label: Text(
           label,
           style: AppTextStyles.labelMd(
-              weight: FontWeight.w700, color: foreground),
+            weight: FontWeight.w700,
+            color: AppColors.primary,
+          ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: background,
-          foregroundColor: foreground,
+          backgroundColor: AppColors.primaryFixed,
+          foregroundColor: AppColors.primary,
           elevation: 0,
           shape: const StadiumBorder(),
         ),
@@ -615,9 +715,6 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Pagination
-// ---------------------------------------------------------------------------
 class _Pagination extends StatelessWidget {
   const _Pagination({
     required this.page,
@@ -631,79 +728,55 @@ class _Pagination extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canPrev = page > 1;
-    final canNext = page < totalPages;
+    final firstPage = totalPages <= 5
+        ? 1
+        : (page - 2).clamp(1, totalPages - 4).toInt();
+    final visiblePages = List<int>.generate(
+      totalPages < 5 ? totalPages : 5,
+      (index) {
+        return firstPage + index;
+      },
+    );
 
-    Widget circle(Widget child, {required bool selected, VoidCallback? onTap}) {
-      return GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 44,
-          height: 44,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected
-                ? AppColors.primary
-                : AppColors.surfaceContainerLowest,
-            shape: BoxShape.circle,
-            boxShadow: selected ? null : AppShadows.sm,
+    Widget pageButton(int value) => GestureDetector(
+          onTap: value == page ? null : () => onChanged(value),
+          child: Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: value == page
+                  ? AppColors.primary
+                  : AppColors.surfaceContainerLowest,
+              shape: BoxShape.circle,
+              boxShadow: value == page ? null : AppShadows.sm,
+            ),
+            child: Text(
+              '$value',
+              style: AppTextStyles.labelMd(
+                weight: FontWeight.w700,
+                color: value == page
+                    ? AppColors.onPrimary
+                    : AppColors.onSurface,
+              ),
+            ),
           ),
-          child: child,
-        ),
-      );
-    }
+        );
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        circle(
-          Icon(Symbols.chevron_left,
-              color: canPrev ? AppColors.onSurface : AppColors.slate500),
-          selected: false,
-          onTap: canPrev ? () => onChanged(page - 1) : null,
+        IconButton(
+          onPressed: page > 1 ? () => onChanged(page - 1) : null,
+          icon: const Icon(Symbols.chevron_left),
         ),
-        const SizedBox(width: 8),
-        for (var p = 1; p <= totalPages; p++) ...[
-          circle(
-            Text(
-              '$p',
-              style: AppTextStyles.labelLg(
-                weight: FontWeight.w700,
-                color: p == page ? AppColors.onPrimary : AppColors.onSurface,
-              ),
-            ),
-            selected: p == page,
-            onTap: () => onChanged(p),
-          ),
+        for (final value in visiblePages) ...[
+          pageButton(value),
           const SizedBox(width: 8),
         ],
-        GestureDetector(
-          onTap: canNext ? () => onChanged(page + 1) : null,
-          child: Container(
-            height: 44,
-            padding: const EdgeInsets.only(left: 16, right: 10),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLowest,
-              borderRadius: BorderRadius.circular(AppRadius.full),
-              boxShadow: AppShadows.sm,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Next',
-                  style: AppTextStyles.labelMd(
-                    weight: FontWeight.w700,
-                    color: canNext ? AppColors.primary : AppColors.slate500,
-                  ),
-                ),
-                Icon(Symbols.chevron_right,
-                    size: 20,
-                    color: canNext ? AppColors.primary : AppColors.slate500),
-              ],
-            ),
-          ),
+        IconButton(
+          onPressed: page < totalPages ? () => onChanged(page + 1) : null,
+          icon: const Icon(Symbols.chevron_right),
         ),
       ],
     );

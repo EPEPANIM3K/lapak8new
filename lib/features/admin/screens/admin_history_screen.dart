@@ -4,6 +4,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 
 enum _HistoryFilter { all, onTime, lateReturned }
 
@@ -173,19 +174,25 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
           ],
         ],
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.mobileGutter,
-          AppSpacing.md,
-          AppSpacing.mobileGutter,
-          AppSpacing.md,
-        ),
-        child: _SummaryBar(
-          total: _histories.length,
-          onExport: () {
-            // TODO: export riwayat ke XLS
-          },
-        ),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.mobileGutter,
+              AppSpacing.md,
+              AppSpacing.mobileGutter,
+              AppSpacing.md,
+            ),
+            child: _SummaryBar(
+              total: _histories.length,
+              onExport: () {
+                // TODO: export riwayat ke XLS
+              },
+            ),
+          ),
+          const AdminBottomNav(currentIndex: 2),
+        ],
       ),
     );
   }
