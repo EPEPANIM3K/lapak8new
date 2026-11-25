@@ -176,6 +176,7 @@ class UserRepository {
     String? kelas,
     String? nisn,
     String? nomorTelepon,
+    bool active = true,
   }) async {
     final data = await _callFunction({
       'action': 'create',
@@ -186,6 +187,7 @@ class UserRepository {
       'kelas': kelas,
       'nisn': nisn,
       'nomor_telepon': nomorTelepon,
+      'active': active,
     });
     final id = data['id'];
     if (id is! String || id.isEmpty) {

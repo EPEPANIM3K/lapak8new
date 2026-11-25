@@ -7,6 +7,7 @@ class AppUser {
   final String? email;
   final String idNumber;
   final String role;
+  final String? classOrUnit;
 
   const AppUser({
     required this.authId,
@@ -14,9 +15,10 @@ class AppUser {
     required this.email,
     required this.idNumber,
     required this.role,
+    this.classOrUnit,
   });
 
-  bool get isAdmin => role == 'admin' || role == 'staff';
+  bool get isAdmin => role == 'admin';
 }
 
 class AuthProvider extends ChangeNotifier {
@@ -86,7 +88,9 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> _loadProfile(String authId) async {
     final row = await _client
         .from('profiles')
-        .select('full_name, email, identity_number, role, is_active')
+        .select(
+          'full_name, email, identity_number, role, class_or_unit, is_active',
+        )
         .eq('id', authId)
         .maybeSingle();
 
@@ -105,6 +109,7 @@ class AuthProvider extends ChangeNotifier {
       email: row['email'] as String?,
       idNumber: row['identity_number'] as String? ?? '',
       role: row['role'] as String,
+      classOrUnit: row['class_or_unit'] as String?,
     );
     notifyListeners(); // router otomatis pindah halaman
     return true;

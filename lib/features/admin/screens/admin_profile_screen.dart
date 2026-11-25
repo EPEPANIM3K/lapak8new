@@ -5,12 +5,14 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/admin/services/user_repository.dart';
 import 'package:lapak8new/features/admin/models/return_documentation.dart';
 import 'package:lapak8new/features/admin/services/media_picker_service.dart';
 import 'package:lapak8new/features/admin/widgets/admin_change_password_sheet.dart';
 import 'package:lapak8new/features/admin/widgets/avatar_preview_dialog.dart';
 import 'package:lapak8new/features/admin/widgets/documentation_media_previews.dart';
 import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
+import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 import 'package:lapak8new/features/dashboard/widgets/bantuan_pic_modal.dart';
 import 'package:lapak8new/features/dashboard/widgets/dashboard_modals.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
@@ -35,14 +37,13 @@ class AdminProfileScreen extends StatefulWidget {
 }
 
 class _AdminProfileScreenState extends State<AdminProfileScreen> {
-  // TODO: ganti dengan data admin dari backend.
-  static const _name = 'Masadmin';
-  static const _role = 'admin';
-  static const _idNumber = '2122.10.408';
-  static const _unit = 'Admin Lab RPL';
+  String get _name => authProvider.user?.name ?? 'Admin';
+  String get _role => authProvider.user?.role ?? 'admin';
+  String get _idNumber => authProvider.user?.idNumber ?? '';
+  String get _unit => authProvider.user?.classOrUnit ?? '—';
 
   /// Email tersimpan (bisa diubah lewat mode edit Data Pribadi).
-  String _savedEmail = 'masadmin@gmail.com';
+  String _savedEmail = authProvider.user?.email ?? '';
 
   /// Foto profil hasil pilihan lokal (frontend saja, belum tersimpan permanen).
   String _avatarPath = '';
@@ -55,6 +56,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   late final TextEditingController _emailCtrl =
       TextEditingController(text: _savedEmail);
   bool _emailTouched = false;
+  bool _savingEmail = false;
 
   bool _notifOn = true;
 
@@ -85,8 +87,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         confirmColor: AppColors.error,
         iconColor: AppColors.error,
         iconBackground: AppColors.errorContainer,
-          onConfirm: () {
-            context.go('/login');
+          onConfirm: () async {
+            await authProvider.signOut();
+            if (mounted) context.go('/login');
           },
       ),
     );
@@ -337,20 +340,22 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          const _InfoRow(
+          _InfoRow(
             icon: Symbols.badge,
             label: 'Nama Lengkap',
             value: _name,
-            trailing: Icon(Symbols.lock, size: 20, color: AppColors.slate500),
+            trailing:
+                const Icon(Symbols.lock, size: 20, color: AppColors.slate500),
           ),
           const SizedBox(height: 10),
           _buildEmailRow(),
           const SizedBox(height: 10),
-          const _InfoRow(
+          _InfoRow(
             icon: Symbols.school,
             label: 'Kelas / Konsentrasi Keahlian',
             value: _unit,
-            trailing: Icon(Symbols.lock, size: 20, color: AppColors.slate500),
+            trailing:
+                const Icon(Symbols.lock, size: 20, color: AppColors.slate500),
           ),
         ],
       ),
@@ -368,6 +373,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
+        if (_savingEmail) return;
         if (!editing) {
           setState(() {
             _editingEmail = true;
@@ -427,26 +433,43 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     return null;
   }
 
-  void _saveEmail() {
-    if (!_canSaveEmail) return;
-    setState(() {
-      _savedEmail = _emailCtrl.text.trim();
-      _editingEmail = false;
-      _emailTouched = false;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.primary,
-        content: Text(
-          'Data pribadi berhasil disimpan.',
-          style: AppTextStyles.bodySm(
-            weight: FontWeight.w600,
-            color: AppColors.onPrimary,
+  Future<void> _saveEmail() async {
+    final user = authProvider.user;
+    if (!_canSaveEmail || user == null || _savingEmail) return;
+
+    setState(() => _savingEmail = true);
+    try {
+      await userRepository.updateEmail(user.authId, _emailCtrl.text.trim());
+      if (!mounted) return;
+      setState(() {
+        _savedEmail = _emailCtrl.text.trim();
+        _editingEmail = false;
+        _emailTouched = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.primary,
+          content: Text(
+            'Email profil berhasil diperbarui.',
+            style: AppTextStyles.bodySm(
+              weight: FontWeight.w600,
+              color: AppColors.onPrimary,
+            ),
           ),
         ),
-      ),
-    );
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Email gagal diperbarui: $error'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingEmail = false);
+    }
   }
 
   // ---- Pengaturan & keamanan ------------------------------------------------

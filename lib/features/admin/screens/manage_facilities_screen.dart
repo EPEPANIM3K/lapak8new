@@ -1,13 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/admin/screens/facility_form_screen.dart';
+import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 // Simpan di: lib/features/admin/screens/manage_facilities_screen.dart
@@ -133,9 +133,9 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
 
   /// [item] null = tambah barang baru, selain itu = edit.
   Future<void> _openForm([_Item? item]) async {
-    final result = await context.push<FacilityFormData>(
-      '/admin/items/form',
-      extra: item == null
+    final result = await FacilityFormScreen.show(
+      context,
+      initial: item == null
           ? null
           : FacilityFormData(
               name: item.name,
@@ -193,6 +193,7 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLow,
+      bottomNavigationBar: const AdminBottomNav(currentIndex: 3),
       body: CustomScrollView(
               slivers: [
                 SliverPadding(

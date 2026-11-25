@@ -7,6 +7,7 @@ import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/admin/models/return_documentation.dart';
 import 'package:lapak8new/features/admin/services/media_picker_service.dart';
 import 'package:lapak8new/features/admin/widgets/documentation_section.dart';
+import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 import 'package:lapak8new/shared/widgets/ms_icon.dart';
 
@@ -568,19 +569,25 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
             ],
         ],
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.mobileGutter,
-          AppSpacing.md,
-          AppSpacing.mobileGutter,
-          AppSpacing.md,
-        ),
-        child: _SummaryBar(
-          total: _activeTotal,
-          onExport: () {
-            // TODO: export rekap ke XLS (sesuai tab aktif).
-          },
-        ),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.mobileGutter,
+              AppSpacing.md,
+              AppSpacing.mobileGutter,
+              AppSpacing.md,
+            ),
+            child: _SummaryBar(
+              total: _activeTotal,
+              onExport: () {
+                // TODO: export rekap ke XLS (sesuai tab aktif).
+              },
+            ),
+          ),
+          const AdminBottomNav(currentIndex: 1),
+        ],
       ),
     );
   }

@@ -11,8 +11,8 @@ import 'package:lapak8new/features/qr/screens/qr_scanner_screen.dart';
 
 import 'package:lapak8new/features/admin/screens/admin_dashboard_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_borrowings_screen.dart';
+import 'package:lapak8new/features/admin/screens/admin_history_screen.dart';
 import 'package:lapak8new/features/admin/screens/manage_facilities_screen.dart';
-import 'package:lapak8new/features/admin/screens/facility_form_screen.dart';
 import 'package:lapak8new/features/admin/screens/manage_users_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_profile_screen.dart';
 
@@ -54,9 +54,18 @@ final GoRouter appRouter = GoRouter(
 
     // ---------- USER ----------
     GoRoute(path: '/', builder: (_, __) => const DashboardScreen()),
-    GoRoute(path: '/facilities', builder: (_, __) => const FacilityListScreen()),
-    GoRoute(path: '/borrowings', builder: (_, __) => const MyBorrowingsScreen()),
-    GoRoute(path: '/borrowing-form', builder: (_, __) => const BorrowingFormScreen()),
+    GoRoute(
+      path: '/facilities',
+      builder: (_, __) => const FacilityListScreen(),
+    ),
+    GoRoute(
+      path: '/borrowings',
+      builder: (_, __) => const MyBorrowingsScreen(),
+    ),
+    GoRoute(
+      path: '/borrowing-form',
+      builder: (_, __) => const BorrowingFormScreen(),
+    ),
     GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
     GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
 
@@ -64,16 +73,29 @@ final GoRouter appRouter = GoRouter(
     GoRoute(path: '/scan', builder: (_, __) => const QrScannerScreen()),
 
     // ---------- ADMIN ----------
-    GoRoute(path: '/admin/dashboard', builder: (_, __) => const AdminDashboardScreen()),
-    GoRoute(path: '/admin/borrowings', builder: (_, __) => const AdminBorrowingsScreen()),
-    GoRoute(path: '/admin/items', builder: (_, __) => const ManageFacilitiesScreen()),
     GoRoute(
-      path: '/admin/items/form',
-      builder: (_, state) => FacilityFormScreen(
-        initial: state.extra as FacilityFormData?,
-      ),
+      path: '/admin/dashboard',
+      builder: (_, __) => const AdminDashboardScreen(),
     ),
-    GoRoute(path: '/admin/manage', builder: (_, __) => const ManageUsersScreen()),
-    GoRoute(path: '/admin/profile', builder: (_, __) => const AdminProfileScreen()),
+    GoRoute(
+      path: '/admin/borrowings',
+      builder: (_, __) => const AdminBorrowingsScreen(),
+    ),
+    GoRoute(
+      path: '/admin/history',
+      builder: (_, __) => const AdminHistoryScreen(),
+    ),
+    GoRoute(
+      path: '/admin/items',
+      builder: (_, __) => const ManageFacilitiesScreen(),
+    ),
+    GoRoute(
+      path: '/admin/manage',
+      builder: (_, __) => const ManageUsersScreen(),
+    ),
+    GoRoute(
+      path: '/admin/profile',
+      builder: (_, __) => const AdminProfileScreen(),
+    ),
   ],
 );

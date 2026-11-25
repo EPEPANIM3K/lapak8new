@@ -8,6 +8,7 @@ import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/admin/screens/user_form_screen.dart';
 import 'package:lapak8new/features/admin/services/user_repository.dart';
+import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 enum _UserFilter { all, student, teacher, suspended }
@@ -99,7 +100,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   }
 
   Future<void> _createAccount() async {
-    final data = await UserFormScreen.show(context);
+    final data = await UserFormScreen.show(context, isAdmin: true);
     if (data == null || !mounted) return;
     try {
       await userRepository.createAccount(
@@ -110,6 +111,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         kelas: data.roleClass,
         nisn: data.idNumber,
         nomorTelepon: data.phone,
+        active: data.active,
       );
       if (!mounted) return;
       _showMessage('Akun berhasil dibuat.');
@@ -122,6 +124,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   Future<void> _editAccount(AppUser user) async {
     final data = await UserFormScreen.show(
       context,
+      isAdmin: true,
       initial: UserFormData(
         name: user.nama,
         password: '',
@@ -221,6 +224,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLow,
+      bottomNavigationBar: const AdminBottomNav(currentIndex: 4),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.mobileGutter,

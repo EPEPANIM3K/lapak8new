@@ -1,10 +1,27 @@
 # Skema database LAPAK8
 
-Skema ini ditujukan untuk **Supabase PostgreSQL**. Untuk instalasi baru,
-jalankan `schema.sql` pada SQL Editor proyek Supabase. Jika skema utama sudah
-terpasang, jalankan `admin_users_migration.sql` untuk menambahkan dukungan
-pengelolaan akun admin. Kredensial tetap disimpan Supabase Auth (`auth.users`);
-profil aplikasi berada di `public.profiles`.
+Skema ini ditujukan untuk **Supabase PostgreSQL**. Pilih satu jalur berdasarkan
+tabel yang sudah ada:
+
+- **Instalasi baru:** jalankan `schema.sql`. Jika skema tersebut sudah
+  terpasang, `admin_users_migration.sql` menambahkan dukungan pengelolaan akun.
+- **Database lama yang memakai `public.users` dengan ID `bigint`:** jangan
+  jalankan `schema.sql` atau `admin_users_migration.sql`. Setelah membuat backup,
+  gunakan `existing_users_auth_rls.sql` sebagai migrasi kompatibilitas untuk
+  skema tersebut. File itu mempertahankan `users.auth_id`, membuat view
+  `profiles` agar sesuai dengan query Flutter, memetakan role lama ke role
+  Flutter (`siswa` → `student`, `guru` → `teacher`, `petugas` → `staff`), dan
+  menerapkan akses admin-only.
+
+Kedua jalur tidak boleh dicampur. File migrasi tidak membuat akun Auth baru;
+untuk database lama, hanya akun yang sudah dihubungkan lewat `users.auth_id`
+yang tampil pada view `profiles`. Jangan mengekspos `password_hash` ke aplikasi.
+Migrasi kompatibilitas memberi pengguna non-admin akses baca ke katalog dan
+data miliknya sendiri; hanya role `admin` yang dapat mengubah data lewat API.
+Pembuatan akun Auth baru dan penautan akun yang belum memiliki `auth_id` tetap
+harus dilakukan oleh proses tepercaya. Source Edge Function `manage-users`
+belum tersedia di workspace ini, sehingga pembuatan akun dan perubahan
+email/password admin belum aktif hanya dengan menjalankan SQL tersebut.
 
 ## Temuan struktur project
 
@@ -68,6 +85,9 @@ chat_threads 1--* chat_messages
   set role = 'admin'
   where email = 'admin@sekolah.sch.id';
   ```
+  Langkah ini hanya untuk instalasi baru yang memakai `public.profiles` sebagai
+  tabel. Database lama menggunakan `public.users.role` dan tidak boleh memakai
+  query tersebut.
 
 - Setelah Supabase CLI terhubung ke proyek, deploy function dengan
   `supabase functions deploy manage-users`. Environment standar Supabase Edge
