@@ -13,54 +13,6 @@ import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 enum _UserFilter { all, student, teacher, suspended }
 
-<<<<<<< HEAD
-class _User {
-  const _User({
-    required this.name,
-    required this.role,
-    required this.idLabel,
-    required this.loanCount,
-  }) : className = null, email = null, subtitle = null, suspended = false, onTimeText = null, lateCount = null, warning = null, previousLoans = false, phone = null, avatarUrl = null;
-
-  final String name;
-  final _Role role;
-  final String idLabel; // "NISN: ..." / "NIP: ..."
-  final int loanCount;
-  final String? className; // chip kelas (siswa)
-  final String? email;
-  final String? subtitle; // mis. "Guru Kejuruan RPL"
-  final bool suspended;
-  final String? onTimeText; // "100% Tepat Waktu"
-  final int? lateCount; // "1× Terlambat"
-  final String? warning; // baris peringatan merah
-  final bool previousLoans; // "3× Pinjam Sebelumnya"
-  final String? phone;
-  final String? avatarUrl;
-
-  bool get isTeacher => role == _Role.teacher;
-
-  /// Data awal untuk form "Kelola Akun Pengguna".
-  UserFormData toFormData() => UserFormData(
-        name: name,
-        password: '', // kosong = tidak diubah
-        email: email ?? '',
-        idNumber: idLabel.replaceFirst(RegExp(r'^(NISN|NIP):\s*'), ''),
-        roleClass: className ?? subtitle,
-        active: !suspended,
-        phone: phone ?? '',
-      );
-
-  String get initials {
-    final parts =
-        name.replaceAll(RegExp(r'^(Ibu|Bapak|Drs\.)\s'), '').trim().split(' ');
-    final a = parts.first.isNotEmpty ? parts.first[0] : '';
-    final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
-    return (a + b).toUpperCase();
-  }
-}
-
-=======
->>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
 class ManageUsersScreen extends StatefulWidget {
   const ManageUsersScreen({super.key});
 
@@ -109,8 +61,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           query: _query,
           page: _page - 1,
           pageSize: _pageSize,
-          role: _filter == _UserFilter.student ? 'student' : null,
-          roles: _filter == _UserFilter.teacher ? ['teacher', 'staff'] : null,
+          peran: _filter == _UserFilter.student ? 'siswa' : null,
+          peranList: _filter == _UserFilter.teacher ? ['guru', 'staf'] : null,
           suspended: _filter == _UserFilter.suspended ? true : null,
         ),
         userRepository.fetchStats(),
@@ -151,15 +103,23 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     final data = await UserFormScreen.show(context, isAdmin: true);
     if (data == null || !mounted) return;
     try {
+      // Konversi role dari UserFormScreen (pakai nilai lama: student/teacher/staff)
+      // ke nilai skema baru: siswa/guru/staf
+      final peranBaru = switch (data.role) {
+        'student' => 'siswa',
+        'teacher' => 'guru',
+        'staff'   => 'staf',
+        _         => data.role,
+      };
       await userRepository.createAccount(
-        nama: data.name,
-        email: data.email,
-        password: data.password,
-        role: data.role,
-        kelas: data.roleClass,
-        nisn: data.idNumber,
-        nomorTelepon: data.phone,
-        active: data.active,
+        nama:          data.name,
+        email:         data.email,
+        password:      data.password,
+        peran:         peranBaru,
+        kelas:         data.roleClass,
+        nomorInduk:    data.idNumber,
+        nomorTelepon:  data.phone,
+        aktif:         data.active,
       );
       if (!mounted) return;
       _showMessage('Akun berhasil dibuat.');
@@ -170,31 +130,45 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   }
 
   Future<void> _editAccount(AppUser user) async {
+    // Konversi balik peran skema baru → nilai UserFormData (lama) agar form berjalan
+    final roleForm = switch (user.peran) {
+      'siswa' => 'student',
+      'guru'  => 'teacher',
+      'staf'  => 'staff',
+      _       => user.peran,
+    };
     final data = await UserFormScreen.show(
       context,
       isAdmin: true,
       initial: UserFormData(
-        name: user.nama,
-        password: '',
-        email: user.email,
-        idNumber: user.nisn ?? '',
+        name:      user.nama,
+        password:  '',
+        email:     user.email,
+        idNumber:  user.nomorInduk ?? '',
         roleClass: user.kelas,
-        role: user.role,
-        active: user.isActive,
-        phone: user.nomorTelepon ?? '',
+        role:      roleForm,
+        active:    user.aktif,
+        phone:     user.nomorTelepon ?? '',
       ),
     );
     if (data == null || !mounted) return;
 
+    final peranBaru = switch (data.role) {
+      'student' => 'siswa',
+      'teacher' => 'guru',
+      'staff'   => 'staf',
+      _         => data.role,
+    };
+
     try {
       await userRepository.updateUser(
         user.id,
-        nama: data.name,
-        phone: data.phone,
-        kelas: data.roleClass,
-        nisn: data.idNumber,
-        role: data.role,
-        active: data.active,
+        nama:       data.name,
+        phone:      data.phone,
+        kelas:      data.roleClass,
+        nomorInduk: data.idNumber,
+        peran:      peranBaru,
+        aktif:      data.active,
       );
       if (data.email != user.email) {
         await userRepository.updateEmail(user.id, data.email);
@@ -246,11 +220,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     );
   }
 
-  Future<void> _setActive(AppUser user, bool active) async {
+  Future<void> _setActive(AppUser user, bool aktif) async {
     try {
-      await userRepository.setActive(user.id, active);
+      await userRepository.setActive(user.id, aktif);
       if (!mounted) return;
-      _showMessage(active ? 'Akun diaktifkan kembali.' : 'Akun ditangguhkan.');
+      _showMessage(aktif ? 'Akun diaktifkan kembali.' : 'Akun ditangguhkan.');
       await _load();
     } catch (error) {
       if (mounted) _showMessage(error.toString(), isError: true);
@@ -451,8 +425,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 label,
                 style: AppTextStyles.labelMd(
                   weight: FontWeight.w700,
-                  color:
-                      selected ? AppColors.onPrimary : AppColors.onSurface,
+                  color: selected ? AppColors.onPrimary : AppColors.onSurface,
                 ),
               ),
             ),
@@ -462,6 +435,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Widgets lokal
+// ---------------------------------------------------------------------------
 
 class _StatCard extends StatelessWidget {
   const _StatCard({required this.label, required this.value});
@@ -549,13 +526,7 @@ class _UserCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final roleLabel = switch (user.role) {
-      'student' => 'Siswa',
-      'teacher' => 'Guru',
-      'staff' => 'Staf',
-      _ => user.role,
-    };
-    final idLabel = user.role == 'student' ? 'NISN' : 'NIP';
+    final idLabel = user.isSiswa ? 'NISN' : 'NIP';
 
     return Container(
       width: double.infinity,
@@ -611,11 +582,11 @@ class _UserCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _Pill(label: roleLabel),
+              _Pill(label: user.roleLabel),
               if (user.kelas != null && user.kelas!.isNotEmpty)
                 _Pill(label: user.kelas!),
-              _Pill(label: '$idLabel: ${user.nisn ?? '-'}'),
-              _Pill(label: user.isActive ? 'Aktif' : 'Ditangguhkan'),
+              _Pill(label: '$idLabel: ${user.nomorInduk ?? '-'}'),
+              _Pill(label: user.aktif ? 'Aktif' : 'Ditangguhkan'),
             ],
           ),
           const SizedBox(height: 12),
@@ -629,7 +600,7 @@ class _UserCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              if (!user.isActive)
+              if (!user.aktif)
                 Expanded(
                   child: _ActionButton(
                     label: 'Buka Suspend',
@@ -733,9 +704,7 @@ class _Pagination extends StatelessWidget {
         : (page - 2).clamp(1, totalPages - 4).toInt();
     final visiblePages = List<int>.generate(
       totalPages < 5 ? totalPages : 5,
-      (index) {
-        return firstPage + index;
-      },
+      (index) => firstPage + index,
     );
 
     Widget pageButton(int value) => GestureDetector(

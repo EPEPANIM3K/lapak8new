@@ -37,10 +37,10 @@ class AdminProfileScreen extends StatefulWidget {
 }
 
 class _AdminProfileScreenState extends State<AdminProfileScreen> {
-  String get _name => authProvider.user?.name ?? 'Admin';
-  String get _role => authProvider.user?.role ?? 'admin';
-  String get _idNumber => authProvider.user?.idNumber ?? '';
-  String get _unit => authProvider.user?.classOrUnit ?? '—';
+  String get _name     => authProvider.user?.namaLengkap ?? 'Admin';
+  String get _role     => authProvider.user?.peran ?? 'admin';
+  String get _idNumber => authProvider.user?.nomorInduk ?? '';
+  String get _unit     => authProvider.user?.kelasAtauUnit ?? '—';
 
   /// Email tersimpan (bisa diubah lewat mode edit Data Pribadi).
   String _savedEmail = authProvider.user?.email ?? '';
@@ -439,7 +439,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
     setState(() => _savingEmail = true);
     try {
-      await userRepository.updateEmail(user.authId, _emailCtrl.text.trim());
+      await userRepository.updateEmail(user.id, _emailCtrl.text.trim());
       if (!mounted) return;
       setState(() {
         _savedEmail = _emailCtrl.text.trim();

@@ -1,125 +1,61 @@
-<<<<<<< HEAD
-import 'dart:convert';
-
-import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-import '../../../core/network/lapak8_api_client.dart';
-import '../models/app_user.dart';
-import '../services/auth_service.dart';
-
-class AuthProvider extends ChangeNotifier {
-  AuthProvider({
-    FlutterSecureStorage? storage,
-    Lapak8ApiClient? apiClient,
-  })  : _storage = storage ?? const FlutterSecureStorage(),
-        apiClient = apiClient ?? Lapak8ApiClient() {
-    _authService = AuthService(this.apiClient);
-  }
-
-  static const _sessionKey = 'lapak8_auth_session';
-  final FlutterSecureStorage _storage;
-  final Lapak8ApiClient apiClient;
-  late final AuthService _authService;
-
-  AppUser? _user;
-  AppUser? get user => _user;
-  bool get isAuthenticated => _user != null;
-
-  Future<void> restoreSession() async {
-    final saved = await _storage.read(key: _sessionKey);
-    if (saved == null) return;
-    try {
-      final value = jsonDecode(saved);
-      if (value is! Map<String, dynamic> ||
-          value['token'] is! String ||
-          value['user'] is! Map<String, dynamic>) {
-        throw const FormatException('Sesi tersimpan tidak valid.');
-      }
-      apiClient.accessToken = value['token'] as String;
-      _user = AppUser.fromJson(value['user']);
-    } on FormatException {
-      await _storage.delete(key: _sessionKey);
-    }
-  }
-
-  Future<AppUser> signIn({
-    required String identifier,
-    required String password,
-    required bool rememberMe,
-  }) async {
-    final session = await _authService.login(identifier, password);
-    apiClient.accessToken = session.token;
-    _user = session.user;
-    if (rememberMe) {
-      await _storage.write(
-        key: _sessionKey,
-        value: jsonEncode({
-          'token': session.token,
-          'user': session.user.toJson(),
-        }),
-      );
-    } else {
-      await _storage.delete(key: _sessionKey);
-    }
-    notifyListeners();
-    return session.user;
-  }
-
-  Future<void> signOut() async {
-    await _storage.delete(key: _sessionKey);
-    apiClient.accessToken = null;
-    _user = null;
-    notifyListeners();
-  }
-}
-
-final AuthProvider authProvider = AuthProvider();
-=======
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// ---------------------------------------------------------------------------
+// Model pengguna yang sedang login
+// ---------------------------------------------------------------------------
 class AppUser {
-  final String authId;
-  final String name;
-  final String? email;
-  final String idNumber;
-  final String role;
-  final String? classOrUnit;
-
   const AppUser({
-    required this.authId,
-    required this.name,
+    required this.id,
+    required this.namaLengkap,
     required this.email,
-    required this.idNumber,
-    required this.role,
-    this.classOrUnit,
+    required this.nomorInduk,
+    required this.peran,
+    this.kelasAtauUnit,
+    this.telepon,
+    this.fotoUrl,
   });
 
-  bool get isAdmin => role == 'admin';
+  final String id;           // = auth.uid()
+  final String namaLengkap;
+  final String? email;
+  final String nomorInduk;   // NISN / NIP
+  final String peran;        // 'siswa' | 'guru' | 'staf' | 'admin'
+  final String? kelasAtauUnit;
+  final String? telepon;
+  final String? fotoUrl;
+
+  bool get isAdmin => peran == 'admin';
+  bool get isStaf  => peran == 'staf';
+  bool get isAdminAtauStaf => peran == 'admin' || peran == 'staf';
 }
 
+// ---------------------------------------------------------------------------
+// Provider autentikasi (Supabase)
+// ---------------------------------------------------------------------------
 class AuthProvider extends ChangeNotifier {
-  SupabaseClient get _client => Supabase.instance.client;
+  SupabaseClient get _db => Supabase.instance.client;
 
   AppUser? _user;
-  String? _error;
+  String?  _error;
 
-  AppUser? get user => _user;
-  String? get error => _error;
-  bool get isLoggedIn => _user != null;
-  bool get isAdmin => _user?.isAdmin ?? false;
+  AppUser? get user    => _user;
+  String?  get error   => _error;
+  bool get sudahLogin  => _user != null;
+  bool get isAdmin     => _user?.isAdmin ?? false;
+  bool get isAdminAtauStaf => _user?.isAdminAtauStaf ?? false;
 
-  /// Panggil sekali di main() untuk memulihkan sesi yang tersimpan.
+  // -------------------------------------------------------------------------
+  // Init — panggil sekali di main() setelah Supabase.initialize()
+  // -------------------------------------------------------------------------
   Future<void> init() async {
-    final session = _client.auth.currentSession;
+    final session = _db.auth.currentSession;
     if (session != null) {
-      final ok = await _loadProfile(session.user.id);
-      if (!ok) await _client.auth.signOut();
+      final ok = await _muatProfil(session.user.id);
+      if (!ok) await _db.auth.signOut();
     }
 
-    // Kalau sesi berakhir / logout dari tempat lain, bersihkan status.
-    _client.auth.onAuthStateChange.listen((data) {
+    _db.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.signedOut && _user != null) {
         _user = null;
         notifyListeners();
@@ -127,10 +63,13 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
+  // -------------------------------------------------------------------------
+  // Login
+  // -------------------------------------------------------------------------
   Future<bool> signIn(String email, String password) async {
     _error = null;
     try {
-      final res = await _client.auth.signInWithPassword(
+      final res = await _db.auth.signInWithPassword(
         email: email.trim(),
         password: password,
       );
@@ -139,13 +78,9 @@ class AuthProvider extends ChangeNotifier {
         _error = 'Login gagal';
         return false;
       }
-
-      final ok = await _loadProfile(uid);
-      if (!ok) {
-        await _client.auth.signOut();
-        return false;
-      }
-      return true;
+      final ok = await _muatProfil(uid);
+      if (!ok) await _db.auth.signOut();
+      return ok;
     } on AuthException catch (e) {
       _error = e.message.toLowerCase().contains('invalid login')
           ? 'Email atau kata sandi salah'
@@ -157,42 +92,61 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Logout
+  // -------------------------------------------------------------------------
   Future<void> signOut() async {
-    await _client.auth.signOut();
+    await _db.auth.signOut();
     _user = null;
     notifyListeners();
   }
 
-  Future<bool> _loadProfile(String authId) async {
-    final row = await _client
-        .from('profiles')
-        .select(
-          'full_name, email, identity_number, role, class_or_unit, is_active',
-        )
-        .eq('id', authId)
-        .maybeSingle();
+  // -------------------------------------------------------------------------
+  // Muat profil dari tabel pengguna (skema baru)
+  // -------------------------------------------------------------------------
+  Future<bool> _muatProfil(String authId) async {
+    try {
+      final row = await _db
+          .from('pengguna')
+          .select('nama_lengkap, email, nomor_induk, peran, kelas_atau_unit, telepon, foto_url, aktif')
+          .eq('id', authId)
+          .maybeSingle();
 
-    if (row == null) {
-      _error = 'Akun belum terdaftar di data pengguna';
+      if (row == null) {
+        _error = 'Akun belum terdaftar di sistem';
+        return false;
+      }
+      if (row['aktif'] == false) {
+        _error = 'Akun ini dinonaktifkan. Hubungi petugas.';
+        return false;
+      }
+
+      _user = AppUser(
+        id:             authId,
+        namaLengkap:    row['nama_lengkap'] as String,
+        email:          row['email'] as String?,
+        nomorInduk:     row['nomor_induk'] as String? ?? '',
+        peran:          row['peran'] as String,
+        kelasAtauUnit:  row['kelas_atau_unit'] as String?,
+        telepon:        row['telepon'] as String?,
+        fotoUrl:        row['foto_url'] as String?,
+      );
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = 'Gagal memuat profil: $e';
       return false;
     }
-    if (row['is_active'] == false) {
-      _error = 'Akun ini dinonaktifkan. Hubungi petugas.';
-      return false;
-    }
+  }
 
-    _user = AppUser(
-      authId: authId,
-      name: row['full_name'] as String,
-      email: row['email'] as String?,
-      idNumber: row['identity_number'] as String? ?? '',
-      role: row['role'] as String,
-      classOrUnit: row['class_or_unit'] as String?,
-    );
-    notifyListeners(); // router otomatis pindah halaman
-    return true;
+  // -------------------------------------------------------------------------
+  // Refresh profil (misal setelah edit akun sendiri)
+  // -------------------------------------------------------------------------
+  Future<void> refreshProfil() async {
+    final uid = _db.auth.currentUser?.id;
+    if (uid == null) return;
+    await _muatProfil(uid);
   }
 }
 
 final authProvider = AuthProvider();
->>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd

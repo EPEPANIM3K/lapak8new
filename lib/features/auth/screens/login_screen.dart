@@ -4,10 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
-<<<<<<< HEAD
-import '../../../core/network/lapak8_api_client.dart';
-=======
->>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
+
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -22,11 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = false;
-<<<<<<< HEAD
-  bool _isSubmitting = false;
-=======
   bool _loading = false;
->>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
 
   @override
   void dispose() {
@@ -53,25 +46,6 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-<<<<<<< HEAD
-    setState(() => _isSubmitting = true);
-    try {
-      final user = await authProvider.signIn(
-        identifier: identifier,
-        password: password,
-        rememberMe: _rememberMe,
-      );
-      if (!mounted) return;
-      context.go(user.isStaff ? '/admin' : '/');
-    } on Lapak8ApiException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
-    }
-=======
     setState(() => _loading = true);
     final ok = await authProvider.signIn(identifier, password);
     if (!mounted) return;
@@ -83,7 +57,6 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     }
     // Kalau berhasil tidak perlu context.go(): router otomatis pindah.
->>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
   }
 
   @override
@@ -269,11 +242,7 @@ class _LoginScreenState extends State<LoginScreen> {
           SizedBox(
             height: AppSpacing.touchTargetMin,
             child: ElevatedButton(
-<<<<<<< HEAD
-              onPressed: _isSubmitting ? null : _onLogin,
-=======
               onPressed: _loading ? null : _onLogin,
->>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.onPrimary,
@@ -284,22 +253,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 padding: EdgeInsets.zero,
               ),
-<<<<<<< HEAD
-              child: _isSubmitting
-=======
               child: _loading
->>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
                   ? const SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(
-<<<<<<< HEAD
-                        strokeWidth: 2,
-                        color: AppColors.onPrimary,
-=======
                         strokeWidth: 2.5,
                         color: Colors.white,
->>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
                       ),
                     )
                   : Row(

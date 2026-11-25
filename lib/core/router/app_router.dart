@@ -16,55 +16,38 @@ import 'package:lapak8new/features/admin/screens/admin_history_screen.dart';
 import 'package:lapak8new/features/admin/screens/manage_facilities_screen.dart';
 import 'package:lapak8new/features/admin/screens/manage_users_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_profile_screen.dart';
-import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 
 // Halaman yang boleh dibuka tanpa login.
 const _publicPaths = {'/login'};
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/login',
-<<<<<<< HEAD
-  refreshListenable: authProvider,
-  redirect: (_, state) {
-    final user = authProvider.user;
-    final location = state.matchedLocation;
-    final isAuthRoute = location == '/login' || location == '/welcome';
-    if (user == null && !isAuthRoute) return '/login';
-    if (user != null && isAuthRoute) return user.isStaff ? '/admin' : '/';
-    if (user != null && location.startsWith('/admin') && !user.isStaff) {
-      return '/';
-    }
-    return null;
-  },
-=======
 
   // Router dievaluasi ulang setiap kali status login berubah
-  // (login, logout, sesi habis).
   refreshListenable: authProvider,
 
   redirect: (context, state) {
     final loc = state.matchedLocation;
     final isPublic = _publicPaths.contains(loc);
 
-    // Belum login -> paksa ke halaman login.
-    if (!authProvider.isLoggedIn) {
+    // Belum login → paksa ke halaman login.
+    if (!authProvider.sudahLogin) {
       return isPublic ? null : '/login';
     }
 
-    // Sudah login tapi masih di halaman login -> arahkan sesuai role.
+    // Sudah login tapi masih di halaman login → arahkan sesuai role.
     if (isPublic) {
       return authProvider.isAdmin ? '/admin/dashboard' : '/';
     }
 
-    // Area admin hanya untuk admin.
-    if (loc.startsWith('/admin') && !authProvider.isAdmin) {
+    // Area admin hanya untuk admin/staf.
+    if (loc.startsWith('/admin') && !authProvider.isAdminAtauStaf) {
       return '/';
     }
 
     return null; // tidak ada pengalihan
   },
 
->>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
   routes: [
     // ---------- AUTH ----------
     GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),

@@ -44,11 +44,8 @@ dependencies:
   video_player: ^2.14.1
   http: ^1.6.0
   mime: ^2.1.0
-<<<<<<< HEAD
   flutter_secure_storage: ^11.2.0
-=======
   supabase_flutter: ^2.18.3
->>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
 
 dev_dependencies:
   flutter_test:

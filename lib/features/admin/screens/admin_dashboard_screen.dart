@@ -123,7 +123,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildAdminHeader(BuildContext context) {
-    final name = authProvider.user?.name.trim() ?? '';
+    final name = authProvider.user?.namaLengkap.trim() ?? '';
     final initials = name
         .split(RegExp(r'\s+'))
         .where((part) => part.isNotEmpty)

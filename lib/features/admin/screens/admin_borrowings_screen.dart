@@ -4,11 +4,10 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
-import 'package:lapak8new/core/network/lapak8_api_client.dart';
+import 'package:lapak8new/features/borrowings/models/peminjaman.dart';
+import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
 import 'package:lapak8new/features/admin/models/return_documentation.dart';
 import 'package:lapak8new/features/admin/services/media_picker_service.dart';
-import 'package:lapak8new/features/borrowings/models/borrowing.dart';
-import 'package:lapak8new/features/borrowings/services/borrowing_service.dart';
 import 'package:lapak8new/features/admin/widgets/documentation_section.dart';
 import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
@@ -179,7 +178,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
   _LoanStatus? _loanFilter; // null = semua
   _ReturnStatus? _returnFilter; // null = semua
   String _query = '';
-  final BorrowingService _borrowingService = BorrowingService();
+  final PeminjamanService _svc = peminjamanService;
   final Set<String> _updatingBorrowingIds = {};
   List<_Loan> _loans = [];
   bool _isLoadingLoans = true;
@@ -199,61 +198,60 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
       });
     }
     try {
-      final borrowings = await _borrowingService.fetchBorrowings();
+      final peminjaman = await _svc.ambilSemuaPeminjaman();
       if (!mounted) return;
       setState(() {
-        _loans = borrowings.map(_toLoan).toList();
+        _loans = peminjaman.map(_toLoan).toList();
         _isLoadingLoans = false;
         _loansError = null;
       });
-    } on Lapak8ApiException catch (error) {
+    } on PeminjamanException catch (error) {
       if (!mounted) return;
       setState(() {
         _isLoadingLoans = false;
-        _loansError = error.message;
+        _loansError = error.pesan;
       });
-    } on FormatException catch (error) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
         _isLoadingLoans = false;
-        _loansError = error.message;
+        _loansError = error.toString();
       });
     }
   }
 
-  _Loan _toLoan(Borrowing borrowing) {
-    final status = switch (borrowing.status) {
-      'pending' => _LoanStatus.waiting,
-      'approved' => _LoanStatus.approved,
-      'borrowed' => _LoanStatus.borrowed,
-      'returned' => _LoanStatus.done,
-      'rejected' => _LoanStatus.rejected,
-      'cancelled' => _LoanStatus.cancelled,
-      _ => throw FormatException(
-        'Status peminjaman dari server tidak dikenal: ${borrowing.status}',
-      ),
+  _Loan _toLoan(Peminjaman p) {
+    final status = switch (p.status) {
+      StatusPeminjaman.menungguPersetujuan => _LoanStatus.waiting,
+      StatusPeminjaman.disetujui           => _LoanStatus.approved,
+      StatusPeminjaman.dipinjam            => _LoanStatus.borrowed,
+      StatusPeminjaman.dikembalikan        => _LoanStatus.done,
+      StatusPeminjaman.ditolak             => _LoanStatus.rejected,
+      StatusPeminjaman.dibatalkan          => _LoanStatus.cancelled,
+      StatusPeminjaman.terlambat           => _LoanStatus.late,
+      _                                    => _LoanStatus.waiting,
     };
-    final identifier = borrowing.userIdentifier;
+    final namaItem = p.items.isNotEmpty ? p.items.first.namaFasilitasSnapshot : '—';
+    final jumlah   = p.items.isNotEmpty ? p.items.first.jumlah : 0;
     return _Loan(
-      code: borrowing.code,
-      name: borrowing.userName ?? 'Pengguna LAPAK8',
-      subtitle: identifier == null ? 'Pengguna LAPAK8' : 'ID: $identifier',
-      status: status,
-      itemName: borrowing.facilityName,
-      serial: '${borrowing.quantity} unit • ${borrowing.location}',
-      itemIcon: Symbols.category,
-      detailIcon: Symbols.schedule,
-      detail:
-          '${_formatDateTime(borrowing.startAt)} - ${_formatDateTime(borrowing.endAt)}',
-      isTeacher: false,
-      extra: borrowing.eventName,
-      extraColor: AppColors.primary,
-      highlight: null,
+      code:          p.kodeBooking,
+      name:          p.namaPeminjam ?? 'Pengguna LAPAK8',
+      subtitle:      p.nomorIndukPeminjam != null ? 'ID: ${p.nomorIndukPeminjam}' : 'Pengguna LAPAK8',
+      status:        status,
+      itemName:      namaItem,
+      serial:        '$jumlah unit • ${p.labelKategori}',
+      itemIcon:      Symbols.category,
+      detailIcon:    Symbols.schedule,
+      detail:        '${_formatDateTime(p.mulaiPada)} - ${_formatDateTime(p.estimasiKembaliPada)}',
+      isTeacher:     false,
+      extra:         p.namaKegiatan,
+      extraColor:    AppColors.primary,
+      highlight:     null,
       highlightColor: null,
       trailingDetail: null,
-      note: borrowing.decisionNote,
-      avatarUrl: null,
-      borrowingId: borrowing.id,
+      note:          p.alasanPenolakan,
+      avatarUrl:     null,
+      borrowingId:   p.id,
     );
   }
 
@@ -390,18 +388,8 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
         confirmColor: AppColors.primary,
         iconColor: AppColors.primary,
         iconBackground: AppColors.primaryFixed,
-<<<<<<< HEAD
         onConfirm: () =>
-            _updateBorrowingStatus(l, 'approved', 'Peminjaman disetujui.'),
-=======
-        onConfirm: () {
-          if (!mounted) return;
-          // TODO: kirim aksi setujui ke backend, lalu refresh daftar.
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Peminjaman disetujui')));
-        },
->>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
+            _updateBorrowingStatus(l, 'disetujui', 'Peminjaman disetujui.'),
       ),
     );
   }
@@ -421,18 +409,8 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
         confirmColor: AppColors.error,
         iconColor: AppColors.error,
         iconBackground: AppColors.errorContainer,
-<<<<<<< HEAD
         onConfirm: () =>
-            _updateBorrowingStatus(l, 'rejected', 'Peminjaman ditolak.'),
-=======
-        onConfirm: () {
-          if (!mounted) return;
-          // TODO: kirim aksi tolak ke backend, lalu refresh daftar.
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Peminjaman ditolak')));
-        },
->>>>>>> c4d3b6adf1f29467316add0189fb5d57a0cafedd
+            _updateBorrowingStatus(l, 'ditolak', 'Peminjaman ditolak.'),
       ),
     );
   }
@@ -451,21 +429,21 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
     }
     setState(() => _updatingBorrowingIds.add(id));
     try {
-      await _borrowingService.updateStatus(
+      await _svc.ubahStatus(
         id,
         status: status,
-        note: status == 'rejected' ? 'Ditolak oleh petugas Sarpras.' : null,
+        alasanPenolakan: status == 'ditolak' ? 'Ditolak oleh petugas Sarpras.' : null,
       );
       await _loadLoans(showLoading: false);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(successMessage)));
-    } on Lapak8ApiException catch (error) {
+    } on PeminjamanException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
+      ).showSnackBar(SnackBar(content: Text(error.pesan)));
     } finally {
       if (mounted) setState(() => _updatingBorrowingIds.remove(id));
     }
@@ -659,12 +637,12 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
                   onApprove: () => _confirmApprove(l),
                   onMarkBorrowed: () => _updateBorrowingStatus(
                     l,
-                    'borrowed',
+                    'dipinjam',
                     'Peminjaman ditandai sedang dipinjam.',
                   ),
                   onMarkReturned: () => _updateBorrowingStatus(
                     l,
-                    'returned',
+                    'dikembalikan',
                     'Pengembalian peminjaman telah dicatat.',
                   ),
                   onSuspend: () => _confirmSuspend(l),

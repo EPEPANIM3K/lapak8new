@@ -1,3 +1,7 @@
+// Deno Edge Function: manage-users
+// Supabase Project: oqyhowjjndkjerdouhfl
+// Skema: tabel "pengguna" (skema baru, nama kolom Indonesia)
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -21,8 +25,13 @@ function requiredString(body: JsonRecord, key: string): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function optionalString(body: JsonRecord, key: string): string | null {
+  const value = body[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
 function validEmail(value: string): boolean {
-  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);
+  return /^[^\@\s]+@[^\@\s]+\.[^\@\s]+$/.test(value);
 }
 
 function validUuid(value: string): boolean {
@@ -50,6 +59,7 @@ Deno.serve(async (request) => {
     return respond({ error: 'Sesi login tidak ditemukan.' }, 401);
   }
 
+  // Verifikasi user yang memanggil function
   const userClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authorization } },
     auth: { autoRefreshToken: false, persistSession: false },
@@ -59,19 +69,20 @@ Deno.serve(async (request) => {
     return respond({ error: 'Sesi login tidak valid atau sudah berakhir.' }, 401);
   }
 
+  // Verifikasi bahwa pemanggil adalah admin aktif di tabel pengguna
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data: operator, error: operatorError } = await adminClient
-    .from('profiles')
-    .select('id, role, is_active')
+    .from('pengguna')
+    .select('id, peran, aktif')
     .eq('id', authData.user.id)
     .maybeSingle();
 
   if (operatorError) {
     return respond({ error: 'Gagal memverifikasi akun admin.' }, 500);
   }
-  if (!operator || operator.role !== 'admin' || operator.is_active !== true) {
+  if (!operator || operator.peran !== 'admin' || operator.aktif !== true) {
     return respond({ error: 'Hanya admin aktif yang boleh mengelola akun.' }, 403);
   }
 
@@ -87,20 +98,22 @@ Deno.serve(async (request) => {
   }
 
   const action = body.action;
+
+  // ---------------------------------------------------------------------------
+  // ACTION: create — buat akun auth + insert ke tabel pengguna
+  // ---------------------------------------------------------------------------
   if (action === 'create') {
-    const name = requiredString(body, 'nama');
+    const nama     = requiredString(body, 'nama');
     const rawEmail = requiredString(body, 'email');
     const password = body.password;
-    const idNumber = requiredString(body, 'nisn');
-    const role = body.role;
-    const active = body.active === undefined ? true : body.active;
+    const nomorInduk = optionalString(body, 'nomor_induk');
+    const peran    = body.peran;
+    const aktif    = body.aktif === undefined ? true : body.aktif;
 
-    if (!name || !rawEmail || !idNumber || typeof password !== 'string') {
-      return respond({
-        error: 'Nama, email, password, dan nomor induk wajib diisi.',
-      }, 400);
+    if (!nama || !rawEmail || typeof password !== 'string') {
+      return respond({ error: 'Nama, email, dan password wajib diisi.' }, 400);
     }
-    if (typeof active !== 'boolean') {
+    if (typeof aktif !== 'boolean') {
       return respond({ error: 'Status akun tidak valid.' }, 400);
     }
     const email = rawEmail.toLowerCase();
@@ -111,23 +124,19 @@ Deno.serve(async (request) => {
       return respond({ error: 'Password minimal 6 karakter.' }, 400);
     }
 
-    const roleMap: Record<string, { dbRole: string; idType: string }> = {
-      student: { dbRole: 'siswa',    idType: 'nisn' },
-      teacher: { dbRole: 'guru',     idType: 'nip'  },
-      staff:   { dbRole: 'petugas',  idType: 'nip'  },
-    };
-    const validRoles = ['student', 'teacher', 'staff'];
-    if (typeof role !== 'string' || !validRoles.includes(role)) {
-      return respond({ error: 'Jenis akun tidak valid.' }, 400);
+    // Validasi peran (skema baru: siswa, guru, staf)
+    const validRoles = ['siswa', 'guru', 'staf'];
+    if (typeof peran !== 'string' || !validRoles.includes(peran)) {
+      return respond({ error: 'Jenis akun tidak valid. Gunakan: siswa, guru, atau staf.' }, 400);
     }
-    const mapped = roleMap[role];
 
+    // 1. Buat akun auth Supabase
     const { data: created, error: createError } =
       await adminClient.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
-        user_metadata: { full_name: name },
+        user_metadata: { nama_lengkap: nama },
       });
     if (createError || !created.user) {
       return respond({
@@ -135,96 +144,82 @@ Deno.serve(async (request) => {
       }, 409);
     }
 
-    const { error: insertError } = await adminClient.from('users').insert({
-      auth_id: created.user.id,
-      name,
-      email,
-      id_number: idNumber,
-      id_type: mapped.idType,
-      role: mapped.dbRole,
-      role_class: requiredString(body, 'kelas'),
-      phone: requiredString(body, 'nomor_telepon'),
-      is_active: active,
-      password_hash: '',
-      loan_count: 0,
-      late_count: 0,
-    });
+    // 2. Insert ke tabel pengguna (trigger tangani_pengguna_auth_baru mungkin
+    //    sudah membuat baris — kita pakai upsert agar aman)
+    const { error: insertError } = await adminClient.from('pengguna').upsert({
+      id:              created.user.id,
+      nama_lengkap:    nama,
+      email:           email,
+      nomor_induk:     nomorInduk ?? '',
+      peran:           peran,
+      kelas_atau_unit: optionalString(body, 'kelas'),
+      telepon:         optionalString(body, 'nomor_telepon'),
+      aktif:           aktif,
+    }, { onConflict: 'id' });
 
     if (insertError) {
-      const { error: cleanupError } =
-        await adminClient.auth.admin.deleteUser(created.user.id);
-      if (cleanupError) {
-        return respond({
-          error: `Profil gagal disimpan dan akun Auth tidak dapat dibersihkan: ${insertError.message}`,
-        }, 500);
-      }
+      // Rollback: hapus akun auth yang sudah terbuat
+      await adminClient.auth.admin.deleteUser(created.user.id);
       return respond({ error: insertError.message }, 409);
     }
 
     return respond({ id: created.user.id }, 201);
   }
 
+  // ---------------------------------------------------------------------------
+  // ACTION: set_email / set_password
+  // ---------------------------------------------------------------------------
   if (action === 'set_email' || action === 'set_password') {
     const id = requiredString(body, 'id');
     if (!id || !validUuid(id)) {
       return respond({ error: 'ID akun tidak valid.' }, 400);
     }
 
+    // Ambil data target dari tabel pengguna
     const { data: target, error: targetError } = await adminClient
-      .from('profiles')
-      .select('id, email, role')
+      .from('pengguna')
+      .select('id, email, peran')
       .eq('id', id)
       .maybeSingle();
 
     if (targetError) {
       return respond({ error: 'Gagal memeriksa akun tujuan.' }, 500);
     }
-    if (
-      !target ||
-      (target.role === 'admin' && target.id !== authData.user.id)
-    ) {
+    if (!target || (target.peran === 'admin' && target.id !== authData.user.id)) {
       return respond({ error: 'Akun tujuan tidak dapat dikelola.' }, 404);
     }
 
     if (action === 'set_email') {
       const rawEmail = requiredString(body, 'email');
-      if (!rawEmail) {
-        return respond({ error: 'Email wajib diisi.' }, 400);
-      }
+      if (!rawEmail) return respond({ error: 'Email wajib diisi.' }, 400);
       const email = rawEmail.toLowerCase();
-      if (!validEmail(email)) {
-        return respond({ error: 'Format email tidak valid.' }, 400);
-      }
+      if (!validEmail(email)) return respond({ error: 'Format email tidak valid.' }, 400);
 
+      // Update email di tabel pengguna
       const { error: profileError } = await adminClient
-        .from('profiles')
+        .from('pengguna')
         .update({ email })
         .eq('id', id);
       if (profileError) {
         return respond({ error: profileError.message }, 409);
       }
 
+      // Update email di auth
       const { error: authUpdateError } =
         await adminClient.auth.admin.updateUserById(id, {
           email,
           email_confirm: true,
         });
       if (authUpdateError) {
-        const { error: rollbackError } = await adminClient
-          .from('profiles')
-          .update({ email: target.email })
-          .eq('id', id);
-        if (rollbackError) {
-          return respond({
-            error: `Email Auth gagal diperbarui dan sinkronisasi profil gagal: ${rollbackError.message}`,
-          }, 500);
-        }
+        // Rollback
+        await adminClient.from('pengguna').update({ email: target.email }).eq('id', id);
         return respond({ error: authUpdateError.message }, 409);
       }
 
       return respond({ ok: true });
     }
 
+    // set_password
     const password = body.password;
     if (typeof password !== 'string' || password.length < 6) {
       return respond({ error: 'Password minimal 6 karakter.' }, 400);
