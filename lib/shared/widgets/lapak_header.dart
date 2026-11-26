@@ -182,14 +182,21 @@ class _Avatar extends StatelessWidget {
               ],
             ),
             child: ClipOval(
-              child: Image.network(
-                url,
-                width: 32,
-                height: 32,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    const ColoredBox(color: AppColors.surfaceContainerHigh),
-              ),
+              child: url.trim().isEmpty
+                  ? const ColoredBox(
+                      color: AppColors.surfaceContainerHigh,
+                      child: Icon(Icons.person, size: 18, color: AppColors.primary),
+                    )
+                  : Image.network(
+                      url,
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const ColoredBox(
+                        color: AppColors.surfaceContainerHigh,
+                        child: Icon(Icons.person, size: 18, color: AppColors.primary),
+                      ),
+                    ),
             ),
           ),
         ),

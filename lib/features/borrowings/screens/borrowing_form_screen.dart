@@ -8,7 +8,9 @@ import '../models/peminjaman.dart';
 import '../services/peminjaman_service.dart';
 
 class BorrowingFormScreen extends StatefulWidget {
-  const BorrowingFormScreen({super.key});
+  const BorrowingFormScreen({super.key, this.initialFacilityId});
+
+  final String? initialFacilityId;
   @override
   State<BorrowingFormScreen> createState() => _BorrowingFormScreenState();
 }
@@ -71,6 +73,7 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedFasilitasId = widget.initialFacilityId;
     _loadFasilitas();
   }
 
@@ -88,7 +91,9 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
         _fasilitas
           ..clear()
           ..addAll(list);
-        _selectedFasilitasId ??= list.isEmpty ? null : list.first.id;
+        if (_selectedFasilitasId == null || !list.any((f) => f.id == _selectedFasilitasId)) {
+          _selectedFasilitasId = list.isEmpty ? null : list.first.id;
+        }
         _isLoadingFasilitas = false;
         _fasilitasError = null;
       });

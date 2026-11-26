@@ -14,11 +14,13 @@ class GreetingSection extends StatelessWidget {
     required this.name,
     required this.roleLabel,
     required this.nis,
+    this.nisLabel = 'NIS',
   });
 
   final String name;
   final String roleLabel; // contoh: "Siswa • XII RPL 1"
   final String nis;
+  final String nisLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -41,8 +43,9 @@ class GreetingSection extends StatelessWidget {
                     Flexible(
                       child: Text(
                         'Halo, $name',
-                        style:
-                            AppTextStyles.headlineMd(color: AppColors.onSurface),
+                        style: AppTextStyles.headlineMd(
+                          color: AppColors.onSurface,
+                        ),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xxs),
@@ -59,36 +62,50 @@ class GreetingSection extends StatelessWidget {
                 const SizedBox(height: 2), // mt-0.5
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.xs, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.secondaryContainer,
-                        borderRadius: BorderRadius.circular(AppRadius.full),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const MsIcon(Symbols.school,
-                              size: 14, color: AppColors.onSecondaryContainer),
-                          const SizedBox(width: AppSpacing.xxs),
-                          Text(
-                            roleLabel,
-                            style: AppTextStyles.labelSm(
-                                weight: FontWeight.w600,
-                                color: AppColors.onSecondaryContainer),
-                          ),
-                        ],
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xs,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.secondaryContainer,
+                          borderRadius: BorderRadius.circular(AppRadius.full),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const MsIcon(
+                              Symbols.school,
+                              size: 14,
+                              color: AppColors.onSecondaryContainer,
+                            ),
+                            const SizedBox(width: AppSpacing.xxs),
+                            Flexible(
+                              child: Text(
+                                roleLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.labelSm(
+                                  weight: FontWeight.w600,
+                                  color: AppColors.onSecondaryContainer,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
-                    Flexible(
-                      child: Text(
-                        'NIS: $nis',
-                        style: AppTextStyles.bodySm(
-                            color: AppColors.onSurfaceVariant),
+                    if (nis.trim().isNotEmpty)
+                      Flexible(
+                        child: Text(
+                          '$nisLabel: $nis',
+                          style: AppTextStyles.bodySm(
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ],
@@ -103,8 +120,11 @@ class GreetingSection extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: AppShadows.sm,
             ),
-            child: const MsIcon(Symbols.verified_user,
-                size: 21.6, color: AppColors.primary),
+            child: const MsIcon(
+              Symbols.verified_user,
+              size: 21.6,
+              color: AppColors.primary,
+            ),
           ),
         ],
       ),

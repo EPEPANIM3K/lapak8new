@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/profile_modals.dart';
@@ -10,6 +12,8 @@ import 'package:lapak8new/features/admin/services/media_picker_service.dart';
 import 'package:lapak8new/features/admin/widgets/avatar_preview_dialog.dart';
 import 'package:lapak8new/features/admin/widgets/documentation_media_previews.dart';
 import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
+import 'package:lapak8new/features/admin/services/user_repository.dart';
+import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 import 'package:lapak8new/features/dashboard/widgets/bantuan_pic_modal.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -27,7 +31,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final MediaPickerService _picker = MediaPickerService();
   String _avatarPath = '';
   List<int>? _avatarBytes;
-  bool get _hasAvatar => _avatarBytes != null || _avatarPath.isNotEmpty;
+  String? get _fotoUrl => authProvider.user?.fotoUrl;
+  bool get _hasAvatar => _avatarBytes != null || _avatarPath.isNotEmpty || (_fotoUrl != null && _fotoUrl!.isNotEmpty);
 
   // ---- Ganti foto profil ----------------------------------------------------
   Future<void> _changeAvatar() async {
@@ -66,6 +71,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (use != true || !mounted) return;
 
+    final userId = authProvider.user?.id;
+    final bytes = file.bytes;
+    if (userId != null && bytes != null) {
+      try {
+        await userRepository.uploadAndSaveProfilePhoto(
+          userId: userId,
+          bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+          fileName: file.fileName,
+        );
+        await authProvider.refreshProfil();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: cError,
+            content: Text('Gagal menyimpan foto profil: '),
+          ),
+        );
+        return;
+      }
+    }
+
+    if (!mounted) return;
     setState(() {
       _avatarPath = file.localPath;
       _avatarBytes = file.bytes;
@@ -107,7 +136,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      builder: (modalContext) {
         return Container(
           decoration: const BoxDecoration(
             color: cSurfaceLowest,
@@ -144,8 +173,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 SizedBox(
                   width: double.infinity, height: 48,
                   child: ElevatedButton.icon(
-                     onPressed: () {
-                       Navigator.pop(context); // Tutup modal
+                     onPressed: () async {
+                       Navigator.pop(modalContext); // Tutup modal
+                       await authProvider.signOut();
+                       if (!mounted) return;
                        context.go('/login');
                        ScaffoldMessenger.of(context).showSnackBar(
                          const SnackBar(content: Text('Berhasil keluar dari akun LAPAK8.'), behavior: SnackBarBehavior.floating),
@@ -163,7 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 SizedBox(
                   width: double.infinity, height: 48,
                   child: TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pop(modalContext),
                     style: TextButton.styleFrom(
                       backgroundColor: cSurfaceContainerHigh, foregroundColor: cOnSurface,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
@@ -241,9 +272,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: 96, height: 96,
                       clipBehavior: Clip.antiAlias,
                       decoration: const BoxDecoration(color: cSurfaceContainerHigh, shape: BoxShape.circle),
-                      child: _hasAvatar
+                      child: (_avatarBytes != null || _avatarPath.isNotEmpty)
                           ? LocalImagePreview(path: _avatarPath, bytes: _avatarBytes)
-                          : const Icon(Icons.person, size: 48, color: cPrimary), // Placeholder
+                          : (_fotoUrl != null && _fotoUrl!.isNotEmpty)
+                              ? Image.network(
+                                  _fotoUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const Icon(Icons.person, size: 48, color: cPrimary),
+                                )
+                              : const Icon(Icons.person, size: 48, color: cPrimary),
                     ),
                     // Verified Badge
                     Positioned(

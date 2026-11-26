@@ -4,42 +4,11 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/borrowings/models/peminjaman.dart';
+import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
 import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 
 enum _HistoryFilter { all, onTime, lateReturned }
-
-class _HistoryItem {
-  const _HistoryItem({
-    required this.code,
-    required this.name,
-    required this.subtitle,
-    required this.itemName,
-    required this.serial,
-    required this.itemIcon,
-    required this.returnDate,
-    required this.conditionNote,
-    this.isTeacher = false,
-    this.isOnTime = true,
-  });
-
-  final String code;
-  final String name;
-  final String subtitle;
-  final String itemName;
-  final String serial;
-  final IconData itemIcon;
-  final String returnDate;
-  final String conditionNote;
-  final bool isTeacher;
-  final bool isOnTime;
-
-  String get initials {
-    final parts = name.replaceAll('Drs. ', '').trim().split(' ');
-    final a = parts.first.isNotEmpty ? parts.first[0] : '';
-    final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
-    return (a + b).toUpperCase();
-  }
-}
 
 class AdminHistoryScreen extends StatefulWidget {
   const AdminHistoryScreen({super.key});
@@ -49,76 +18,93 @@ class AdminHistoryScreen extends StatefulWidget {
 }
 
 class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'Mei',
+    'Jun',
+    'Jul',
+    'Agu',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Des',
+  ];
+
   _HistoryFilter _filter = _HistoryFilter.all;
   String _query = '';
+  List<Peminjaman> _histories = const [];
+  bool _loading = true;
+  String? _error;
 
-  // Data riwayat peminjaman selesai (Dummy data sesuai style admin)
-  static const List<_HistoryItem> _histories = [
-    _HistoryItem(
-      code: 'BK-2024-086',
-      name: 'Annisa Rahma',
-      subtitle: 'XII DKV 1 • NIS: 202208034',
-      itemName: 'Rode PodMic Set Dual',
-      serial: 'ROD-PM-019',
-      itemIcon: Symbols.mic,
-      returnDate: '23 Okt 2024 • 14:15 WIB',
-      conditionNote: 'Kondisi: Lengkap & Bersih (Tepat Waktu)',
-      isOnTime: true,
-    ),
-    _HistoryItem(
-      code: 'BK-2024-082',
-      name: 'Budi Santoso',
-      subtitle: 'XI RPL 2 • NIS: 202308012',
-      itemName: 'DSLR Canon EOS 80D',
-      serial: 'CAN-80D-011',
-      itemIcon: Symbols.photo_camera,
-      returnDate: '22 Okt 2024 • 16:00 WIB',
-      conditionNote: 'Kondisi: Ada sedikit debu pada lensa',
-      isOnTime: true,
-    ),
-    _HistoryItem(
-      code: 'BK-2024-079',
-      name: 'Drs. Agus Hidayat',
-      isTeacher: true,
-      subtitle: 'Guru Produktif TKJ • NIP: 19780512...',
-      itemName: 'MikroTik Cloud Core CCR',
-      serial: 'MTK-CCR-1009',
-      itemIcon: Symbols.router,
-      returnDate: '21 Okt 2024 • 12:30 WIB',
-      conditionNote: 'Kondisi: Sangat Baik & Berfungsi Normal',
-      isOnTime: true,
-    ),
-    _HistoryItem(
-      code: 'BK-2024-075',
-      name: 'Devi Anggraini',
-      subtitle: 'XII MM 1 • NIS: 202207099',
-      itemName: 'Huion Kamvas 16 Pro',
-      serial: 'HU-K16-001',
-      itemIcon: Symbols.draw,
-      returnDate: '20 Okt 2024 • 15:45 WIB',
-      conditionNote: 'Kondisi: Terlambat dikembalikan (1 Hari)',
-      isOnTime: false,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final list = await peminjamanService.ambilSemuaRiwayat();
+      if (!mounted) return;
+      setState(() {
+        _histories = list;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  bool _isOnTime(Peminjaman p) {
+    if (p.status == StatusPeminjaman.terlambat) return false;
+    if (p.dikembalikanPada != null) {
+      return !p.dikembalikanPada!.isAfter(p.estimasiKembaliPada);
+    }
+    return true;
+  }
 
   int _count(_HistoryFilter f) {
     if (f == _HistoryFilter.all) return _histories.length;
-    if (f == _HistoryFilter.onTime) return _histories.where((h) => h.isOnTime).length;
-    if (f == _HistoryFilter.lateReturned) return _histories.where((h) => !h.isOnTime).length;
+    if (f == _HistoryFilter.onTime) {
+      return _histories.where(_isOnTime).length;
+    }
+    if (f == _HistoryFilter.lateReturned) {
+      return _histories.where((h) => !_isOnTime(h)).length;
+    }
     return _histories.length;
   }
 
-  List<_HistoryItem> get _visible {
+  List<Peminjaman> get _visible {
     final q = _query.trim().toLowerCase();
     return _histories.where((h) {
-      if (_filter == _HistoryFilter.onTime && !h.isOnTime) return false;
-      if (_filter == _HistoryFilter.lateReturned && h.isOnTime) return false;
+      final onTime = _isOnTime(h);
+      if (_filter == _HistoryFilter.onTime && !onTime) return false;
+      if (_filter == _HistoryFilter.lateReturned && onTime) return false;
       if (q.isEmpty) return true;
-      return h.name.toLowerCase().contains(q) ||
-          h.code.toLowerCase().contains(q) ||
-          h.itemName.toLowerCase().contains(q) ||
-          h.serial.toLowerCase().contains(q);
+      final itemNames = h.items.map((i) => i.namaFasilitasSnapshot).join(' ');
+      return (h.namaPeminjam ?? '').toLowerCase().contains(q) ||
+          h.kodeBooking.toLowerCase().contains(q) ||
+          itemNames.toLowerCase().contains(q) ||
+          h.namaKegiatan.toLowerCase().contains(q);
     }).toList();
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final local = dt.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '${local.day} ${_months[local.month - 1]} ${local.year} • $hh:$mm WIB';
   }
 
   @override
@@ -126,53 +112,109 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
     final histories = _visible;
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLow,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.mobileGutter,
-          AppSpacing.md,
-          AppSpacing.mobileGutter,
-          AppSpacing.md,
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Riwayat Peminjaman',
-                  style: AppTextStyles.headlineMd(color: AppColors.onSurface),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Arsip data peminjaman yang sudah selesai',
-                  style: AppTextStyles.bodyMd(color: AppColors.slate600),
-                ),
-              ],
-            ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.mobileGutter,
+            AppSpacing.md,
+            AppSpacing.mobileGutter,
+            AppSpacing.md,
           ),
-          const SizedBox(height: 12),
-          const _SyncRow(),
-          const SizedBox(height: 16),
-          _SearchField(onChanged: (v) => setState(() => _query = v)),
-          const SizedBox(height: 16),
-          _buildFilterChips(),
-          const SizedBox(height: 16),
-          if (histories.isEmpty)
+          children: [
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 48),
-              child: Center(
-                child: Text(
-                  'Tidak ada data riwayat',
-                  style: AppTextStyles.bodyMd(color: AppColors.slate500),
-                ),
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Riwayat Peminjaman',
+                    style: AppTextStyles.headlineMd(color: AppColors.onSurface),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Arsip data peminjaman yang sudah selesai',
+                    style: AppTextStyles.bodyMd(color: AppColors.slate600),
+                  ),
+                ],
               ),
             ),
-          for (final h in histories) ...[
-            _HistoryCard(history: h),
+            const SizedBox(height: 12),
+            _SyncRow(isLoading: _loading, hasError: _error != null),
             const SizedBox(height: 16),
+            _SearchField(onChanged: (v) => setState(() => _query = v)),
+            const SizedBox(height: 16),
+            _buildFilterChips(),
+            const SizedBox(height: 16),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Column(
+                  children: [
+                    Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.bodyMd(color: AppColors.error),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      onPressed: _load,
+                      icon: const Icon(Symbols.refresh),
+                      label: const Text('Coba lagi'),
+                    ),
+                  ],
+                ),
+              )
+            else if (_histories.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Symbols.history,
+                        size: 40,
+                        color: AppColors.slate400,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Belum ada data riwayat',
+                        style: AppTextStyles.bodyMd(color: AppColors.slate500),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (histories.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: Text(
+                    'Tidak ada riwayat yang cocok dengan pencarian atau filter.',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.bodyMd(color: AppColors.slate500),
+                  ),
+                ),
+              )
+            else
+              for (final h in histories) ...[
+                _HistoryCard(
+                  history: h,
+                  isOnTime: _isOnTime(h),
+                  returnDate: h.dikembalikanPada != null
+                      ? _formatDateTime(h.dikembalikanPada!)
+                      : _formatDateTime(h.estimasiKembaliPada),
+                ),
+                const SizedBox(height: 16),
+              ],
           ],
-        ],
+        ),
       ),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
@@ -187,7 +229,13 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
             child: _SummaryBar(
               total: _histories.length,
               onExport: () {
-                // TODO: export riwayat ke XLS
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    const SnackBar(
+                      content: Text('Fitur ekspor XLS akan segera hadir.'),
+                    ),
+                  );
               },
             ),
           ),
@@ -201,7 +249,10 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
     final filters = <(String, _HistoryFilter)>[
       ('Semua (${_histories.length})', _HistoryFilter.all),
       ('Tepat Waktu (${_count(_HistoryFilter.onTime)})', _HistoryFilter.onTime),
-      ('Terlambat (${_count(_HistoryFilter.lateReturned)})', _HistoryFilter.lateReturned),
+      (
+        'Terlambat (${_count(_HistoryFilter.lateReturned)})',
+        _HistoryFilter.lateReturned,
+      ),
     ];
     return SizedBox(
       height: 40,
@@ -219,7 +270,9 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
               alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: selected ? AppColors.primary : AppColors.surfaceContainerLowest,
+                color: selected
+                    ? AppColors.primary
+                    : AppColors.surfaceContainerLowest,
                 borderRadius: BorderRadius.circular(AppRadius.full),
                 boxShadow: selected ? null : AppShadows.sm,
               ),
@@ -239,10 +292,24 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
 }
 
 class _SyncRow extends StatelessWidget {
-  const _SyncRow();
+  const _SyncRow({required this.isLoading, required this.hasError});
+
+  final bool isLoading;
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = hasError
+        ? AppColors.error
+        : isLoading
+        ? AppColors.slate500
+        : AppColors.emerald500;
+    final statusLabel = hasError
+        ? 'Sinkronisasi gagal'
+        : isLoading
+        ? 'Memuat riwayat'
+        : 'Data tersinkronisasi';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Row(
@@ -259,17 +326,17 @@ class _SyncRow extends StatelessWidget {
                 Container(
                   width: 6,
                   height: 6,
-                  decoration: const BoxDecoration(
-                    color: AppColors.emerald500,
+                  decoration: BoxDecoration(
+                    color: statusColor,
                     shape: BoxShape.circle,
                   ),
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Arsip Aktif',
+                  statusLabel,
                   style: AppTextStyles.labelSm(
                     weight: FontWeight.w700,
-                    color: AppColors.emerald500,
+                    color: statusColor,
                   ),
                 ),
               ],
@@ -278,7 +345,9 @@ class _SyncRow extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Penyimpanan otomatis aman',
+              hasError
+                  ? 'Periksa koneksi lalu coba muat ulang.'
+                  : 'Data riwayat diambil dari database.',
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.labelMd(
                 weight: FontWeight.w500,
@@ -321,8 +390,47 @@ class _SearchField extends StatelessWidget {
 }
 
 class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({required this.history});
-  final _HistoryItem history;
+  const _HistoryCard({
+    required this.history,
+    required this.isOnTime,
+    required this.returnDate,
+  });
+
+  final Peminjaman history;
+  final bool isOnTime;
+  final String returnDate;
+
+  String get _borrowerName => history.namaPeminjam?.trim().isNotEmpty == true
+      ? history.namaPeminjam!
+      : 'Pengguna';
+
+  String get _initials {
+    final parts = _borrowerName.trim().split(RegExp(r'\s+'));
+    final a = parts.isNotEmpty && parts.first.isNotEmpty ? parts.first[0] : '';
+    final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+    return (a + b).toUpperCase();
+  }
+
+  String get _subtitle {
+    final kelas = history.kelasPeminjam;
+    final nomor = history.nomorIndukPeminjam;
+    final parts = <String>[
+      if (kelas != null && kelas.isNotEmpty) kelas,
+      if (nomor != null && nomor.isNotEmpty) 'NIS/NIP: $nomor',
+    ];
+    return parts.isEmpty ? history.labelKategori : parts.join(' • ');
+  }
+
+  String get _itemName {
+    if (history.items.isEmpty) return history.namaKegiatan;
+    final first = history.items.first;
+    return first.namaFasilitasSnapshot;
+  }
+
+  String get _unitLabel {
+    final total = history.items.fold<int>(0, (s, i) => s + i.jumlah);
+    return '${total > 0 ? total : 1} Unit';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -339,36 +447,45 @@ class _HistoryCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('#', style: AppTextStyles.headlineSm(color: AppColors.primary)),
+              Text(
+                '#',
+                style: AppTextStyles.headlineSm(color: AppColors.primary),
+              ),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  history.code,
+                  history.kodeBooking,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.headlineSm(color: AppColors.onSurface)
-                      .copyWith(fontWeight: FontWeight.w700),
+                  style: AppTextStyles.headlineSm(
+                    color: AppColors.onSurface,
+                  ).copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
-                  color: history.isOnTime ? AppColors.surfaceContainerLow : AppColors.errorContainer,
+                  color: isOnTime
+                      ? AppColors.surfaceContainerLow
+                      : AppColors.errorContainer,
                   borderRadius: BorderRadius.circular(AppRadius.full),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      history.isOnTime ? Symbols.check_circle : Symbols.warning,
+                      isOnTime ? Symbols.check_circle : Symbols.warning,
                       size: 14,
-                      color: history.isOnTime ? AppColors.slate600 : AppColors.error,
+                      color: isOnTime ? AppColors.slate600 : AppColors.error,
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      history.isOnTime ? 'Selesai' : 'Terlambat',
+                      isOnTime ? 'Selesai' : 'Terlambat',
                       style: AppTextStyles.labelSm(
                         weight: FontWeight.w700,
-                        color: history.isOnTime ? AppColors.slate600 : AppColors.error,
+                        color: isOnTime ? AppColors.slate600 : AppColors.error,
                       ),
                     ),
                   ],
@@ -384,14 +501,15 @@ class _HistoryCard extends StatelessWidget {
                 width: 48,
                 height: 48,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppColors.primaryFixed,
                   shape: BoxShape.circle,
                 ),
                 child: Text(
-                  history.initials,
-                  style: AppTextStyles.headlineSm(color: AppColors.primary)
-                      .copyWith(fontSize: 16, fontWeight: FontWeight.w700),
+                  _initials.isEmpty ? '?' : _initials,
+                  style: AppTextStyles.headlineSm(
+                    color: AppColors.primary,
+                  ).copyWith(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
               ),
               const SizedBox(width: 12),
@@ -399,38 +517,16 @@ class _HistoryCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            history.name,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.headlineSm(color: AppColors.onSurface)
-                                .copyWith(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        if (history.isTeacher) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryFixed,
-                              borderRadius: BorderRadius.circular(AppRadius.full),
-                            ),
-                            child: Text(
-                              'Guru',
-                              style: AppTextStyles.labelSm(
-                                weight: FontWeight.w600,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                    Text(
+                      _borrowerName,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.headlineSm(
+                        color: AppColors.onSurface,
+                      ).copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      history.subtitle,
+                      _subtitle,
                       overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.bodySm(
                         weight: FontWeight.w500,
@@ -458,7 +554,7 @@ class _HistoryCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        history.itemName,
+                        _itemName,
                         style: AppTextStyles.bodyMd(
                           weight: FontWeight.w700,
                           color: AppColors.onSurface,
@@ -467,13 +563,16 @@ class _HistoryCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.primaryFixed.fade(0.6),
                         borderRadius: BorderRadius.circular(AppRadius.full),
                       ),
                       child: Text(
-                        history.serial,
+                        _unitLabel,
                         style: AppTextStyles.labelSm(
                           weight: FontWeight.w700,
                           color: AppColors.slate600,
@@ -485,11 +584,15 @@ class _HistoryCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Symbols.calendar_month, size: 16, color: AppColors.slate600),
+                    const Icon(
+                      Symbols.calendar_month,
+                      size: 16,
+                      color: AppColors.slate600,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Dikembalikan: ${history.returnDate}',
+                        'Dikembalikan: $returnDate',
                         style: AppTextStyles.bodySm(
                           weight: FontWeight.w500,
                           color: AppColors.slate600,
@@ -501,11 +604,17 @@ class _HistoryCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Symbols.fact_check, size: 16, color: AppColors.emerald500),
+                    Icon(
+                      Symbols.fact_check,
+                      size: 16,
+                      color: isOnTime ? AppColors.emerald500 : AppColors.error,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        history.conditionNote,
+                        isOnTime
+                            ? 'Dikembalikan tepat waktu (${history.namaKegiatan})'
+                            : 'Terlambat dikembalikan (${history.namaKegiatan})',
                         style: AppTextStyles.bodySm(
                           weight: FontWeight.w600,
                           color: AppColors.slate700,
@@ -524,10 +633,7 @@ class _HistoryCard extends StatelessWidget {
 }
 
 class _SummaryBar extends StatelessWidget {
-  const _SummaryBar({
-    required this.total,
-    required this.onExport,
-  });
+  const _SummaryBar({required this.total, required this.onExport});
 
   final int total;
   final VoidCallback onExport;
@@ -575,11 +681,18 @@ class _SummaryBar extends StatelessWidget {
                 customBorder: const StadiumBorder(),
                 onTap: onExport,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Symbols.download, size: 20, color: AppColors.primary),
+                      const Icon(
+                        Symbols.download,
+                        size: 20,
+                        color: AppColors.primary,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Rekap\nXLS',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/lapak_header.dart';
 import '../widgets/greeting_section.dart';
@@ -24,9 +25,6 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _navIndex = 0;
-
-  static const _avatarUrl =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCM9TBr73lAvJae_M-j8bVPXa69t9E8fJjw6s1fOkJB9Rwn5SdnSrc2vwOfl_FwiSc0PAsKLZ3OrWbOxQRw_0Nv8TltDOZ-YW8v68X2WTQJl29s3nRn2_K2GuSWHAvMZpMCZJe6iBeZDp5yEl_7IcjmKNNuCgejx9XkiISbISzKzJKsN4oi8-ZVu-ddev07E4AA7eAz81C-Lou8NTkx4lFKRMgys8zcncLJEU3cjaxS9X4CrRZuET7Y';
 
   static const _popularItems = [
     PopularItem(
@@ -82,10 +80,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const GreetingSection(
-                  name: 'Alifia Zahra',
-                  roleLabel: 'Siswa • XII RPL 1',
-                  nis: '2122.10.408',
+                AnimatedBuilder(
+                  animation: authProvider,
+                  builder: (context, _) {
+                    final user = authProvider.user;
+                    final name = user?.namaLengkap.trim();
+                    final role = switch (user?.peran) {
+                      'siswa' => 'Siswa',
+                      'guru' => 'Guru',
+                      'staf' => 'Staf',
+                      'admin' => 'Admin',
+                      _ => 'Pengguna',
+                    };
+                    final unit = user?.kelasAtauUnit?.trim();
+                    final roleLabel =
+                        unit == null || unit.isEmpty ? role : '$role • $unit';
+
+                    return GreetingSection(
+                      name: name == null || name.isEmpty ? 'Pengguna' : name,
+                      roleLabel: roleLabel,
+                      nis: user?.nomorInduk ?? '',
+                      nisLabel: user?.peran == 'siswa' ? 'NIS' : 'NIP',
+                    );
+                  },
                 ),
                 const SummaryGrid(activeCount: 1, pendingCount: 1),
                 UpcomingBorrowingSection(
@@ -127,7 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             left: 0,
             right: 0,
             child: LapakHeader(
-              avatarUrl: _avatarUrl,
+              avatarUrl: authProvider.user?.fotoUrl ?? '',
               onAvatarTap: () => context.push('/profile'),
             ),
           ),

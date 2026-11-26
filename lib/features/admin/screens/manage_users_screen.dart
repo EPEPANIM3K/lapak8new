@@ -120,6 +120,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         nomorInduk:    data.idNumber,
         nomorTelepon:  data.phone,
         aktif:         data.active,
+        photoBytes:    data.photo,
+        photoFileName: data.photoFileName,
       );
       if (!mounted) return;
       _showMessage('Akun berhasil dibuat.');
@@ -141,14 +143,20 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       context,
       isAdmin: true,
       initial: UserFormData(
-        name:      user.nama,
-        password:  '',
-        email:     user.email,
-        idNumber:  user.nomorInduk ?? '',
-        roleClass: user.kelas,
-        role:      roleForm,
-        active:    user.aktif,
-        phone:     user.nomorTelepon ?? '',
+        name:            user.nama,
+        password:        '',
+        email:           user.email,
+        idNumber:        user.nomorInduk ?? '',
+        roleClass:       user.kelas,
+        role:            roleForm,
+        active:          user.aktif,
+        phone:           user.nomorTelepon ?? '',
+        photoUrl:        user.fotoUrl,
+        userSubcategory: switch (user.peran) {
+          'guru'  => 'guru',
+          'siswa' => 'siswa',
+          _       => null,
+        },
       ),
     );
     if (data == null || !mounted) return;
@@ -167,8 +175,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         phone:      data.phone,
         kelas:      data.roleClass,
         nomorInduk: data.idNumber,
-        peran:      peranBaru,
-        aktif:      data.active,
+        peran:         peranBaru,
+        aktif:         data.active,
+        photoBytes:    data.photo,
+        photoFileName: data.photoFileName,
+        removePhoto:   data.removePhoto,
       );
       if (data.email != user.email) {
         await userRepository.updateEmail(user.id, data.email);
@@ -578,13 +589,29 @@ class _UserCard extends StatelessWidget {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: AppColors.primaryFixed,
-                child: Text(
-                  _initials,
-                  style: AppTextStyles.labelLg(
-                    weight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                ),
+                child: user.fotoUrl != null && user.fotoUrl!.isNotEmpty
+                    ? ClipOval(
+                        child: Image.network(
+                          user.fotoUrl!,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Text(
+                            _initials,
+                            style: AppTextStyles.labelLg(
+                              weight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Text(
+                        _initials,
+                        style: AppTextStyles.labelLg(
+                          weight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(

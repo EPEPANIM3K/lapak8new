@@ -1,5 +1,3 @@
-import 'dart:io' show File;
-
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -22,10 +20,10 @@ class MediaPickOutcome {
   final String? message;
 }
 
-/// Pemilih foto & video terdokumentasi untuk form Cek Kondisi.
+/// Pemilih foto & video terdokumentasi untuk form Cek Kondisi, profil, dan item.
 ///
 /// Memakai `image_picker` sehingga mendukung:
-/// - foto dari kamera maupun galeri (multi-select sampai [remainingSlots])
+/// - foto dari kamera maupun galeri dengan format gambar apapun
 /// - video direkam dari kamera atau dipilih dari penyimpanan
 class MediaPickerService {
   MediaPickerService({ImagePicker? picker}) : _picker = picker ?? ImagePicker();
@@ -33,11 +31,10 @@ class MediaPickerService {
   final ImagePicker _picker;
 
   static const int _maxPhotoWidth = 1920;
-  static const int _maxPhotoQuality = 82;
+  static const int _maxPhotoQuality = 85;
   static const Duration _maxVideoDuration = Duration(minutes: 2);
 
-  /// Ambil foto. Mengembalikan berkas yang lolos validasi beserta pesan
-  /// untuk berkas yang ditolak (format/ukuran).
+  /// Ambil foto. Mendukung format gambar apapun.
   Future<MediaPickOutcome> pickPhotos({
     required MediaSource source,
     required int remainingSlots,
@@ -59,10 +56,20 @@ class MediaPickerService {
       return _toOutcome([shot], maxAccepted: remainingSlots);
     }
 
+    if (remainingSlots == 1) {
+      final single = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: _maxPhotoWidth.toDouble(),
+        imageQuality: _maxPhotoQuality,
+      );
+      if (single == null) return const MediaPickOutcome();
+      return _toOutcome([single], maxAccepted: 1);
+    }
+
     final picks = await _picker.pickMultiImage(
       maxWidth: _maxPhotoWidth.toDouble(),
       imageQuality: _maxPhotoQuality,
-      limit: remainingSlots > 1 ? remainingSlots : null,
+      limit: remainingSlots,
     );
     if (picks.isEmpty) return const MediaPickOutcome();
     return _toOutcome(picks, maxAccepted: remainingSlots);
@@ -101,21 +108,14 @@ class MediaPickerService {
 
       final name = file.name.isEmpty ? 'dokumentasi' : file.name;
       final ext = _extensionOf(name);
-      final allowed = isPhoto ? _photoExt : _videoExt;
-      if (!allowed.contains(ext)) {
+      if (!isPhoto && !_videoExt.contains(ext)) {
         rejected.add('$name (format .$ext tidak didukung)');
         continue;
       }
 
-      int size;
-      Uint8List? bytes;
+      final bytes = await file.readAsBytes();
+      final size = bytes.length;
       final path = file.path;
-      if (!kIsWeb && path.isNotEmpty && File(path).existsSync()) {
-        size = await File(path).length();
-      } else {
-        bytes = await file.readAsBytes();
-        size = bytes.length;
-      }
 
       final maxBytes = isPhoto ? _photoLimit : _videoLimit;
       if (size > maxBytes) {
@@ -147,9 +147,8 @@ class MediaPickerService {
     );
   }
 
-  static const List<String> _photoExt = ['jpg', 'jpeg', 'png', 'webp'];
   static const List<String> _videoExt = ['mp4', 'mov', 'webm'];
-  static const int _photoLimit = 8 * 1024 * 1024;
+  static const int _photoLimit = 10 * 1024 * 1024;
   static const int _videoLimit = 100 * 1024 * 1024;
   static const int _maxVideos = 1;
 

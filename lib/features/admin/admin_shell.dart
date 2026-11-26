@@ -1,94 +1,146 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_colors.dart';
-import '../../../shared/widgets/app_bottom_nav.dart';
-import '../../../shared/widgets/lapak_header.dart';
-import 'screens/admin_dashboard_screen.dart';
-import 'screens/admin_borrowings_screen.dart';
-import 'screens/admin_history_screen.dart';
-import 'screens/manage_facilities_screen.dart';
-import 'screens/manage_users_screen.dart';
+import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_dimens.dart';
+import '../../core/constants/app_text_styles.dart';
+import '../auth/providers/auth_provider.dart';
 
-class AdminShell extends StatefulWidget {
-  const AdminShell({super.key});
+class AdminShell extends StatelessWidget {
+  const AdminShell({required this.child, super.key});
 
-  @override
-  State<AdminShell> createState() => _AdminShellState();
-}
-
-class _AdminShellState extends State<AdminShell> {
-  int _selectedIndex = 0;
-
-  // Halaman admin yang sebenarnya, diurutkan sesuai dengan items di bawah.
-  late final List<Widget> _pages = [
-    AdminDashboardScreen(onReviewTap: _goToBorrowings), // 0
-    const AdminBorrowingsScreen(), // 1
-    const AdminHistoryScreen(), // 2
-    const ManageFacilitiesScreen(), // 3
-    const ManageUsersScreen(), // 4
-  ];
-
-  // Avatar URL untuk admin (bisa diganti dengan data dari provider nanti)
-  static const _avatarUrl =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCM9TBr73lAvJae_M-j8bVPXa69t9E8fJjw6s1fOkJB9Rwn5SdnSrc2vwOfl_FwiSc0PAsKLZ3OrWbOxQRw_0Nv8TltDOZ-YW8v68X2WTQJl29s3nRn2_K2GuSWHAvMZpMCZJe6iBeZDp5yEl_7IcjmKNNuCgejx9XkiISbISzKzJKsN4oi8-ZVu-ddev07E4AA7eAz81C-Lou8NTkx4lFKRMgys8zcncLJEU3cjaxS9X4CrRZuET7Y';
-
-  /// Handle tap dengan validasi index aman
-  void _onNavTap(int index) {
-    if (index >= 0 && index < _pages.length) {
-      setState(() => _selectedIndex = index);
-    }
-  }
-
-  /// Dari tombol "Tinjau" di Dashboard → pindah ke halaman Aktivitas
-  /// (index 1 = AdminBorrowingsScreen, tab default Peminjaman).
-  void _goToBorrowings() {
-    _onNavTap(1);
-  }
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final inset = MediaQuery.paddingOf(context);
-
     return Scaffold(
-      backgroundColor: AppColors.surface,
-      body: Stack(
+      backgroundColor: AppColors.surfaceContainerLow,
+      body: Column(
         children: [
-          // Main content area - constrain ukuran dengan Positioned
-          Positioned(
-            top: LapakHeader.contentHeight + inset.top,
-            left: 0,
-            right: 0,
-            bottom: AppBottomNav.totalHeight + inset.bottom,
-            child: IndexedStack(
-              index: _selectedIndex,
-              children: _pages,
-            ),
-          ),
-          // Header melayang di atas
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: LapakHeader(
-              avatarUrl: _avatarUrl,
-              onAvatarTap: () => context.push('/admin/profile'),
-            ),
-          ),
-          // Bottom nav melayang di bawah
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: AppBottomNav(
-              items: AppBottomNav.dashboardItems,
-              currentIndex: _selectedIndex,
-              useRouter: false,
-              onTap: _onNavTap,
-            ),
-          ),
+          const _AdminHeader(),
+          Expanded(child: child),
         ],
       ),
     );
   }
+}
+
+class _AdminHeader extends StatelessWidget {
+  const _AdminHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: authProvider,
+      builder: (context, _) {
+        final user = authProvider.user;
+        final name = user?.namaLengkap.trim() ?? '';
+        final initials = name
+            .split(RegExp(r'\s+'))
+            .where((part) => part.isNotEmpty)
+            .take(2)
+            .map((part) => part[0].toUpperCase())
+            .join();
+        final fotoUrl = user?.fotoUrl?.trim() ?? '';
+
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.surfaceContainerLowest,
+            boxShadow: AppShadows.sm,
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: SizedBox(
+              height: 64,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.mobileGutter,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.school,
+                        size: 20,
+                        color: AppColors.onPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'LAPAK8',
+                            style: AppTextStyles.headlineSm(
+                              color: AppColors.primary,
+                            ).copyWith(letterSpacing: -0.45),
+                          ),
+                          Text(
+                            'SMK 8 MALANG',
+                            style: AppTextStyles.labelSm(
+                              weight: FontWeight.w500,
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Semantics(
+                      button: true,
+                      label: 'Buka profil admin',
+                      child: InkWell(
+                        onTap: () => context.push('/admin/profile'),
+                        customBorder: const CircleBorder(),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          alignment: Alignment.center,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryFixed,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.surfaceContainerLowest,
+                              width: 2,
+                            ),
+                          ),
+                          child: fotoUrl.isEmpty
+                              ? _buildInitials(initials)
+                              : Image.network(
+                                  fotoUrl,
+                                  width: 36,
+                                  height: 36,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      _buildInitials(initials),
+                                ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInitials(String initials) => Text(
+    initials.isEmpty ? 'A' : initials,
+    style: AppTextStyles.labelMd(
+      weight: FontWeight.w800,
+      color: AppColors.primary,
+    ),
+  );
 }

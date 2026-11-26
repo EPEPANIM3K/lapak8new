@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -41,6 +43,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   String get _role     => authProvider.user?.peran ?? 'admin';
   String get _idNumber => authProvider.user?.nomorInduk ?? '';
   String get _unit     => authProvider.user?.kelasAtauUnit ?? '—';
+  String? get _fotoUrl => authProvider.user?.fotoUrl;
 
   /// Email tersimpan (bisa diubah lewat mode edit Data Pribadi).
   String _savedEmail = authProvider.user?.email ?? '';
@@ -66,7 +69,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   bool get _emailChanged => _emailCtrl.text.trim() != _savedEmail;
   bool get _emailValid => _emailRegex.hasMatch(_emailCtrl.text.trim());
   bool get _canSaveEmail => _emailChanged && _emailValid;
-  bool get _hasAvatar => _avatarBytes != null || _avatarPath.isNotEmpty;
+  bool get _hasAvatar => _avatarBytes != null || _avatarPath.isNotEmpty || (_fotoUrl != null && _fotoUrl!.isNotEmpty);
 
   @override
   void dispose() {
@@ -132,6 +135,30 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     );
     if (use != true || !mounted) return;
 
+    final userId = authProvider.user?.id;
+    final bytes = file.bytes;
+    if (userId != null && bytes != null) {
+      try {
+        await userRepository.uploadAndSaveProfilePhoto(
+          userId: userId,
+          bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+          fileName: file.fileName,
+        );
+        await authProvider.refreshProfil();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.error,
+            content: Text('Gagal menyimpan foto profil: '),
+          ),
+        );
+        return;
+      }
+    }
+
+    if (!mounted) return;
     setState(() {
       _avatarPath = file.localPath;
       _avatarBytes = file.bytes;
@@ -241,11 +268,21 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                     border: Border.all(
                         color: AppColors.surfaceContainerLow, width: 4),
                   ),
-                  child: _hasAvatar
+                  child: (_avatarBytes != null || _avatarPath.isNotEmpty)
                       ? LocalImagePreview(
                           path: _avatarPath, bytes: _avatarBytes)
-                      : const Icon(Symbols.person,
-                          size: 44, color: AppColors.primary),
+                      : (_fotoUrl != null && _fotoUrl!.isNotEmpty)
+                          ? Image.network(
+                              _fotoUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Symbols.person,
+                                size: 44,
+                                color: AppColors.primary,
+                              ),
+                            )
+                          : const Icon(Symbols.person,
+                              size: 44, color: AppColors.primary),
                 ),
                 // Tombol kamera (kanan atas)
                 Positioned(
