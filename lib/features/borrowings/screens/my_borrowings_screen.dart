@@ -30,7 +30,7 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
 
   List<Peminjaman> _list = [];
   bool _loading = true;
-  String? _error;
+  String? _errorMessage;
   final Set<String> _cancellingIds = {};
 
   @override
@@ -40,14 +40,14 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() { _loading = true; _errorMessage = null; });
     try {
       final data = await peminjamanService.ambilPeminjamanSaya();
       if (!mounted) return;
       setState(() { _list = data; _loading = false; });
     } on PeminjamanException catch (e) {
       if (!mounted) return;
-      setState(() { _error = e.pesan; _loading = false; });
+      setState(() { _errorMessage = e.pesan; _loading = false; });
     }
   }
 
@@ -130,7 +130,7 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _error != null
+          : _errorMessage != null
               ? _buildError()
               : _list.isEmpty
                   ? _buildEmpty()
@@ -165,7 +165,7 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(_error!, style: const TextStyle(color: _error), textAlign: TextAlign.center),
+        Text(_errorMessage!, style: const TextStyle(color: _error), textAlign: TextAlign.center),
         const SizedBox(height: 12),
         TextButton.icon(
           onPressed: _load,

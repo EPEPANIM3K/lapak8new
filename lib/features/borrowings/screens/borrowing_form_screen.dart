@@ -340,7 +340,7 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
               .map((f) => DropdownMenuItem(
                     value: f.id,
                     child: Text(
-                      '${f.nama} (${f.lokasiNama ?? '-'})',
+                      '${f.nama} (${f.lokasi ?? '-'})',
                       overflow: TextOverflow.ellipsis,
                     ),
                   ))

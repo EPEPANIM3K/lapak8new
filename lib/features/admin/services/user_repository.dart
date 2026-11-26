@@ -224,6 +224,10 @@ class UserRepository {
     });
   }
 
+  Future<void> deleteUser(String userId) async {
+    await _callFunction({'action': 'delete', 'id': userId});
+  }
+
   /// Panggil Edge Function `manage-users` dan kembalikan body JSON-nya.
   Future<Map<String, dynamic>> _callFunction(Map<String, dynamic> body) async {
     try {
@@ -240,7 +244,10 @@ class UserRepository {
       final message = details is Map && details['error'] != null
           ? details['error'].toString()
           : 'Permintaan gagal (kode ${error.status}).';
-      throw UserRepositoryException(message);
+      final detail = details is Map ? details['detail']?.toString() : null;
+      throw UserRepositoryException(
+        detail != null && detail.isNotEmpty ? '$message $detail' : message,
+      );
     }
   }
 

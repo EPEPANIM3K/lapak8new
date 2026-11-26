@@ -220,6 +220,37 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     );
   }
 
+  Future<void> _confirmDelete(AppUser user) async {
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => ConfirmDialog(
+        icon: Symbols.delete,
+        title: 'Hapus Akun?',
+        message:
+            'Akun ${user.nama} akan dihapus permanen. Jika akun memiliki data terkait (mis. riwayat peminjaman), hapus bisa gagal — nonaktifkan akun sebagai alternatif.',
+        confirmText: 'Hapus Akun',
+        confirmIcon: Symbols.delete,
+        confirmColor: AppColors.error,
+        iconColor: AppColors.error,
+        iconBackground: AppColors.errorContainer,
+        onConfirm: () => _deleteUser(user),
+      ),
+    );
+  }
+
+  Future<void> _deleteUser(AppUser user) async {
+    try {
+      await userRepository.deleteUser(user.id);
+      if (!mounted) return;
+      _showMessage('Akun berhasil dihapus.');
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(error.toString(), isError: true);
+    }
+  }
+
   Future<void> _setActive(AppUser user, bool aktif) async {
     try {
       await userRepository.setActive(user.id, aktif);
@@ -375,6 +406,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 onManage: () => _editAccount(user),
                 onReactivate: () => _reactivate(user),
                 onSuspend: () => _confirmSuspend(user),
+                onDelete: () => _confirmDelete(user),
               ),
               const SizedBox(height: 16),
             ],
@@ -512,12 +544,14 @@ class _UserCard extends StatelessWidget {
     required this.onManage,
     required this.onReactivate,
     required this.onSuspend,
+    required this.onDelete,
   });
 
   final AppUser user;
   final VoidCallback onManage;
   final VoidCallback onReactivate;
   final VoidCallback onSuspend;
+  final VoidCallback onDelete;
 
   String get _initials {
     final words = user.nama.trim().split(RegExp(r'\s+'));
@@ -617,6 +651,14 @@ class _UserCard extends StatelessWidget {
                     color: AppColors.error,
                   ),
                 ),
+              IconButton(
+                tooltip: 'Hapus akun',
+                onPressed: onDelete,
+                icon: const Icon(
+                  Symbols.delete,
+                  color: AppColors.error,
+                ),
+              ),
             ],
           ),
         ],

@@ -1,6 +1,6 @@
 // Deno Edge Function: manage-users
-// Supabase Project: oqyhowjjndkjerdouhfl
 // Skema: tabel "pengguna" (skema baru, nama kolom Indonesia)
+// Deploy: supabase functions deploy manage-users --project-ref <PROJECT_REF>
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -80,7 +80,12 @@ Deno.serve(async (request) => {
     .maybeSingle();
 
   if (operatorError) {
-    return respond({ error: 'Gagal memverifikasi akun admin.' }, 500);
+    return respond(
+      {
+        error: `Gagal memverifikasi akun admin. ${operatorError.message}`,
+      },
+      500,
+    );
   }
   if (!operator || operator.peran !== 'admin' || operator.aktif !== true) {
     return respond({ error: 'Hanya admin aktif yang boleh mengelola akun.' }, 403);
@@ -150,7 +155,7 @@ Deno.serve(async (request) => {
       id:              created.user.id,
       nama_lengkap:    nama,
       email:           email,
-      nomor_induk:     nomorInduk ?? '',
+      nomor_induk:     nomorInduk,
       peran:           peran,
       kelas_atau_unit: optionalString(body, 'kelas'),
       telepon:         optionalString(body, 'nomor_telepon'),
@@ -164,6 +169,56 @@ Deno.serve(async (request) => {
     }
 
     return respond({ id: created.user.id }, 201);
+  }
+
+  // ---------------------------------------------------------------------------
+  // ACTION: delete — hapus akun pengguna (auth + profil)
+  // ---------------------------------------------------------------------------
+  if (action === 'delete') {
+    const id = requiredString(body, 'id');
+    if (!id || !validUuid(id)) {
+      return respond({ error: 'ID akun tidak valid.' }, 400);
+    }
+    if (id === authData.user.id) {
+      return respond({ error: 'Anda tidak dapat menghapus akun sendiri.' }, 400);
+    }
+
+    const { data: target, error: targetError } = await adminClient
+      .from('pengguna')
+      .select('id, peran')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (targetError) {
+      return respond({ error: 'Gagal memeriksa akun tujuan.' }, 500);
+    }
+    if (!target) {
+      return respond({ error: 'Akun tidak ditemukan.' }, 404);
+    }
+    if (target.peran === 'admin') {
+      return respond({ error: 'Akun admin tidak dapat dihapus.' }, 403);
+    }
+
+    const { error: deleteError } = await adminClient.auth.admin.deleteUser(id);
+    if (deleteError) {
+      const msg = deleteError.message ?? '';
+      const isFk =
+        msg.toLowerCase().includes('foreign key') ||
+        msg.toLowerCase().includes('still referenced') ||
+        msg.toLowerCase().includes('violat');
+      if (isFk) {
+        return respond(
+          {
+            error:
+              'Akun tidak dapat dihapus karena masih memiliki data terkait (mis. riwayat peminjaman). Nonaktifkan akun jika tidak boleh digunakan.',
+          },
+          409,
+        );
+      }
+      return respond({ error: msg || 'Gagal menghapus akun.' }, 400);
+    }
+
+    return respond({ ok: true });
   }
 
   // ---------------------------------------------------------------------------
