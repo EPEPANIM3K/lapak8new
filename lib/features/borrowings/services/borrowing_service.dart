@@ -4,7 +4,7 @@ import '../models/borrowing.dart';
 
 class BorrowingService {
   BorrowingService({Lapak8ApiClient? client})
-      : _client = client ?? authProvider.apiClient;
+    : _client = client ?? authProvider.apiClient;
 
   final Lapak8ApiClient _client;
 
@@ -12,7 +12,9 @@ class BorrowingService {
     final response = await _client.get('/api/v1/facilities');
     final data = response['data'];
     if (data is! List) {
-      throw const Lapak8ApiException('Daftar fasilitas dari server tidak valid.');
+      throw const Lapak8ApiException(
+        'Daftar fasilitas dari server tidak valid.',
+      );
     }
     return data.map(BorrowingFacility.fromJson).toList();
   }
@@ -21,7 +23,9 @@ class BorrowingService {
     final response = await _client.get('/api/v1/borrowings');
     final data = response['data'];
     if (data is! List) {
-      throw const Lapak8ApiException('Daftar peminjaman dari server tidak valid.');
+      throw const Lapak8ApiException(
+        'Daftar peminjaman dari server tidak valid.',
+      );
     }
     return data.map(Borrowing.fromJson).toList();
   }

@@ -148,9 +148,12 @@ class PeminjamanService {
     try {
       final rows = await _db
           .from('fasilitas')
-          .select('id, nama, total_unit, status, foto_url, lokasi(nama)')
+          .select(
+            'id, nama, kategori, total_unit, status, foto_url, lokasi(nama)',
+          )
           .eq('aktif', true)
           .eq('status', 'tersedia')
+          .gt('total_unit', 0)
           .order('nama');
       return rows
           .map<FasilitasRingkas>(
@@ -298,17 +301,23 @@ class PeminjamanService {
   }
 
   Future<Peminjaman> buat({
-    required String fasilitasId,
-    required String namaFasilitas,
+    required List<ItemPeminjamanInput> items,
     required String kategori,
     required String namaKegiatan,
-    required int jumlah,
     required DateTime mulaiPada,
     required DateTime estimasiKembaliPada,
     String? catatanTujuan,
   }) async {
     final uid = _db.auth.currentUser?.id;
     if (uid == null) throw const PeminjamanException('Belum login.');
+    if (items.isEmpty) {
+      throw const PeminjamanException(
+        'Pilih barang atau ruangan terlebih dahulu.',
+      );
+    }
+    if (items.any((item) => item.jumlah < 1)) {
+      throw const PeminjamanException('Jumlah barang harus minimal 1 unit.');
+    }
 
     final kodeBooking = _generateKode();
 
@@ -334,12 +343,20 @@ class PeminjamanService {
       final peminjamanId = rowPeminjaman['id'] as String;
 
       // 2. Insert item peminjaman
-      await _db.from('item_peminjaman').insert({
-        'peminjaman_id': peminjamanId,
-        'fasilitas_id': fasilitasId,
-        'nama_fasilitas_snapshot': namaFasilitas,
-        'jumlah': jumlah,
-      });
+      await _db
+          .from('item_peminjaman')
+          .insert(
+            items
+                .map(
+                  (item) => {
+                    'peminjaman_id': peminjamanId,
+                    'fasilitas_id': item.fasilitasId,
+                    'nama_fasilitas_snapshot': item.namaFasilitas,
+                    'jumlah': item.jumlah,
+                  },
+                )
+                .toList(),
+          );
 
       // 3. Muat ulang dengan relasi lengkap
       return await ambilDetailPeminjaman(peminjamanId);

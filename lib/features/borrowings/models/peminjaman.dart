@@ -8,6 +8,7 @@ class FasilitasRingkas {
   const FasilitasRingkas({
     required this.id,
     required this.nama,
+    required this.kategori,
     required this.lokasi,
     required this.totalUnit,
     required this.status,
@@ -16,24 +17,39 @@ class FasilitasRingkas {
 
   final String id;
   final String nama;
+  final String kategori;
   final String lokasi; // nama lokasi (join dari tabel lokasi)
   final int totalUnit;
   final String status; // 'tersedia' | 'pemeliharaan' | 'tidak_aktif'
   final String? fotoUrl;
 
   bool get tersedia => status == 'tersedia' && totalUnit > 0;
+  bool get isRuangan => kategori.trim().toLowerCase() == 'ruangan';
 
   factory FasilitasRingkas.fromMap(Map<String, dynamic> map) {
     final lokasi = map['lokasi'] as Map<String, dynamic>?;
     return FasilitasRingkas(
       id: map['id'] as String,
       nama: map['nama'] as String,
+      kategori: map['kategori'] as String? ?? '',
       lokasi: lokasi?['nama'] as String? ?? '-',
       totalUnit: (map['total_unit'] as num).toInt(),
       status: map['status'] as String,
       fotoUrl: map['foto_url'] as String?,
     );
   }
+}
+
+class ItemPeminjamanInput {
+  const ItemPeminjamanInput({
+    required this.fasilitasId,
+    required this.namaFasilitas,
+    required this.jumlah,
+  });
+
+  final String fasilitasId;
+  final String namaFasilitas;
+  final int jumlah;
 }
 
 // ---------------------------------------------------------------------------

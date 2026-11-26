@@ -24,7 +24,9 @@ class FacilityService {
       }
       final rows = await query.order('nama');
       return rows
-          .map<Facility>((r) => Facility.fromMap(Map<String, dynamic>.from(r as Map)))
+          .map<Facility>(
+            (r) => Facility.fromMap(Map<String, dynamic>.from(r as Map)),
+          )
           .toList();
     } on PostgrestException catch (e) {
       throw FacilityException('Gagal memuat daftar barang: ${e.message}');
@@ -35,7 +37,9 @@ class FacilityService {
     try {
       final rows = await _db.from('lokasi').select('id, nama').order('nama');
       return rows
-          .map<LokasiItem>((r) => LokasiItem.fromMap(Map<String, dynamic>.from(r as Map)))
+          .map<LokasiItem>(
+            (r) => LokasiItem.fromMap(Map<String, dynamic>.from(r as Map)),
+          )
           .toList();
     } on PostgrestException {
       return const [];
@@ -168,7 +172,8 @@ class FacilityService {
     try {
       await _db.from('fasilitas').delete().eq('id', id);
     } on PostgrestException catch (e) {
-      if (e.code == '23503' || e.message.toLowerCase().contains('foreign key')) {
+      if (e.code == '23503' ||
+          e.message.toLowerCase().contains('foreign key')) {
         throw const FacilityException(
           'Barang tidak dapat dihapus karena masih memiliki riwayat peminjaman. '
           'Ubah jumlah unit menjadi 0 untuk menonaktifkannya.',
@@ -189,14 +194,12 @@ class FacilityService {
           .single();
       return Map<String, dynamic>.from(res);
     } on PostgrestException catch (e) {
-      if (e.message.contains('kategori') && payload.containsKey('kategori')) {
-        final retry = Map<String, dynamic>.from(payload)..remove('kategori');
-        final res = await _db
-            .from('fasilitas')
-            .insert(retry)
-            .select('*, lokasi(id, nama)')
-            .single();
-        return Map<String, dynamic>.from(res);
+      if (payload.containsKey('kategori') &&
+          e.message.toLowerCase().contains('kategori')) {
+        throw const FacilityException(
+          'Kategori belum dapat disimpan karena skema database belum diperbarui. '
+          'Jalankan databasefix.sql di Supabase, lalu simpan barang kembali.',
+        );
       }
       rethrow;
     }
@@ -215,15 +218,12 @@ class FacilityService {
           .single();
       return Map<String, dynamic>.from(res);
     } on PostgrestException catch (e) {
-      if (e.message.contains('kategori') && payload.containsKey('kategori')) {
-        final retry = Map<String, dynamic>.from(payload)..remove('kategori');
-        final res = await _db
-            .from('fasilitas')
-            .update(retry)
-            .eq('id', id)
-            .select('*, lokasi(id, nama)')
-            .single();
-        return Map<String, dynamic>.from(res);
+      if (payload.containsKey('kategori') &&
+          e.message.toLowerCase().contains('kategori')) {
+        throw const FacilityException(
+          'Kategori belum dapat disimpan karena skema database belum diperbarui. '
+          'Jalankan databasefix.sql di Supabase, lalu simpan perubahan kembali.',
+        );
       }
       rethrow;
     }

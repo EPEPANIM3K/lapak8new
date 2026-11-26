@@ -2,6 +2,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lapak8new/features/borrowings/models/peminjaman.dart';
 
 void main() {
+  test('treats room category case-insensitively', () {
+    for (final category in ['Ruangan', 'ruangan', 'RuanGan', ' ruangan ']) {
+      final facility = FasilitasRingkas(
+        id: 'room-id',
+        nama: 'Lab',
+        kategori: category,
+        lokasi: 'Gedung A',
+        totalUnit: 1,
+        status: 'tersedia',
+      );
+
+      expect(facility.isRuangan, isTrue, reason: category);
+    }
+  });
+
   test('maps history fields and rejection reason from approval records', () {
     final borrowing = Peminjaman.fromMap({
       'id': 'booking-id',
@@ -30,9 +45,6 @@ void main() {
 
     expect(borrowing.alasanPenolakan, 'Jadwal tidak tersedia');
     expect(borrowing.items.single.fasilitasId, 'asset-id');
-    expect(
-      borrowing.items.single.fotoUrl,
-      'https://example.com/proyektor.png',
-    );
+    expect(borrowing.items.single.fotoUrl, 'https://example.com/proyektor.png');
   });
 }

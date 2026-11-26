@@ -41,6 +41,7 @@ class Facility {
   final String? deskripsi;
 
   bool get isAvailable => aktif && status == 'tersedia' && unitTersedia > 0;
+  bool get isRuangan => kategori.trim().toLowerCase() == 'ruangan';
   int get unitDipinjam => (totalUnit - unitTersedia).clamp(0, totalUnit);
 
   factory Facility.fromMap(Map<String, dynamic> map) {

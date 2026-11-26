@@ -1,109 +1,1866 @@
-// lib/features/borrowings/screens/borrowing_form_screen.dart
-// Form pengajuan peminjaman — menggunakan PeminjamanService (skema baru).
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../models/peminjaman.dart';
 import '../services/peminjaman_service.dart';
 
+// =============================================================================
+// Entry point — memuat fasilitas, lalu memilih UI berdasarkan kategori.
+// =============================================================================
 class BorrowingFormScreen extends StatefulWidget {
   const BorrowingFormScreen({super.key, this.initialFacilityId});
 
   final String? initialFacilityId;
+
   @override
   State<BorrowingFormScreen> createState() => _BorrowingFormScreenState();
 }
 
 class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
-  // ===== Palette =====
-  static const cSurface              = Color(0xFFFAF8FF);
-  static const cSurfaceLowest        = Color(0xFFFFFFFF);
-  static const cSurfaceLow           = Color(0xFFF2F3FF);
-  static const cSurfaceContainer     = Color(0xFFEAEDFF);
-  static const cSurfaceHigh          = Color(0xFFE2E7FF);
-  static const cOnSurface            = Color(0xFF131B2E);
-  static const cOnSurfaceVariant     = Color(0xFF434655);
-  static const cPrimary              = Color(0xFF0037B0);
-  static const cPrimaryFixed         = Color(0xFFDCE1FF);
-  static const cOnPrimary            = Color(0xFFFFFFFF);
-  static const cOnPrimaryContainer   = Color(0xFFCAD3FF);
-  static const cTertiaryContainer    = Color(0xFF006A48);
-  static const cTertiaryFixed        = Color(0xFF6FFBBE);
-  static const cTertiaryFixedDim     = Color(0xFF4EDEA3);
-  static const cOnTertiary           = Color(0xFFFFFFFF);
-  static const cError                = Color(0xFFBA1A1A);
-  static const cErrorContainer       = Color(0xFFFFDAD6);
-  static const cOnErrorContainer     = Color(0xFF93000A);
-  static const cSecondary            = Color(0xFF505F76);
-  static const cOutlineVariant       = Color(0xFFC4C5D7);
+  static const _background = Color(0xFFF4F7FC);
+  static const _red = Color(0xFFDC2626);
 
-  // ===== State =====
-  String _kategori = 'praktik';
-  final _acaraCtrl = TextEditingController(
-    text: 'Praktik Uji Coba Aplikasi Web Siswa',
-  );
-  String _selectedSlot = '13:30 - 15:30';
-  int _jumlah = 1;
-  bool _agree = true;
   final _peminjamanService = peminjamanService;
-  final List<FasilitasRingkas> _fasilitas = [];
-  DateTime _selectedDate = DateUtils.dateOnly(
-    DateTime.now().add(const Duration(days: 1)),
-  );
-  String? _selectedFasilitasId;
-  String? _fasilitasError;
-  bool _isLoadingFasilitas = true;
-  bool _isSubmitting = false;
-
-  final List<_Slot> _slots = const [
-    _Slot(time: '08:00 - 10:00', label: 'Sesi pagi',    full: false),
-    _Slot(time: '10:30 - 12:30', label: 'Sesi siang 1', full: false),
-    _Slot(time: '13:30 - 15:30', label: 'Sesi siang 2', full: false),
-    _Slot(time: '15:30 - 17:00', label: 'Sesi sore',    full: false),
-  ];
-
-  FasilitasRingkas? get _selectedFasilitas {
-    for (final f in _fasilitas) {
-      if (f.id == _selectedFasilitasId) return f;
-    }
-    return null;
-  }
+  List<FasilitasRingkas> _fasilitas = [];
+  FasilitasRingkas? _initialFacility;
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _selectedFasilitasId = widget.initialFacilityId;
-    _loadFasilitas();
+    _load();
   }
 
-  @override
-  void dispose() {
-    _acaraCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadFasilitas() async {
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
-      final list = await _peminjamanService.ambilFasilitas();
+      final list = await _peminjamanService.ambilFasilitas().timeout(
+        const Duration(seconds: 15),
+      );
       if (!mounted) return;
-      setState(() {
-        _fasilitas
-          ..clear()
-          ..addAll(list);
-        if (_selectedFasilitasId == null || !list.any((f) => f.id == _selectedFasilitasId)) {
-          _selectedFasilitasId = list.isEmpty ? null : list.first.id;
+      FasilitasRingkas? initial;
+      if (widget.initialFacilityId != null) {
+        for (final f in list) {
+          if (f.id == widget.initialFacilityId) {
+            initial = f;
+            break;
+          }
         }
-        _isLoadingFasilitas = false;
-        _fasilitasError = null;
+      }
+      initial ??= list.isNotEmpty ? list.first : null;
+      setState(() {
+        _fasilitas = list;
+        _initialFacility = initial;
+        _isLoading = false;
       });
     } on PeminjamanException catch (e) {
       if (!mounted) return;
       setState(() {
-        _isLoadingFasilitas = false;
-        _fasilitasError = e.pesan;
+        _isLoading = false;
+        _error = e.pesan;
+      });
+    } on FormatException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Gagal memuat fasilitas: $e';
+      });
+    } on TypeError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Data fasilitas tidak valid: $e';
+      });
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Pemuatan terlalu lama. Periksa koneksi lalu coba lagi.';
+      });
+    } on Exception catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Gagal memuat daftar barang dan ruangan: $e';
       });
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Theme(
+        data: ThemeData(
+          fontFamily: GoogleFonts.outfit().fontFamily,
+          useMaterial3: true,
+        ),
+        child: Scaffold(
+          backgroundColor: _background,
+          appBar: AppBar(
+            backgroundColor: _background,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.pop(),
+            ),
+            title: const Text(
+              'Formulir Booking',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+            ),
+          ),
+          body: const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 12),
+                Text('Memuat daftar barang dan ruangan...'),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Theme(
+        data: ThemeData(
+          fontFamily: GoogleFonts.outfit().fontFamily,
+          useMaterial3: true,
+        ),
+        child: Scaffold(
+          backgroundColor: _background,
+          appBar: AppBar(
+            backgroundColor: _background,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.pop(),
+            ),
+            title: const Text(
+              'Formulir Booking',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+            ),
+          ),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, color: _red, size: 36),
+                  const SizedBox(height: 8),
+                  Text(_error!, textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Coba lagi'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_fasilitas.isEmpty) {
+      return Theme(
+        data: ThemeData(
+          fontFamily: GoogleFonts.outfit().fontFamily,
+          useMaterial3: true,
+        ),
+        child: Scaffold(
+          backgroundColor: _background,
+          appBar: AppBar(
+            backgroundColor: _background,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.pop(),
+            ),
+            title: const Text(
+              'Formulir Booking',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+            ),
+          ),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.inventory_2_outlined,
+                    color: Color(0xFF64748B),
+                    size: 40,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Belum ada barang atau ruangan yang tersedia.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 14),
+                  OutlinedButton.icon(
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Muat ulang'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Penentuan form berdasarkan isRuangan (case-insensitive: Ruangan, ruangan, RuanGan, etc.)
+    final facility = _initialFacility ?? _fasilitas.first;
+    if (facility.isRuangan) {
+      return _RoomBookingForm(
+        fasilitas: _fasilitas,
+        initialFacility: facility,
+        peminjamanService: _peminjamanService,
+      );
+    } else {
+      return _ItemBookingForm(
+        fasilitas: _fasilitas,
+        initialFacility: facility,
+        peminjamanService: _peminjamanService,
+      );
+    }
+  }
+}
+
+// =============================================================================
+// CALENDAR DAY MODEL UNTUK RUANGAN
+// =============================================================================
+enum CalStatus { available, full, selected, unavailable }
+
+class CalDay {
+  final int day;
+  final DateTime? date;
+  final String fullLabel;
+  final CalStatus status;
+  final bool isOffset;
+
+  CalDay({
+    required this.day,
+    this.date,
+    this.fullLabel = '',
+    this.status = CalStatus.unavailable,
+    this.isOffset = false,
+  });
+}
+
+// =============================================================================
+// 1. ROOM BOOKING FORM — Khusus Kategori Ruangan
+// =============================================================================
+class _RoomBookingForm extends StatefulWidget {
+  const _RoomBookingForm({
+    required this.fasilitas,
+    required this.initialFacility,
+    required this.peminjamanService,
+  });
+
+  final List<FasilitasRingkas> fasilitas;
+  final FasilitasRingkas initialFacility;
+  final PeminjamanService peminjamanService;
+
+  @override
+  State<_RoomBookingForm> createState() => _RoomBookingFormState();
+}
+
+class _RoomBookingFormState extends State<_RoomBookingForm> {
+  // ----- Theme constants -----
+  static const Color surface = Color(0xFFF6F8FE);
+  static const Color surfaceLowest = Color(0xFFFFFFFF);
+  static const Color primary = Color(0xFF0037B0);
+  static const Color onSurface = Color(0xFF131B2E);
+  static const Color onSurfaceVariant = Color(0xFF5A6275);
+  static const Color slate100 = Color(0xFFF1F5F9);
+  static const Color slate200 = Color(0xFFE2E8F0);
+  static const Color slate300 = Color(0xFFCBD5E1);
+  static const Color slate400 = Color(0xFF94A3B8);
+  static const Color slate500 = Color(0xFF64748B);
+  static const Color slate600 = Color(0xFF475569);
+  static const Color slate700 = Color(0xFF334155);
+  static const Color emerald500 = Color(0xFF10B981);
+  static const Color emerald600 = Color(0xFF059669);
+  static const Color emerald100 = Color(0xFFD1FAE5);
+  static const Color emerald950 = Color(0xFF022C22);
+  static const Color emerald700 = Color(0xFF047857);
+  static const Color rose500 = Color(0xFFF43F5E);
+  static const Color rose600 = Color(0xFFE11D48);
+  static const Color rose950 = Color(0xFF4C0519);
+  static const Color rose700 = Color(0xFFBE123C);
+  static const Color rose100 = Color(0xFFFFE4E6);
+  static const Color red400 = Color(0xFFF87171);
+  static const Color badgeBlueBg = Color(0xFFE8F0FE);
+  static const Color dateCardBg = Color(0xFFEDF2FE);
+
+  // ----- State -----
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _kegiatanController =
+      TextEditingController(text: 'Praktik Uji Coba Aplikasi Web Siswa');
+
+  late FasilitasRingkas _selectedRoom;
+  bool _calendarOpen = false;
+  late DateTime _selectedDate;
+  late String _selectedDateText;
+
+  int _jamMulai = 8;
+  int _jamSelesai = 12;
+  int _units = 1;
+  bool _termsAccepted = true;
+  bool _isSubmitting = false;
+
+  late List<CalDay> _calendarDays;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedRoom = widget.initialFacility;
+    // Default tanggal minimum H+2
+    _selectedDate = DateUtils.dateOnly(
+      DateTime.now().add(const Duration(days: 2)),
+    );
+    _selectedDateText = _formatFullLabel(_selectedDate);
+    _calendarDays = _buildCalendarDays(_selectedDate);
+  }
+
+  static String _formatFullLabel(DateTime d) {
+    const days = [
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
+    ];
+    const months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return '${days[d.weekday - 1]}, ${d.day} ${months[d.month - 1]} ${d.year}';
+  }
+
+  List<CalDay> _buildCalendarDays(DateTime targetMonth) {
+    final list = <CalDay>[];
+    final firstDayOfMonth = DateTime(targetMonth.year, targetMonth.month, 1);
+    final daysInMonth = DateTime(
+      targetMonth.year,
+      targetMonth.month + 1,
+      0,
+    ).day;
+    final minDate = DateUtils.dateOnly(
+      DateTime.now().add(const Duration(days: 2)),
+    );
+
+    // Weekday: Monday = 1, Sunday = 7
+    final prevMonthOffset = firstDayOfMonth.weekday - 1;
+    final prevMonthLastDay = DateTime(
+      targetMonth.year,
+      targetMonth.month,
+      0,
+    ).day;
+
+    for (int i = prevMonthOffset - 1; i >= 0; i--) {
+      list.add(CalDay(day: prevMonthLastDay - i, isOffset: true));
+    }
+
+    for (int day = 1; day <= daysInMonth; day++) {
+      final curDate = DateTime(targetMonth.year, targetMonth.month, day);
+      final isPastOrTooSoon = curDate.isBefore(minDate);
+      final isSelected =
+          curDate.year == _selectedDate.year &&
+          curDate.month == _selectedDate.month &&
+          curDate.day == _selectedDate.day;
+
+      // Simulasi hari Minggu / Sabtu terisi
+      final isWeekend = curDate.weekday == 6 || curDate.weekday == 7;
+      final CalStatus status;
+      if (isPastOrTooSoon) {
+        status = CalStatus.unavailable;
+      } else if (isSelected) {
+        status = CalStatus.selected;
+      } else if (isWeekend) {
+        status = CalStatus.full;
+      } else {
+        status = CalStatus.available;
+      }
+
+      list.add(
+        CalDay(
+          day: day,
+          date: curDate,
+          fullLabel: _formatFullLabel(curDate),
+          status: status,
+        ),
+      );
+    }
+
+    while (list.length % 7 != 0) {
+      final nextDay = (list.length % 7) + 1;
+      list.add(CalDay(day: nextDay, isOffset: true));
+    }
+
+    return list;
+  }
+
+  int get _durationHours => _jamSelesai - _jamMulai;
+
+  // Conflict check: 09-11 or 13-14 already booked
+  bool get _hasConflict {
+    final s = _jamMulai;
+    final e = _jamSelesai;
+    final clash1 = s < 11 && e > 9;
+    final clash2 = s < 14 && e > 13;
+    return clash1 || clash2;
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _kegiatanController.dispose();
+    super.dispose();
+  }
+
+  void _pickDate(CalDay day) {
+    if (day.status != CalStatus.available && day.status != CalStatus.selected) {
+      return;
+    }
+    setState(() {
+      _selectedDateText = day.fullLabel;
+      if (day.date != null) {
+        _selectedDate = day.date!;
+      }
+      _calendarOpen = false;
+      _calendarDays = _buildCalendarDays(_selectedDate);
+    });
+  }
+
+  void _updateStart(int v) {
+    setState(() {
+      _jamMulai = v;
+      if (_jamSelesai <= _jamMulai) {
+        _jamSelesai = (_jamMulai + 1).clamp(0, 16);
+      }
+    });
+  }
+
+  void _updateEnd(int v) {
+    setState(() {
+      _jamSelesai = v;
+      if (_jamSelesai <= _jamMulai) {
+        _jamMulai = (_jamSelesai - 1).clamp(0, 15);
+      }
+    });
+  }
+
+  void _stepItem(int delta) {
+    setState(() {
+      _units = (_units + delta).clamp(1, _selectedRoom.totalUnit.clamp(1, 99));
+    });
+  }
+
+  void _showMessage(String message, {bool error = false}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: error
+              ? const Color(0xFFDC2626)
+              : const Color(0xFF059669),
+        ),
+      );
+  }
+
+  Future<void> _submitBooking() async {
+    if (_hasConflict) {
+      _showMessage(
+        'Jadwal bentrok dengan peminjaman lain. Silakan pilih jam lain.',
+        error: true,
+      );
+      return;
+    }
+    if (_kegiatanController.text.trim().isEmpty) {
+      _showMessage('Isi nama kegiatan atau kebutuhan.', error: true);
+      return;
+    }
+    if (!_termsAccepted) {
+      _showMessage(
+        'Setujui peraturan peminjaman dan SOP terlebih dahulu.',
+        error: true,
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      final mulai = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        _jamMulai,
+      );
+      final selesai = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        _jamSelesai,
+      );
+
+      await widget.peminjamanService.buat(
+        items: [
+          ItemPeminjamanInput(
+            fasilitasId: _selectedRoom.id,
+            namaFasilitas: _selectedRoom.nama,
+            jumlah: _units,
+          ),
+        ],
+        kategori: 'praktik',
+        namaKegiatan: _kegiatanController.text.trim(),
+        mulaiPada: mulai,
+        estimasiKembaliPada: selesai,
+      );
+      if (!mounted) return;
+      _showMessage('Pengajuan peminjaman berhasil dikirim!');
+      context.go('/borrowings');
+    } on PeminjamanException catch (e) {
+      if (!mounted) return;
+      _showMessage(e.pesan, error: true);
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _showRoomPicker() async {
+    final rooms = widget.fasilitas.where((f) => f.isRuangan).toList();
+    final picked = await showModalBottomSheet<FasilitasRingkas>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => _FacilityPickerSheet(facilities: rooms),
+    );
+    if (!mounted || picked == null) return;
+    if (!picked.tersedia) {
+      _showMessage('Ruangan tersebut tidak tersedia.', error: true);
+      return;
+    }
+    setState(() => _selectedRoom = picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData(
+        fontFamily: GoogleFonts.outfit().fontFamily,
+        scaffoldBackgroundColor: surface,
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: primary,
+          primary: primary,
+        ),
+      ),
+      child: Scaffold(
+        backgroundColor: surface,
+        body: Stack(
+          children: [
+            // Main scrollable content
+            Positioned.fill(
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                padding: const EdgeInsets.only(top: 56 + 12, bottom: 96),
+                child: Center(
+                  child: Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(maxWidth: 448),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildLocationCard(),
+                        const SizedBox(height: 14),
+                        _buildDateSection(),
+                        const SizedBox(height: 14),
+                        _buildTimeSection(),
+                        const SizedBox(height: 14),
+                        _buildScheduleCard(),
+                        const SizedBox(height: 14),
+                        _buildAvailabilityBox(),
+                        const SizedBox(height: 14),
+                        _buildQuantityAndEventForm(),
+                        const SizedBox(height: 14),
+                        _buildTermsCheckbox(),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Top App Bar
+            _buildTopBar(),
+            // Bottom sticky action bar
+            _buildBottomBar(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------- Top Bar ----------
+  Widget _buildTopBar() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: surface.withValues(alpha: 0.9),
+          border: const Border(
+            bottom: BorderSide(color: Color(0xFFEAEDFF), width: 0.6),
+          ),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: SizedBox(
+            height: 56,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  _iconBtn(
+                    icon: Icons.arrow_back,
+                    onTap: () => context.pop(),
+                    alignLeft: true,
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Formulir Booking',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: onSurface,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ),
+                  _iconBtn(
+                    icon: Icons.home_outlined,
+                    onTap: () {
+                      _scrollController.animateTo(
+                        0,
+                        duration: const Duration(milliseconds: 350),
+                        curve: Curves.easeInOut,
+                      );
+                    },
+                    alignLeft: false,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _iconBtn({
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool alignLeft,
+  }) {
+    return Transform.translate(
+      offset: Offset(alignLeft ? -4 : 4, 0),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(icon, size: 22, color: onSurface),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------- Bottom Bar ----------
+  Widget _buildBottomBar() {
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: surface.withValues(alpha: 0.95),
+          border: const Border(
+            top: BorderSide(color: Color(0xFFEAEDFF), width: 0.6),
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        child: SafeArea(
+          top: false,
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 448),
+              width: double.infinity,
+              child: SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submitBooking,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFFCBD5E1),
+                    elevation: 4,
+                    shadowColor: primary.withValues(alpha: 0.25),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Lanjut ke Konfirmasi',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                letterSpacing: -0.1,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Icon(
+                              Icons.arrow_forward,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------- Location Card ----------
+  Widget _buildLocationCard() {
+    final room = _selectedRoom;
+    return GestureDetector(
+      onTap: _showRoomPicker,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: surfaceLowest,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: slate100),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 72,
+                height: 72,
+                color: const Color(0xFFEAEDFF),
+                child: room.fotoUrl != null && room.fotoUrl!.isNotEmpty
+                    ? Image.network(
+                        room.fotoUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.computer,
+                          color: Color(0xFF5A6275),
+                          size: 34,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.computer,
+                        color: Color(0xFF5A6275),
+                        size: 34,
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeBlueBg,
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    child: Text(
+                      room.kategori.isEmpty ? 'Ruangan' : room.kategori,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    room.nama,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: onSurface,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  _iconTextRow(Icons.location_on, room.lokasi),
+                  const SizedBox(height: 2),
+                  _iconTextRow(
+                    Icons.info_outline,
+                    'Tersedia ${room.totalUnit} unit',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, size: 20, color: slate400),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _iconTextRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: slate500),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: onSurfaceVariant),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------- Date Section ----------
+  Widget _buildDateSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header
+        Row(
+          children: [
+            const Icon(Icons.calendar_month, size: 20, color: primary),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Tanggal Peminjaman',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: onSurface,
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: () => setState(() => _calendarOpen = !_calendarOpen),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: badgeBlueBg,
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.edit, size: 14, color: primary),
+                    SizedBox(width: 4),
+                    Text(
+                      'Ubah',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // Selected Date Card
+        GestureDetector(
+          onTap: () => setState(() => _calendarOpen = !_calendarOpen),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: dateCardBg,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 22, color: primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _selectedDateText,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: onSurface,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Expandable Calendar
+        AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          child: _calendarOpen ? _buildCalendar() : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCalendar() {
+    const monthNames = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    final monthLabel =
+        '${monthNames[_selectedDate.month - 1]} ${_selectedDate.year}';
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: surfaceLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: slate100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                monthLabel,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: onSurface,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: slate100,
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: const Text(
+                  'Min. H+2',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: slate500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Day names
+          Row(
+            children: [
+              for (final d in ['Sen', 'Sel', 'Rab', 'Kam', 'Jum'])
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      d,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: slate400,
+                      ),
+                    ),
+                  ),
+                ),
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'Sab',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: rose500,
+                    ),
+                  ),
+                ),
+              ),
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'Min',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: rose500,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Day cells
+          _buildCalendarGrid(),
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: slate100),
+          const SizedBox(height: 8),
+          // Legend
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              _legendDot(emerald500, 'Tersedia'),
+              const SizedBox(width: 12),
+              _legendDot(rose500, 'Penuh'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarGrid() {
+    final rows = <Widget>[];
+    for (int i = 0; i < _calendarDays.length; i += 7) {
+      final rowChildren = <Widget>[];
+      for (int j = i; j < i + 7 && j < _calendarDays.length; j++) {
+        rowChildren.add(Expanded(child: _buildDayCell(_calendarDays[j])));
+      }
+      while (rowChildren.length < 7) {
+        rowChildren.add(const Expanded(child: SizedBox()));
+      }
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(children: rowChildren),
+        ),
+      );
+    }
+    return Column(children: rows);
+  }
+
+  Widget _buildDayCell(CalDay day) {
+    if (day.isOffset || day.status == CalStatus.unavailable) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        alignment: Alignment.center,
+        child: Text(
+          '${day.day}',
+          style: const TextStyle(fontSize: 12, color: slate300),
+        ),
+      );
+    }
+
+    final bool isSelected = day.status == CalStatus.selected;
+    final bool isFull = day.status == CalStatus.full;
+    final Color dotColor = isFull
+        ? rose500
+        : (isSelected ? emerald500 : emerald500);
+
+    return GestureDetector(
+      onTap: () => _pickDate(day),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        margin: const EdgeInsets.symmetric(horizontal: 1.5),
+        decoration: BoxDecoration(
+          color: isSelected ? primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            Text(
+              '${day.day}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                color: isSelected ? Colors.white : onSurface,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: dotColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _legendDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 11, color: slate600)),
+      ],
+    );
+  }
+
+  // ---------- Time Section ----------
+  Widget _buildTimeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.schedule, size: 20, color: primary),
+            SizedBox(width: 8),
+            Text(
+              'Waktu Peminjaman',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: onSurface,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _buildTimeSelectCard(
+                label: 'Jam Mulai',
+                value: _jamMulai,
+                options: const [7, 8, 9, 10, 11, 12, 13, 14, 15],
+                onChanged: _updateStart,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildTimeSelectCard(
+                label: 'Jam Selesai',
+                value: _jamSelesai,
+                options: const [9, 10, 11, 12, 13, 14, 15, 16],
+                onChanged: _updateEnd,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // Duration card
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: dateCardBg,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.schedule, size: 18, color: slate700),
+                  SizedBox(width: 8),
+                  Text(
+                    'Durasi Peminjaman',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: slate700,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                '$_durationHours Jam',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimeSelectCard({
+    required String label,
+    required int value,
+    required List<int> options,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: surfaceLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: slate100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: slate500,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: options.contains(value) ? value : options.first,
+                    isDense: true,
+                    icon: const SizedBox.shrink(),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: onSurface,
+                      fontFamily: GoogleFonts.outfit().fontFamily,
+                    ),
+                    dropdownColor: surfaceLowest,
+                    borderRadius: BorderRadius.circular(12),
+                    items: options
+                        .map(
+                          (v) => DropdownMenuItem<int>(
+                            value: v,
+                            child: Text('${v.toString().padLeft(2, '0')}:00'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) onChanged(v);
+                    },
+                  ),
+                ),
+              ),
+              const Icon(Icons.expand_more, size: 20, color: slate700),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------- Schedule Card ----------
+  Widget _buildScheduleCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: surfaceLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: slate100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.bar_chart, size: 20, color: primary),
+              SizedBox(width: 8),
+              Text(
+                'Jadwal Barang pada Tanggal Ini',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '07.00',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: slate600,
+                ),
+              ),
+              Text(
+                '16.00',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: slate600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Timeline bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(50),
+            child: SizedBox(
+              height: 12,
+              child: Row(
+                children: [
+                  Expanded(flex: 222, child: Container(color: emerald500)),
+                  Expanded(flex: 222, child: Container(color: red400)),
+                  Expanded(flex: 222, child: Container(color: emerald500)),
+                  Expanded(flex: 111, child: Container(color: red400)),
+                  Expanded(flex: 222, child: Container(color: emerald500)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Legend
+          Row(
+            children: [
+              _legendDot(emerald500, 'Tersedia'),
+              const SizedBox(width: 16),
+              _legendDot(red400, 'Terpesan'),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Sub-card booked schedule
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9).withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Jadwal yang Sudah Dipesan',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: onSurface,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _bookedRow('09.00 – 11.00'),
+                const SizedBox(height: 6),
+                _bookedRow('13.00 – 14.00'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bookedRow(String range) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          range,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: onSurface,
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEE2E2),
+            borderRadius: BorderRadius.circular(50),
+          ),
+          child: const Text(
+            'Terpesan',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFFEF4444),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------- Availability Box ----------
+  Widget _buildAvailabilityBox() {
+    final conflict = _hasConflict;
+    final bg = conflict ? rose100 : const Color(0xFFDCFCE7);
+    final border = conflict ? rose100 : emerald100;
+    final iconColor = conflict ? rose600 : emerald600;
+    final titleColor = conflict ? rose950 : emerald950;
+    final descColor = conflict ? rose700 : emerald700;
+    final iconData = conflict ? Icons.warning : Icons.check_circle;
+    final title = conflict
+        ? 'Jadwal bentrok dengan peminjaman lain.'
+        : 'Waktu yang Anda pilih tersedia.';
+    final desc = conflict
+        ? 'Silakan pilih rentang jam yang bebas dari tanda terpesan.'
+        : 'Stok tersisa: ${_selectedRoom.totalUnit} unit';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(iconData, size: 22, color: iconColor),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: titleColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(desc, style: TextStyle(fontSize: 12, color: descColor)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------- Quantity & Event Form ----------
+  Widget _buildQuantityAndEventForm() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: surfaceLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: slate100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.inventory_2, size: 18, color: primary),
+                      SizedBox(width: 6),
+                      Text(
+                        'Jumlah Item',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Maks. ${_selectedRoom.totalUnit} Unit',
+                    style: const TextStyle(fontSize: 12, color: slate500),
+                  ),
+                ],
+              ),
+              // Stepper
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: slate100,
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _stepperBtn(
+                      icon: Icons.remove,
+                      bg: Colors.white,
+                      fg: slate700,
+                      onTap: () => _stepItem(-1),
+                    ),
+                    SizedBox(
+                      width: 56,
+                      child: Text(
+                        '$_units Unit',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: onSurface,
+                        ),
+                      ),
+                    ),
+                    _stepperBtn(
+                      icon: Icons.add,
+                      bg: primary,
+                      fg: Colors.white,
+                      onTap: () => _stepItem(1),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: slate100),
+          const SizedBox(height: 10),
+          const Text(
+            'Nama Kegiatan / Kebutuhan',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: slate700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _kegiatanController,
+            style: const TextStyle(fontSize: 13, color: onSurface),
+            textCapitalization: TextCapitalization.sentences,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
+              hintText: 'Misal: Praktik Pemrograman Web Siswa',
+              hintStyle: const TextStyle(fontSize: 13, color: slate400),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: slate200),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: slate200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: primary, width: 1),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepperBtn({
+    required IconData icon,
+    required Color bg,
+    required Color fg,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: bg,
+      shape: const CircleBorder(),
+      elevation: 1,
+      shadowColor: Colors.black12,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Icon(icon, size: 16, color: fg),
+        ),
+      ),
+    );
+  }
+
+  // ---------- Terms Checkbox ----------
+  Widget _buildTermsCheckbox() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: Checkbox(
+                value: _termsAccepted,
+                onChanged: (v) => setState(() => _termsAccepted = v ?? false),
+                activeColor: primary,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                side: const BorderSide(color: slate300),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _termsAccepted = !_termsAccepted),
+              child: Text.rich(
+                TextSpan(
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: slate600,
+                    height: 1.5,
+                    fontFamily: GoogleFonts.outfit().fontFamily,
+                  ),
+                  children: const [
+                    TextSpan(text: 'Saya menyetujui seluruh '),
+                    TextSpan(
+                      text: 'SOP Laboratorium',
+                      style: TextStyle(
+                        color: primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    TextSpan(
+                      text:
+                          ' dan bertanggung jawab penuh atas penggunaan fasilitas.',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// 2. ITEM BOOKING FORM — Khusus Kategori Lain Selain Ruangan
+// =============================================================================
+class _ItemBookingForm extends StatefulWidget {
+  const _ItemBookingForm({
+    required this.fasilitas,
+    required this.initialFacility,
+    required this.peminjamanService,
+  });
+
+  final List<FasilitasRingkas> fasilitas;
+  final FasilitasRingkas initialFacility;
+  final PeminjamanService peminjamanService;
+
+  @override
+  State<_ItemBookingForm> createState() => _ItemBookingFormState();
+}
+
+class _ItemBookingFormState extends State<_ItemBookingForm> {
+  // ----- Colors -----
+  static const Color brandBlue = Color(0xFF1D4ED8);
+  static const Color bgColor = Color(0xFFF4F7FC);
+  static const Color textColor = Color(0xFF0F172A);
+  static const Color mutedColor = Color(0xFF64748B);
+  static const Color slateBg = Color(0xFFE2E8F0);
+  static const Color slateBorder = Color(0xFFCBD5E1);
+
+  final TextEditingController _activityController =
+      TextEditingController(text: 'Praktik Uji Coba Aplikasi Web Siswa');
+  final Map<String, int> _selectedItems = {};
+
+  DateTime _selectedDate = DateUtils.dateOnly(
+    DateTime.now().add(const Duration(days: 1)),
+  );
+  int _jamMulai = 8;
+  int _jamSelesai = 12;
+  bool _isSubmitting = false;
+
+  List<_CartEntry> get _cartEntries {
+    final entries = <_CartEntry>[];
+    for (final e in _selectedItems.entries) {
+      for (final f in widget.fasilitas) {
+        if (f.id == e.key) {
+          entries.add(_CartEntry(facility: f, quantity: e.value));
+          break;
+        }
+      }
+    }
+    return entries;
+  }
+
+  int get totalTypes => _cartEntries.length;
+  int get totalUnits => _cartEntries.fold(0, (sum, i) => sum + i.quantity);
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.initialFacility.isRuangan) {
+      _selectedItems[widget.initialFacility.id] = 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _activityController.dispose();
+    super.dispose();
+  }
+
+  String _formatDate(DateTime date) {
+    const days = [
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
+    ];
+    const months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return '${days[date.weekday - 1]}, ${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   Future<void> _selectDate() async {
@@ -112,407 +1869,858 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
     );
     final date = await showDatePicker(
       context: context,
-      initialDate: _selectedDate.isBefore(firstDate) ? firstDate : _selectedDate,
+      initialDate: _selectedDate.isBefore(firstDate)
+          ? firstDate
+          : _selectedDate,
       firstDate: firstDate,
       lastDate: firstDate.add(const Duration(days: 90)),
     );
-    if (date != null) setState(() => _selectedDate = date);
+    if (date != null && mounted) setState(() => _selectedDate = date);
   }
 
-  DateTime _dateAt(String time) {
-    final parts = time.split(':');
-    return DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-      int.parse(parts[0]),
-      int.parse(parts[1]),
+  void _changeQty(String id, int delta) {
+    FasilitasRingkas? facility;
+    for (final f in widget.fasilitas) {
+      if (f.id == id) {
+        facility = f;
+        break;
+      }
+    }
+    if (facility == null) return;
+    final current = _selectedItems[id] ?? 1;
+    final next = (current + delta).clamp(1, facility.totalUnit).toInt();
+    setState(() => _selectedItems[id] = next);
+  }
+
+  Future<void> _showItemPicker() async {
+    final items = widget.fasilitas.where((f) => !f.isRuangan).toList();
+    final picked = await showModalBottomSheet<FasilitasRingkas>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => _FacilityPickerSheet(facilities: items),
     );
+    if (!mounted || picked == null) return;
+    if (!picked.tersedia) {
+      _showMessage('Barang tersebut tidak tersedia.', error: true);
+      return;
+    }
+    setState(() => _selectedItems.putIfAbsent(picked.id, () => 1));
   }
 
-  List<DateTime> get _dateChoices {
-    final firstDate = DateUtils.dateOnly(
-      DateTime.now().add(const Duration(days: 1)),
-    );
-    return List.generate(5, (i) => firstDate.add(Duration(days: i)));
-  }
-
-  String _formatDate(DateTime date, {bool weekday = true}) {
-    const days = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
-    const months = [
-      'Jan','Feb','Mar','Apr','Mei','Jun',
-      'Jul','Agu','Sep','Okt','Nov','Des',
-    ];
-    final d = date.weekday - 1;
-    final buf = StringBuffer();
-    if (weekday) buf.write('${days[d]}, ');
-    buf.write('${date.day} ${months[date.month - 1]}');
-    return buf.toString();
+  void _showMessage(String message, {bool error = false}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: error
+              ? const Color(0xFFDC2626)
+              : const Color(0xFF059669),
+        ),
+      );
   }
 
   Future<void> _submit() async {
-    if (_selectedFasilitasId == null) {
-      _snack('Pilih fasilitas terlebih dahulu.', error: true);
+    if (_selectedItems.isEmpty) {
+      _showMessage('Pilih barang terlebih dahulu.', error: true);
       return;
     }
-    if (!_agree) {
-      _snack('Setujui peraturan peminjaman terlebih dahulu.', error: true);
+    if (_activityController.text.trim().isEmpty) {
+      _showMessage('Isi nama kegiatan atau kebutuhan.', error: true);
       return;
     }
 
     setState(() => _isSubmitting = true);
     try {
-      final startParts  = _selectedSlot.split(' - ')[0].split(':');
-      final endParts    = _selectedSlot.split(' - ')[1].split(':');
-      final mulaiPada   = DateTime(
-        _selectedDate.year, _selectedDate.month, _selectedDate.day,
-        int.parse(startParts[0]), int.parse(startParts[1]),
+      final mulai = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        _jamMulai,
       );
-      final estimasi    = DateTime(
-        _selectedDate.year, _selectedDate.month, _selectedDate.day,
-        int.parse(endParts[0]), int.parse(endParts[1]),
+      final selesai = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        _jamSelesai,
       );
+      final items = _cartEntries
+          .map(
+            (e) => ItemPeminjamanInput(
+              fasilitasId: e.facility.id,
+              namaFasilitas: e.facility.nama,
+              jumlah: e.quantity,
+            ),
+          )
+          .toList();
 
-      final f = _selectedFasilitas!;
-      await _peminjamanService.buat(
-        fasilitasId:            f.id,
-        namaFasilitas:          f.nama,
-        kategori:               _kategori,
-        namaKegiatan:           _acaraCtrl.text.trim(),
-        jumlah:                 _jumlah,
-        mulaiPada:              mulaiPada,
-        estimasiKembaliPada:    estimasi,
+      await widget.peminjamanService.buat(
+        items: items,
+        kategori: 'praktik',
+        namaKegiatan: _activityController.text.trim(),
+        mulaiPada: mulai,
+        estimasiKembaliPada: selesai,
       );
       if (!mounted) return;
-      _snack('Pengajuan peminjaman berhasil dikirim!');
+      _showMessage('Pengajuan peminjaman berhasil dikirim!');
       context.go('/borrowings');
     } on PeminjamanException catch (e) {
       if (!mounted) return;
-      _snack(e.pesan, error: true);
+      _showMessage(e.pesan, error: true);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
-  void _snack(String msg, {bool error = false}) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(msg),
-        backgroundColor: error ? cError : cTertiaryContainer,
-      ));
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: cSurface,
-      appBar: AppBar(
-        backgroundColor: cSurface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: cOnSurface),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text(
-          'Ajukan Peminjaman',
-          style: TextStyle(
-            color: cOnSurface,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
-        ),
+    return Theme(
+      data: ThemeData(
+        fontFamily: GoogleFonts.outfit().fontFamily,
+        scaffoldBackgroundColor: const Color(0xFFEEF2F8),
+        useMaterial3: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- Kategori ---
-            _sectionTitle('Kategori Peminjaman'),
-            const SizedBox(height: 10),
-            _buildKategoriChips(),
-            const SizedBox(height: 20),
-
-            // --- Fasilitas ---
-            _sectionTitle('Pilih Fasilitas'),
-            const SizedBox(height: 10),
-            _buildFasilitasDropdown(),
-            const SizedBox(height: 20),
-
-            // --- Tanggal ---
-            _sectionTitle('Pilih Tanggal'),
-            const SizedBox(height: 10),
-            _buildDateRow(),
-            const SizedBox(height: 20),
-
-            // --- Slot waktu ---
-            _sectionTitle('Pilih Sesi Waktu'),
-            const SizedBox(height: 10),
-            _buildSlotGrid(),
-            const SizedBox(height: 20),
-
-            // --- Jumlah ---
-            _sectionTitle('Jumlah Unit'),
-            const SizedBox(height: 10),
-            _buildJumlahRow(),
-            const SizedBox(height: 20),
-
-            // --- Nama kegiatan ---
-            _sectionTitle('Nama Kegiatan'),
-            const SizedBox(height: 10),
-            _buildAcaraField(),
-            const SizedBox(height: 20),
-
-            // --- Peraturan ---
-            _buildAgreementTile(),
-            const SizedBox(height: 28),
-
-            // --- Submit ---
-            _buildSubmitButton(),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // =========================================================================
-  // Builders
-  // =========================================================================
-
-  Widget _sectionTitle(String text) => Text(
-    text,
-    style: const TextStyle(
-      color: cOnSurface,
-      fontWeight: FontWeight.w700,
-      fontSize: 15,
-    ),
-  );
-
-  Widget _buildKategoriChips() {
-    const opts = [
-      ('praktik', 'Praktik'),
-      ('ekskul',  'Ekskul / IT'),
-      ('lainnya', 'Lainnya'),
-    ];
-    return Wrap(
-      spacing: 8,
-      children: [
-        for (final (val, label) in opts)
-          ChoiceChip(
-            label: Text(label),
-            selected: _kategori == val,
-            onSelected: (_) => setState(() => _kategori = val),
-            selectedColor: cPrimaryFixed,
-            labelStyle: TextStyle(
-              color: _kategori == val ? cPrimary : cOnSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
-            side: BorderSide(
-              color: _kategori == val ? cPrimary : cOutlineVariant,
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildFasilitasDropdown() {
-    if (_isLoadingFasilitas) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_fasilitasError != null) {
-      return Text(_fasilitasError!, style: const TextStyle(color: cError));
-    }
-    if (_fasilitas.isEmpty) {
-      return const Text(
-        'Tidak ada fasilitas tersedia.',
-        style: TextStyle(color: cOnSurfaceVariant),
-      );
-    }
-    return Container(
-      decoration: BoxDecoration(
-        color: cSurfaceLowest,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cOutlineVariant),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          value: _selectedFasilitasId,
-          items: _fasilitas
-              .map((f) => DropdownMenuItem(
-                    value: f.id,
-                    child: Text(
-                      '${f.nama} (${f.lokasi ?? '-'})',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ))
-              .toList(),
-          onChanged: (v) => setState(() => _selectedFasilitasId = v),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDateRow() {
-    return SizedBox(
-      height: 72,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          for (final date in _dateChoices) ...[
-            _DateCard(
-              date: date,
-              selected: DateUtils.isSameDay(date, _selectedDate),
-              onTap: () => setState(() => _selectedDate = date),
-            ),
-            const SizedBox(width: 8),
-          ],
-          // Tombol pilih tanggal lain
-          GestureDetector(
-            onTap: _selectDate,
-            child: Container(
-              width: 56,
-              decoration: BoxDecoration(
-                color: cSurfaceLow,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: cOutlineVariant),
-              ),
-              child: const Icon(Icons.calendar_today, color: cPrimary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSlotGrid() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final slot in _slots)
-          GestureDetector(
-            onTap: slot.full ? null : () => setState(() => _selectedSlot = slot.time),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: slot.full
-                    ? cSurfaceHigh
-                    : _selectedSlot == slot.time
-                        ? cPrimary
-                        : cSurfaceLowest,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: _selectedSlot == slot.time ? cPrimary : cOutlineVariant,
+      child: Scaffold(
+        backgroundColor: bgColor,
+        body: Center(
+          child: Container(
+            width: 430,
+            constraints: const BoxConstraints(maxWidth: 430),
+            decoration: const BoxDecoration(
+              color: bgColor,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 20,
+                  spreadRadius: 2,
                 ),
-              ),
+              ],
+            ),
+            child: SafeArea(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    slot.time,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                      color: slot.full
-                          ? cOnSurfaceVariant
-                          : _selectedSlot == slot.time
-                              ? cOnPrimary
-                              : cOnSurface,
-                    ),
-                  ),
-                  Text(
-                    slot.full ? 'Penuh' : slot.label,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: slot.full
-                          ? cError
-                          : _selectedSlot == slot.time
-                              ? cOnPrimaryContainer
-                              : cOnSurfaceVariant,
+                  _buildTopBar(),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 4),
+                          _buildBookingHeaderCard(),
+                          const SizedBox(height: 20),
+                          _buildItemListSection(),
+                          const SizedBox(height: 20),
+                          _buildLoanDateSection(),
+                          const SizedBox(height: 20),
+                          _buildLoanTimeSection(),
+                          const SizedBox(height: 20),
+                          _buildActivityNameSection(),
+                          const SizedBox(height: 20),
+                          _buildStockBanner(),
+                          const SizedBox(height: 12),
+                          _buildPrimaryCTA(),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           ),
-      ],
+        ),
+      ),
     );
   }
 
-  Widget _buildJumlahRow() {
-    return Row(
-      children: [
-        _CounterButton(
-          icon: Icons.remove,
-          onPressed: _jumlah > 1 ? () => setState(() => _jumlah--) : null,
+  // ---------- Top Bar ----------
+  Widget _buildTopBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(color: bgColor.withValues(alpha: 0.95)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _iconButton(icon: Icons.arrow_back, onTap: () => context.pop()),
+          const Text(
+            'Formulir Booking',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: textColor,
+              letterSpacing: -0.2,
+            ),
+          ),
+          _iconButton(icon: Icons.home_outlined, onTap: () => context.go('/')),
+        ],
+      ),
+    );
+  }
+
+  Widget _iconButton({required IconData icon, required VoidCallback onTap}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          child: Icon(icon, size: 20, color: textColor),
         ),
-        const SizedBox(width: 16),
-        Text(
-          '$_jumlah unit',
-          style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
-            color: cOnSurface,
+      ),
+    );
+  }
+
+  // ---------- Booking Header Card ----------
+  Widget _buildBookingHeaderCard() {
+    final first = _cartEntries.isNotEmpty ? _cartEntries.first.facility : null;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              width: 80,
+              height: 80,
+              color: const Color(0xFFECFDF5),
+              child: first?.fotoUrl != null && first!.fotoUrl!.isNotEmpty
+                  ? Image.network(
+                      first.fotoUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.computer,
+                        color: Color(0xFF059669),
+                        size: 40,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.computer,
+                      color: Color(0xFF059669),
+                      size: 40,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDBEAFE).withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Peminjaman Barang',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: brandBlue,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Pilih barang yang ingin dipinjam',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Pastikan jumlah tidak melebihi stok yang tersedia',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: mutedColor,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right, size: 20, color: Color(0xFF94A3B8)),
+        ],
+      ),
+    );
+  }
+
+  // ---------- Item List Section ----------
+  Widget _buildItemListSection() {
+    final items = _cartEntries;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Section Header
+        const Row(
+          children: [
+            Icon(Icons.inventory_2_outlined, size: 20, color: brandBlue),
+            SizedBox(width: 8),
+            Text(
+              'Daftar Barang',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: textColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Item cards
+        ...items.asMap().entries.map((entry) {
+          final index = entry.key;
+          final item = entry.value;
+          return Padding(
+            padding: EdgeInsets.only(bottom: index < items.length - 1 ? 10 : 0),
+            child: _buildItemCard(item),
+          );
+        }),
+        const SizedBox(height: 10),
+        // Add Item Button
+        OutlinedButton(
+          onPressed: _showItemPicker,
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            side: const BorderSide(color: Color(0xFF2563EB)),
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(50),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 16,
+                height: 16,
+                decoration: const BoxDecoration(
+                  color: brandBlue,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.add, size: 12, color: Colors.white),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Tambah Barang',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: brandBlue,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 16),
-        _CounterButton(
-          icon: Icons.add,
-          onPressed: () => setState(() => _jumlah++),
-        ),
-        if (_selectedFasilitas != null) ...[
-          const SizedBox(width: 12),
-          Text(
-            '(maks. ${_selectedFasilitas!.totalUnit})',
-            style: const TextStyle(color: cOnSurfaceVariant, fontSize: 12),
+        if (items.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          // Summary
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: slateBg.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: slateBorder.withValues(alpha: 0.7)),
+            ),
+            child: Column(
+              children: [
+                _summaryRow(
+                  icon: Icons.list,
+                  label: 'Total Jenis Barang',
+                  value: '$totalTypes Jenis',
+                ),
+                const SizedBox(height: 8),
+                _summaryRow(
+                  icon: Icons.inventory_2_outlined,
+                  label: 'Total Unit Dipinjam',
+                  value: '$totalUnits Unit',
+                ),
+              ],
+            ),
           ),
         ],
       ],
     );
   }
 
-  Widget _buildAcaraField() {
-    return TextField(
-      controller: _acaraCtrl,
-      style: const TextStyle(color: cOnSurface),
-      decoration: InputDecoration(
-        hintText: 'Nama kegiatan / acara...',
-        hintStyle: const TextStyle(color: cOnSurfaceVariant),
-        filled: true,
-        fillColor: cSurfaceLowest,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: cOutlineVariant),
+  Widget _summaryRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: brandBlue),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
+            ),
+          ],
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: cOutlineVariant),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: textColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildItemCard(_CartEntry item) {
+    final facility = item.facility;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 56,
+              height: 56,
+              color: const Color(0xFFF1F5F9),
+              child: facility.fotoUrl != null && facility.fotoUrl!.isNotEmpty
+                  ? Image.network(
+                      facility.fotoUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.devices_other,
+                        color: Color(0xFF64748B),
+                      ),
+                    )
+                  : const Icon(Icons.devices_other, color: Color(0xFF64748B)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  facility.nama,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                  ),
+                ),
+                Text(
+                  facility.kategori.isEmpty ? 'Barang' : facility.kategori,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: mutedColor),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF059669),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Tersedia ${facility.totalUnit} unit',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF047857),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // Stepper
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _circleBtn(
+                bg: const Color(0xFFEFF6FF),
+                fg: const Color(0xFF2563EB),
+                icon: Icons.remove,
+                onTap: () {
+                  if (item.quantity > 1) _changeQty(facility.id, -1);
+                },
+              ),
+              SizedBox(
+                width: 42,
+                child: Text(
+                  '${item.quantity} Unit',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              _circleBtn(
+                bg: brandBlue,
+                fg: Colors.white,
+                icon: Icons.add,
+                onTap: () {
+                  if (item.quantity < facility.totalUnit) {
+                    _changeQty(facility.id, 1);
+                  }
+                },
+              ),
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: () => setState(() => _selectedItems.remove(facility.id)),
+                child: const Icon(
+                  Icons.delete_outline,
+                  size: 16,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _circleBtn({
+    required Color bg,
+    required Color fg,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: bg,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          child: Icon(icon, size: 14, color: fg),
         ),
       ),
     );
   }
 
-  Widget _buildAgreementTile() {
-    return GestureDetector(
-      onTap: () => setState(() => _agree = !_agree),
+  // ---------- Date Section ----------
+  Widget _buildLoanDateSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.calendar_today_outlined, size: 20, color: brandBlue),
+            SizedBox(width: 8),
+            Text(
+              'Tanggal Peminjaman',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: textColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: _selectDate,
+          child: _selectLikeBox(
+            icon: Icons.calendar_today_outlined,
+            child: Text(
+              _formatDate(_selectedDate),
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------- Time Section ----------
+  Widget _buildLoanTimeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.access_time, size: 20, color: brandBlue),
+            SizedBox(width: 8),
+            Text(
+              'Waktu Peminjaman',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: textColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _timeBox(
+                label: 'Jam Mulai',
+                value: _jamMulai,
+                options: const [7, 8, 9, 10, 11, 12, 13, 14, 15],
+                onChanged: (v) => setState(() {
+                  _jamMulai = v;
+                  if (_jamSelesai <= _jamMulai) {
+                    _jamSelesai = (_jamMulai + 1).clamp(8, 17);
+                  }
+                }),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _timeBox(
+                label: 'Jam Selesai',
+                value: _jamSelesai,
+                options: const [8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+                onChanged: (v) => setState(() {
+                  _jamSelesai = v;
+                  if (_jamSelesai <= _jamMulai) {
+                    _jamMulai = (_jamSelesai - 1).clamp(7, 16);
+                  }
+                }),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _timeBox({
+    required String label,
+    required int value,
+    required List<int> options,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: slateBg.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: slateBorder.withValues(alpha: 0.7)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 11, color: mutedColor),
+                ),
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: options.contains(value) ? value : options.first,
+                    isDense: true,
+                    isExpanded: true,
+                    icon: const SizedBox.shrink(),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: textColor,
+                      height: 1.1,
+                      fontFamily: GoogleFonts.outfit().fontFamily,
+                    ),
+                    items: options
+                        .map(
+                          (v) => DropdownMenuItem(
+                            value: v,
+                            child: Text('${v.toString().padLeft(2, '0')}:00'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) onChanged(v);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.keyboard_arrow_down, size: 16, color: mutedColor),
+        ],
+      ),
+    );
+  }
+
+  // ---------- Activity Name ----------
+  Widget _buildActivityNameSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.info_outline, size: 20, color: brandBlue),
+            SizedBox(width: 8),
+            Text(
+              'Nama Kegiatan / Kebutuhan',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: textColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _activityController,
+          textCapitalization: TextCapitalization.sentences,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: textColor,
+          ),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: slateBg.withValues(alpha: 0.5),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: slateBorder.withValues(alpha: 0.7),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: slateBorder.withValues(alpha: 0.7),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: brandBlue, width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------- Stock Banner ----------
+  Widget _buildStockBanner() {
+    final hasItems = _cartEntries.isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: hasItems
+            ? const Color(0xFFD1FAE5).withValues(alpha: 0.8)
+            : const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: hasItems ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A),
+        ),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Checkbox(
-            value: _agree,
-            onChanged: (v) => setState(() => _agree = v ?? false),
-            activeColor: cPrimary,
+          Container(
+            width: 24,
+            height: 24,
+            margin: const EdgeInsets.only(top: 2),
+            decoration: BoxDecoration(
+              color: hasItems
+                  ? const Color(0xFF059669)
+                  : const Color(0xFFB45309),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              hasItems ? Icons.check : Icons.info_outline,
+              size: 16,
+              color: Colors.white,
+            ),
           ),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Text(
-              'Saya menyetujui peraturan peminjaman fasilitas sekolah dan '
-              'bersedia bertanggung jawab atas kondisi barang yang dipinjam.',
-              style: TextStyle(color: cOnSurfaceVariant, fontSize: 13),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasItems
+                      ? 'Stok mencukupi untuk peminjaman ini'
+                      : 'Pilih barang terlebih dahulu',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: hasItems
+                        ? const Color(0xFF065F46)
+                        : const Color(0xFF92400E),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  hasItems
+                      ? 'Semua barang tersedia sesuai waktu yang dipilih.'
+                      : 'Gunakan tombol Tambah Barang untuk memilih.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: hasItems
+                        ? const Color(0xFF047857)
+                        : const Color(0xFF92400E),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -520,128 +2728,173 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
     );
   }
 
-  Widget _buildSubmitButton() {
+  // ---------- Primary CTA ----------
+  Widget _buildPrimaryCTA() {
     return SizedBox(
       width: double.infinity,
-      height: 52,
       child: ElevatedButton(
         onPressed: _isSubmitting ? null : _submit,
         style: ElevatedButton.styleFrom(
-          backgroundColor: cPrimary,
-          foregroundColor: cOnPrimary,
-          shape: const StadiumBorder(),
-          elevation: 0,
+          backgroundColor: brandBlue,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFFCBD5E1),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(50),
+          ),
+          elevation: 8,
+          shadowColor: brandBlue.withValues(alpha: 0.25),
         ),
         child: _isSubmitting
             ? const SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
+                  color: Colors.white,
                   strokeWidth: 2,
-                  color: cOnPrimary,
                 ),
               )
-            : const Text(
-                'Kirim Pengajuan',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            : const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Lanjut ke Konfirmasi',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Icon(Icons.arrow_forward, size: 20, color: Colors.white),
+                ],
               ),
+      ),
+    );
+  }
+
+  // ---------- Shared helper ----------
+  Widget _selectLikeBox({required IconData icon, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: slateBg.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: slateBorder.withValues(alpha: 0.7)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: brandBlue),
+          const SizedBox(width: 12),
+          child,
+        ],
       ),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers kecil
-// ---------------------------------------------------------------------------
-
-class _Slot {
-  const _Slot({required this.time, required this.label, required this.full});
-  final String time;
-  final String label;
-  final bool full;
+// =============================================================================
+// Shared Models & Widgets
+// =============================================================================
+class _CartEntry {
+  const _CartEntry({required this.facility, required this.quantity});
+  final FasilitasRingkas facility;
+  final int quantity;
 }
 
-class _DateCard extends StatelessWidget {
-  const _DateCard({
-    required this.date,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final DateTime date;
-  final bool selected;
-  final VoidCallback onTap;
-
-  static const _days = ['Sen','Sel','Rab','Kam','Jum','Sab','Min'];
+class _FacilityPickerSheet extends StatelessWidget {
+  const _FacilityPickerSheet({required this.facilities});
+  final List<FasilitasRingkas> facilities;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 56,
-        decoration: BoxDecoration(
-          color: selected ? _BorrowingFormScreenState.cPrimary : _BorrowingFormScreenState.cSurfaceLowest,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected
-                ? _BorrowingFormScreenState.cPrimary
-                : _BorrowingFormScreenState.cOutlineVariant,
-          ),
+    return SafeArea(
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              _days[date.weekday - 1],
-              style: TextStyle(
-                fontSize: 11,
-                color: selected
-                    ? _BorrowingFormScreenState.cOnPrimaryContainer
-                    : _BorrowingFormScreenState.cOnSurfaceVariant,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Pilih Barang atau Ruangan',
+                      style: TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              '${date.day}',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-                color: selected
-                    ? _BorrowingFormScreenState.cOnPrimary
-                    : _BorrowingFormScreenState.cOnSurface,
+            const Divider(height: 1),
+            if (facilities.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(28),
+                child: Text(
+                  'Belum ada yang tersedia.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFF64748B)),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: facilities.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final facility = facilities[index];
+                    return ListTile(
+                      enabled: facility.tersedia,
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFFEFF6FF),
+                        child: Icon(
+                          facility.isRuangan
+                              ? Icons.meeting_room_outlined
+                              : Icons.devices_other,
+                          color: const Color(0xFF1D4ED8),
+                        ),
+                      ),
+                      title: Text(facility.nama),
+                      subtitle: Text(
+                        '${facility.kategori.isEmpty ? 'Barang' : facility.kategori} · ${facility.lokasi}',
+                      ),
+                      trailing: Text(
+                        facility.tersedia
+                            ? '${facility.totalUnit} unit'
+                            : 'Habis',
+                        style: TextStyle(
+                          color: facility.tersedia
+                              ? const Color(0xFF059669)
+                              : const Color(0xFF94A3B8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      onTap: facility.tersedia
+                          ? () => Navigator.pop(context, facility)
+                          : null,
+                    );
+                  },
+                ),
               ),
-            ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CounterButton extends StatelessWidget {
-  const _CounterButton({required this.icon, required this.onPressed});
-  final IconData icon;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: _BorrowingFormScreenState.cSurfaceLow,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onPressed,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Icon(
-            icon,
-            size: 20,
-            color: onPressed == null
-                ? _BorrowingFormScreenState.cOnSurfaceVariant
-                : _BorrowingFormScreenState.cPrimary,
-          ),
         ),
       ),
     );

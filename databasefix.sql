@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS public.lokasi (
 CREATE TABLE IF NOT EXISTS public.fasilitas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   nama TEXT NOT NULL,
+  kategori TEXT NOT NULL DEFAULT 'SARPRAS UMUM',
   lokasi_id UUID REFERENCES public.lokasi(id) ON DELETE SET NULL,
   total_unit INTEGER DEFAULT 0,
   status TEXT DEFAULT 'tersedia' CHECK (status IN ('tersedia','pemeliharaan','tidak_aktif')),
@@ -48,6 +49,9 @@ CREATE TABLE IF NOT EXISTS public.fasilitas (
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE public.fasilitas
+  ADD COLUMN IF NOT EXISTS kategori TEXT NOT NULL DEFAULT 'SARPRAS UMUM';
 
 -- Table: public.aset_fasilitas (facility_assets / inventory items under a facility)
 CREATE TABLE IF NOT EXISTS public.aset_fasilitas (
