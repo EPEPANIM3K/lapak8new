@@ -78,10 +78,14 @@ CREATE TABLE IF NOT EXISTS public.pengguna (
   kelas_atau_unit TEXT,             -- kelas | unit_staf | unit_admin
   telepon TEXT,
   foto_url TEXT,
+  notifikasi_aktif BOOLEAN NOT NULL DEFAULT TRUE,
   aktif BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.pengguna
+  ADD COLUMN IF NOT EXISTS notifikasi_aktif BOOLEAN NOT NULL DEFAULT TRUE;
 
 -- Table: public.peminjaman (borrowings)
 CREATE TABLE IF NOT EXISTS public.peminjaman (

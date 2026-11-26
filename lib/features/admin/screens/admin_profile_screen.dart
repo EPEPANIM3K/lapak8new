@@ -17,6 +17,7 @@ import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
 import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 import 'package:lapak8new/features/dashboard/widgets/bantuan_pic_modal.dart';
 import 'package:lapak8new/features/dashboard/widgets/dashboard_modals.dart';
+import 'package:lapak8new/features/profile/widgets/profile_modals.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 // Simpan di: lib/features/admin/screens/admin_profile_screen.dart
@@ -39,10 +40,10 @@ class AdminProfileScreen extends StatefulWidget {
 }
 
 class _AdminProfileScreenState extends State<AdminProfileScreen> {
-  String get _name     => authProvider.user?.namaLengkap ?? 'Admin';
-  String get _role     => authProvider.user?.peran ?? 'admin';
+  String get _name => authProvider.user?.namaLengkap ?? 'Admin';
+  String get _role => authProvider.user?.peran ?? 'admin';
   String get _idNumber => authProvider.user?.nomorInduk ?? '';
-  String get _unit     => authProvider.user?.kelasAtauUnit ?? '—';
+  String get _unit => authProvider.user?.kelasAtauUnit ?? '—';
   String? get _fotoUrl => authProvider.user?.fotoUrl;
 
   /// Email tersimpan (bisa diubah lewat mode edit Data Pribadi).
@@ -56,20 +57,74 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
   // Mode edit Data Pribadi (hanya email yang dapat diubah).
   bool _editingEmail = false;
-  late final TextEditingController _emailCtrl =
-      TextEditingController(text: _savedEmail);
+  late final TextEditingController _emailCtrl = TextEditingController(
+    text: _savedEmail,
+  );
   bool _emailTouched = false;
   bool _savingEmail = false;
 
   bool _notifOn = true;
+  bool _loadingNotificationPreference = true;
+  bool _savingNotificationPreference = false;
 
-  static final RegExp _emailRegex =
-      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+  static final RegExp _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
   bool get _emailChanged => _emailCtrl.text.trim() != _savedEmail;
   bool get _emailValid => _emailRegex.hasMatch(_emailCtrl.text.trim());
   bool get _canSaveEmail => _emailChanged && _emailValid;
-  bool get _hasAvatar => _avatarBytes != null || _avatarPath.isNotEmpty || (_fotoUrl != null && _fotoUrl!.isNotEmpty);
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationPreference();
+  }
+
+  Future<void> _loadNotificationPreference() async {
+    try {
+      final enabled = await authProvider.loadNotificationPreference();
+      if (!mounted) return;
+      setState(() {
+        _notifOn = enabled;
+        _loadingNotificationPreference = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingNotificationPreference = false);
+      _showMessage('Gagal memuat preferensi notifikasi: $error', isError: true);
+    }
+  }
+
+  Future<void> _setNotificationPreference(bool enabled) async {
+    if (_loadingNotificationPreference || _savingNotificationPreference) return;
+    final previous = _notifOn;
+    setState(() {
+      _notifOn = enabled;
+      _savingNotificationPreference = true;
+    });
+    try {
+      await authProvider.saveNotificationPreference(enabled);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _notifOn = previous);
+      _showMessage(
+        'Gagal menyimpan preferensi notifikasi: $error',
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _savingNotificationPreference = false);
+    }
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: isError ? AppColors.error : AppColors.primary,
+          content: Text(message),
+        ),
+      );
+  }
 
   @override
   void dispose() {
@@ -90,10 +145,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         confirmColor: AppColors.error,
         iconColor: AppColors.error,
         iconBackground: AppColors.errorContainer,
-          onConfirm: () async {
-            await authProvider.signOut();
-            if (mounted) context.go('/login');
-          },
+        onConfirm: () async {
+          await authProvider.signOut();
+          if (mounted) context.go('/login');
+        },
       ),
     );
   }
@@ -108,8 +163,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     );
     if (source == null || !mounted) return;
 
-    final outcome =
-        await _picker.pickPhotos(source: source, remainingSlots: 1);
+    final outcome = await _picker.pickPhotos(source: source, remainingSlots: 1);
     if (!mounted) return;
 
     if (outcome.files.isEmpty) {
@@ -137,25 +191,24 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
     final userId = authProvider.user?.id;
     final bytes = file.bytes;
-    if (userId != null && bytes != null) {
-      try {
-        await userRepository.uploadAndSaveProfilePhoto(
-          userId: userId,
-          bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
-          fileName: file.fileName,
-        );
-        await authProvider.refreshProfil();
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: AppColors.error,
-            content: Text('Gagal menyimpan foto profil: '),
-          ),
-        );
-        return;
-      }
+    if (userId == null || bytes == null) {
+      _showMessage(
+        'Foto tidak dapat disimpan. Coba pilih foto lain.',
+        isError: true,
+      );
+      return;
+    }
+    try {
+      await userRepository.uploadAndSaveProfilePhoto(
+        userId: userId,
+        bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+        fileName: file.fileName,
+      );
+      await authProvider.refreshProfil();
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Gagal menyimpan foto profil: $error', isError: true);
+      return;
     }
 
     if (!mounted) return;
@@ -229,14 +282,17 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 alignment: Alignment.centerLeft,
                 child: IconButton(
                   onPressed: () => Navigator.of(context).maybePop(),
-                  icon: const Icon(Symbols.arrow_back,
-                      color: AppColors.onSurface),
+                  icon: const Icon(
+                    Symbols.arrow_back,
+                    color: AppColors.onSurface,
+                  ),
                 ),
               ),
               Text(
                 'Pengaturan Profil',
-                style: AppTextStyles.headlineSm(color: AppColors.onSurface)
-                    .copyWith(fontWeight: FontWeight.w700, fontSize: 18),
+                style: AppTextStyles.headlineSm(
+                  color: AppColors.onSurface,
+                ).copyWith(fontWeight: FontWeight.w700, fontSize: 18),
               ),
             ],
           ),
@@ -266,23 +322,30 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                     color: AppColors.primaryFixed,
                     shape: BoxShape.circle,
                     border: Border.all(
-                        color: AppColors.surfaceContainerLow, width: 4),
+                      color: AppColors.surfaceContainerLow,
+                      width: 4,
+                    ),
                   ),
                   child: (_avatarBytes != null || _avatarPath.isNotEmpty)
                       ? LocalImagePreview(
-                          path: _avatarPath, bytes: _avatarBytes)
+                          path: _avatarPath,
+                          bytes: _avatarBytes,
+                        )
                       : (_fotoUrl != null && _fotoUrl!.isNotEmpty)
-                          ? Image.network(
-                              _fotoUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                Symbols.person,
-                                size: 44,
-                                color: AppColors.primary,
-                              ),
-                            )
-                          : const Icon(Symbols.person,
-                              size: 44, color: AppColors.primary),
+                      ? Image.network(
+                          _fotoUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Symbols.person,
+                            size: 44,
+                            color: AppColors.primary,
+                          ),
+                        )
+                      : const Icon(
+                          Symbols.person,
+                          size: 44,
+                          color: AppColors.primary,
+                        ),
                 ),
                 // Tombol kamera (kanan atas)
                 Positioned(
@@ -298,8 +361,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                         shape: BoxShape.circle,
                         boxShadow: AppShadows.sm,
                       ),
-                      child: const Icon(Symbols.photo_camera,
-                          size: 18, color: AppColors.primary),
+                      child: const Icon(
+                        Symbols.photo_camera,
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
                     ),
                   ),
                 ),
@@ -314,10 +380,16 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                       color: AppColors.primary,
                       shape: BoxShape.circle,
                       border: Border.all(
-                          color: AppColors.surfaceContainerLowest, width: 2),
+                        color: AppColors.surfaceContainerLowest,
+                        width: 2,
+                      ),
                     ),
-                    child: const Icon(Symbols.check,
-                        size: 14, weight: 700, color: AppColors.onPrimary),
+                    child: const Icon(
+                      Symbols.check,
+                      size: 14,
+                      weight: 700,
+                      color: AppColors.onPrimary,
+                    ),
                   ),
                 ),
               ],
@@ -326,8 +398,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           const SizedBox(height: 12),
           Text(
             _name,
-            style: AppTextStyles.headlineMd(color: AppColors.onSurface)
-                .copyWith(fontWeight: FontWeight.w800),
+            style: AppTextStyles.headlineMd(
+              color: AppColors.onSurface,
+            ).copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
           Container(
@@ -369,8 +442,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               Expanded(
                 child: Text(
                   'Data Pribadi',
-                  style: AppTextStyles.headlineSm(color: AppColors.onSurface)
-                      .copyWith(fontWeight: FontWeight.w800),
+                  style: AppTextStyles.headlineSm(
+                    color: AppColors.onSurface,
+                  ).copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
               _buildEditButton(),
@@ -381,8 +455,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             icon: Symbols.badge,
             label: 'Nama Lengkap',
             value: _name,
-            trailing:
-                const Icon(Symbols.lock, size: 20, color: AppColors.slate500),
+            trailing: const Icon(
+              Symbols.lock,
+              size: 20,
+              color: AppColors.slate500,
+            ),
           ),
           const SizedBox(height: 10),
           _buildEmailRow(),
@@ -391,8 +468,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             icon: Symbols.school,
             label: 'Kelas / Konsentrasi Keahlian',
             value: _unit,
-            trailing:
-                const Icon(Symbols.lock, size: 20, color: AppColors.slate500),
+            trailing: const Icon(
+              Symbols.lock,
+              size: 20,
+              color: AppColors.slate500,
+            ),
           ),
         ],
       ),
@@ -431,8 +511,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(editing ? Symbols.check : Symbols.edit,
-                size: 16, color: color),
+            Icon(
+              editing ? Symbols.check : Symbols.edit,
+              size: 16,
+              color: color,
+            ),
             const SizedBox(width: 4),
             Text(
               editing ? 'Simpan' : 'Ubah',
@@ -477,9 +560,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     setState(() => _savingEmail = true);
     try {
       await userRepository.updateEmail(user.id, _emailCtrl.text.trim());
+      await authProvider.refreshProfil();
       if (!mounted) return;
       setState(() {
-        _savedEmail = _emailCtrl.text.trim();
+        _savedEmail = authProvider.user?.email ?? _emailCtrl.text.trim();
+        _emailCtrl.text = _savedEmail;
         _editingEmail = false;
         _emailTouched = false;
       });
@@ -518,8 +603,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         children: [
           Text(
             'Pengaturan & Keamanan',
-            style: AppTextStyles.headlineSm(color: AppColors.onSurface)
-                .copyWith(fontWeight: FontWeight.w800),
+            style: AppTextStyles.headlineSm(
+              color: AppColors.onSurface,
+            ).copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           _SettingRow(
@@ -536,11 +622,30 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             },
           ),
           _SettingRow(
+            icon: Symbols.call,
+            title: 'Ubah Nomor Telepon',
+            subtitle: authProvider.user?.telepon?.isNotEmpty == true
+                ? authProvider.user!.telepon!
+                : 'Tambahkan nomor WhatsApp aktif',
+            trailing: const _Chevron(),
+            onTap: () async {
+              await showDialog<void>(
+                context: context,
+                barrierColor: Colors.black54,
+                builder: (_) => ChangePhoneModal(
+                  initialPhone: authProvider.user?.telepon ?? '',
+                  onSave: authProvider.updatePhoneNumber,
+                ),
+              );
+              if (mounted) setState(() {});
+            },
+          ),
+          _SettingRow(
             icon: Symbols.notifications_active,
             title: 'Notifikasi & Pengingat',
-            subtitle: 'Status peminjaman & tenggat',
+            subtitle: 'Preferensi tersimpan di akun',
             trailing: _buildSwitch(),
-            onTap: () => setState(() => _notifOn = !_notifOn),
+            onTap: () => _setNotificationPreference(!_notifOn),
           ),
           _SettingRow(
             icon: Symbols.policy,
@@ -576,7 +681,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   Widget _buildSwitch() {
     return Switch(
       value: _notifOn,
-      onChanged: (v) => setState(() => _notifOn = v),
+      onChanged: _loadingNotificationPreference || _savingNotificationPreference
+          ? null
+          : _setNotificationPreference,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       thumbColor: WidgetStateProperty.all(Colors.white),
       trackColor: WidgetStateProperty.resolveWith(
@@ -854,7 +961,8 @@ class _EditableEmailRow extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     hintText: 'nama@email.com',
                     hintStyle: AppTextStyles.bodyMd(
-                        color: AppColors.outlineVariant),
+                      color: AppColors.outlineVariant,
+                    ),
                   ),
                 ),
                 if (hasError) ...[
@@ -877,4 +985,3 @@ class _EditableEmailRow extends StatelessWidget {
     );
   }
 }
-

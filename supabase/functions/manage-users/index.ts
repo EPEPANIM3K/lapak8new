@@ -69,7 +69,7 @@ Deno.serve(async (request) => {
     return respond({ error: 'Sesi login tidak valid atau sudah berakhir.' }, 401);
   }
 
-  // Verifikasi bahwa pemanggil adalah admin aktif di tabel pengguna
+  // Verifikasi pemanggil adalah pengguna aktif.
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -82,13 +82,13 @@ Deno.serve(async (request) => {
   if (operatorError) {
     return respond(
       {
-        error: `Gagal memverifikasi akun admin. ${operatorError.message}`,
+        error: `Gagal memverifikasi akun. ${operatorError.message}`,
       },
       500,
     );
   }
-  if (!operator || operator.peran !== 'admin' || operator.aktif !== true) {
-    return respond({ error: 'Hanya admin aktif yang boleh mengelola akun.' }, 403);
+  if (!operator || operator.aktif !== true) {
+    return respond({ error: 'Akun tidak aktif atau tidak terdaftar.' }, 403);
   }
 
   let body: JsonRecord;
@@ -103,6 +103,63 @@ Deno.serve(async (request) => {
   }
 
   const action = body.action;
+  const selfServiceActions = [
+    'get_notification_preference',
+    'set_notification_preference',
+    'set_phone',
+  ];
+  if (
+    operator.peran !== 'admin' &&
+    (typeof action !== 'string' || !selfServiceActions.includes(action))
+  ) {
+    return respond({ error: 'Hanya admin aktif yang boleh mengelola akun.' }, 403);
+  }
+
+  if (action === 'get_notification_preference') {
+    const { data, error } = await adminClient
+      .from('pengguna')
+      .select('notifikasi_aktif')
+      .eq('id', authData.user.id)
+      .single();
+    if (error) {
+      return respond({ error: `Gagal memuat preferensi notifikasi. ${error.message}` }, 500);
+    }
+    return respond({ enabled: data.notifikasi_aktif });
+  }
+
+  if (action === 'set_notification_preference') {
+    if (typeof body.enabled !== 'boolean') {
+      return respond({ error: 'Status notifikasi tidak valid.' }, 400);
+    }
+    const { error } = await adminClient
+      .from('pengguna')
+      .update({ notifikasi_aktif: body.enabled })
+      .eq('id', authData.user.id);
+    if (error) {
+      return respond({ error: `Gagal menyimpan preferensi notifikasi. ${error.message}` }, 500);
+    }
+    return respond({ ok: true });
+  }
+
+  if (action === 'set_phone') {
+    const id = requiredString(body, 'id');
+    const phone = optionalString(body, 'phone');
+    if (!id || id !== authData.user.id || !validUuid(id)) {
+      return respond({ error: 'Akun tujuan tidak valid.' }, 403);
+    }
+    if (!phone || phone.length < 8 || phone.length > 20) {
+      return respond({ error: 'Nomor telepon harus berisi 8 sampai 20 karakter.' }, 400);
+    }
+
+    const { error } = await adminClient
+      .from('pengguna')
+      .update({ telepon: phone })
+      .eq('id', authData.user.id);
+    if (error) {
+      return respond({ error: `Gagal menyimpan nomor telepon. ${error.message}` }, 500);
+    }
+    return respond({ ok: true });
+  }
 
   // ---------------------------------------------------------------------------
   // ACTION: create — buat akun auth + insert ke tabel pengguna

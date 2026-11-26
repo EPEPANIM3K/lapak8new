@@ -4,12 +4,10 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 import 'package:lapak8new/shared/widgets/ms_icon.dart';
 
 /// Modal "Ubah Kata Sandi" untuk admin.
-///
-/// Frontend only: memvalidasi input (wajib diisi, konfirmasi cocok) dan
-/// menampilkan notifikasi. Tidak mengubah autentikasi/password backend.
 class AdminChangePasswordSheet extends StatefulWidget {
   const AdminChangePasswordSheet({super.key});
 
@@ -28,6 +26,8 @@ class _AdminChangePasswordSheetState extends State<AdminChangePasswordSheet> {
   bool _obscureConfirm = true;
 
   bool _submitted = false;
+  bool _saving = false;
+  String? _saveError;
 
   @override
   void dispose() {
@@ -64,23 +64,41 @@ class _AdminChangePasswordSheetState extends State<AdminChangePasswordSheet> {
       _newCtrl.text.length >= 6 &&
       _confirmCtrl.text == _newCtrl.text;
 
-  void _save() {
+  Future<void> _save() async {
     setState(() => _submitted = true);
-    if (!_canSave) return;
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.primary,
-        content: Text(
-          'Kata sandi berhasil diperbarui.',
-          style: AppTextStyles.bodySm(
-            weight: FontWeight.w600,
-            color: AppColors.onPrimary,
+    if (!_canSave || _saving) return;
+
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    try {
+      await authProvider.changePassword(
+        currentPassword: _oldCtrl.text,
+        newPassword: _newCtrl.text,
+      );
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.primary,
+          content: Text(
+            'Kata sandi berhasil diperbarui.',
+            style: AppTextStyles.bodySm(
+              weight: FontWeight.w600,
+              color: AppColors.onPrimary,
+            ),
           ),
         ),
-      ),
-    );
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saveError = error.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -114,9 +132,7 @@ class _AdminChangePasswordSheetState extends State<AdminChangePasswordSheet> {
                       const SizedBox(height: 2),
                       Text(
                         'Pastikan kata sandi baru kuat dan mudah diingat.',
-                        style: AppTextStyles.bodySm(
-                          color: AppColors.slate600,
-                        ),
+                        style: AppTextStyles.bodySm(color: AppColors.slate600),
                       ),
                     ],
                   ),
@@ -152,12 +168,19 @@ class _AdminChangePasswordSheetState extends State<AdminChangePasswordSheet> {
               onToggle: () =>
                   setState(() => _obscureConfirm = !_obscureConfirm),
             ),
+            if (_saveError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _saveError!,
+                style: AppTextStyles.bodySm(color: AppColors.error),
+              ),
+            ],
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                onPressed: _canSave ? _save : null,
+                onPressed: _canSave && !_saving ? _save : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   disabledBackgroundColor: AppColors.primaryFixed.fade(0.5),
@@ -167,7 +190,7 @@ class _AdminChangePasswordSheetState extends State<AdminChangePasswordSheet> {
                   shape: const StadiumBorder(),
                 ),
                 child: Text(
-                  'Simpan Perubahan',
+                  _saving ? 'Menyimpan...' : 'Simpan Perubahan',
                   style: AppTextStyles.labelLg(
                     weight: FontWeight.w700,
                     color: _canSave ? AppColors.onPrimary : AppColors.slate500,
@@ -199,7 +222,6 @@ class _AdminChangePasswordSheetState extends State<AdminChangePasswordSheet> {
       ),
     );
   }
-
 }
 
 class _CloseButton extends StatelessWidget {
@@ -266,8 +288,10 @@ class _PasswordField extends StatelessWidget {
           decoration: InputDecoration(
             filled: true,
             fillColor: AppColors.surfaceContainerLow,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppRadius.base),
               borderSide: BorderSide(
@@ -320,4 +344,3 @@ class _PasswordField extends StatelessWidget {
     );
   }
 }
-

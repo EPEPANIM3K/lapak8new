@@ -22,6 +22,16 @@ class AktivitasPeminjamanMingguan {
   final List<DateTime> pengembalian;
 }
 
+class StatistikPeminjamanPengguna {
+  const StatistikPeminjamanPengguna({
+    required this.selesai,
+    required this.terlambat,
+  });
+
+  final int selesai;
+  final int terlambat;
+}
+
 class PeminjamanService {
   SupabaseClient get _db => Supabase.instance.client;
 
@@ -51,6 +61,40 @@ class PeminjamanService {
     } on PostgrestException catch (e) {
       throw PeminjamanException(
         'Gagal menghitung peminjaman aktif: ${e.message}',
+      );
+    }
+  }
+
+  Future<StatistikPeminjamanPengguna> ambilStatistikPeminjamanSaya() async {
+    final userId = _db.auth.currentUser?.id;
+    if (userId == null) throw const PeminjamanException('Belum login.');
+
+    try {
+      final rows = await _db
+          .from('peminjaman')
+          .select('status, estimasi_kembali_pada, dikembalikan_pada')
+          .eq('peminjam_id', userId)
+          .inFilter('status', ['dikembalikan', 'terlambat']);
+
+      var lateCount = 0;
+      for (final row in rows) {
+        final status = row['status'] as String;
+        final returnedAt = row['dikembalikan_pada'] as String?;
+        final dueAt = row['estimasi_kembali_pada'] as String;
+        if (status == 'terlambat' ||
+            (returnedAt != null &&
+                DateTime.parse(returnedAt).isAfter(DateTime.parse(dueAt)))) {
+          lateCount++;
+        }
+      }
+
+      return StatistikPeminjamanPengguna(
+        selesai: rows.length,
+        terlambat: lateCount,
+      );
+    } on PostgrestException catch (e) {
+      throw PeminjamanException(
+        'Gagal memuat statistik peminjaman: ${e.message}',
       );
     }
   }

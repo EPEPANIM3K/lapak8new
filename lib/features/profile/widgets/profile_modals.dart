@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 // 1. POPUP UBAH KATA SANDI
 // ==========================================
 class ChangePasswordModal extends StatefulWidget {
-  const ChangePasswordModal({super.key});
+  const ChangePasswordModal({required this.onSave, super.key});
+
+  final Future<void> Function(String currentPassword, String newPassword)
+  onSave;
 
   @override
   State<ChangePasswordModal> createState() => _ChangePasswordModalState();
@@ -20,6 +23,13 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
   final _oldCtrl = TextEditingController();
   final _newCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  bool get _canSave =>
+      _oldCtrl.text.isNotEmpty &&
+      _newCtrl.text.length >= 6 &&
+      _confirmCtrl.text == _newCtrl.text;
 
   @override
   void dispose() {
@@ -27,6 +37,31 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
     _newCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_canSave || _saving) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave(_oldCtrl.text, _newCtrl.text);
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.pop(context);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Kata sandi berhasil diperbarui.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -45,7 +80,8 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
             // Drag Handle
             Center(
               child: Container(
-                width: 40, height: 4,
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
                   color: const Color(0xFFC4C5D7).withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(999),
@@ -58,22 +94,38 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Ubah Kata Sandi',
-                  style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF131B2E))),
+                const Text(
+                  'Ubah Kata Sandi',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF131B2E),
+                  ),
+                ),
                 InkWell(
                   onTap: () => Navigator.pop(context),
                   borderRadius: BorderRadius.circular(999),
                   child: Container(
                     padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(color: Color(0xFFF2F3FF), shape: BoxShape.circle),
-                    child: const Icon(Icons.close, size: 18, color: Color(0xFF434655)),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF2F3FF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      size: 18,
+                      color: Color(0xFF434655),
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 4),
-            const Text('Pastikan kata sandi baru Anda kuat dan mudah diingat.',
-              style: TextStyle(fontSize: 12, color: Color(0xFF505F76))),
+            const Text(
+              'Pastikan kata sandi baru Anda kuat dan mudah diingat.',
+              style: TextStyle(fontSize: 12, color: Color(0xFF505F76)),
+            ),
             const SizedBox(height: 20),
 
             // Input: Kata Sandi Saat Ini
@@ -81,7 +133,9 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
               label: 'Kata Sandi Saat Ini',
               controller: _oldCtrl,
               obscure: _obscureOld,
-              onToggleVisibility: () => setState(() => _obscureOld = !_obscureOld),
+              onToggleVisibility: () =>
+                  setState(() => _obscureOld = !_obscureOld),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 16),
 
@@ -90,7 +144,9 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
               label: 'Kata Sandi Baru',
               controller: _newCtrl,
               obscure: _obscureNew,
-              onToggleVisibility: () => setState(() => _obscureNew = !_obscureNew),
+              onToggleVisibility: () =>
+                  setState(() => _obscureNew = !_obscureNew),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 16),
 
@@ -99,8 +155,29 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
               label: 'Konfirmasi Kata Sandi Baru',
               controller: _confirmCtrl,
               obscure: _obscureConfirm,
-              onToggleVisibility: () => setState(() => _obscureConfirm = !_obscureConfirm),
+              onToggleVisibility: () =>
+                  setState(() => _obscureConfirm = !_obscureConfirm),
+              onChanged: (_) => setState(() {}),
             ),
+            if (_newCtrl.text.isNotEmpty && _newCtrl.text.length < 6)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text('Kata sandi baru minimal 6 karakter.'),
+              ),
+            if (_confirmCtrl.text.isNotEmpty &&
+                _confirmCtrl.text != _newCtrl.text)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text('Konfirmasi kata sandi tidak cocok.'),
+              ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: Color(0xFFBA1A1A)),
+                ),
+              ),
             const SizedBox(height: 24),
 
             // Tombol Aksi
@@ -108,19 +185,22 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Kata sandi berhasil diperbarui!'), behavior: SnackBarBehavior.floating),
-                  );
-                },
+                onPressed: _canSave && !_saving ? _save : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0037B0),
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-                child: const Text('Simpan Perubahan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                child: Text(
+                  _saving ? 'Menyimpan...' : 'Simpan Perubahan',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -131,9 +211,14 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                 onPressed: () => Navigator.pop(context),
                 style: TextButton.styleFrom(
                   foregroundColor: const Color(0xFF434655),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-                child: const Text('Batal', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],
@@ -148,24 +233,49 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
     required TextEditingController controller,
     required bool obscure,
     required VoidCallback onToggleVisibility,
+    required ValueChanged<String> onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF131B2E))),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF131B2E),
+          ),
+        ),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
           obscureText: obscure,
+          onChanged: onChanged,
           style: const TextStyle(fontSize: 14, color: Color(0xFF131B2E)),
           decoration: InputDecoration(
             filled: true,
             fillColor: const Color(0xFFF2F3FF),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-            prefixIcon: const Icon(Icons.lock_outline, size: 20, color: Color(0xFF747686)),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            prefixIcon: const Icon(
+              Icons.lock_outline,
+              size: 20,
+              color: Color(0xFF747686),
+            ),
             suffixIcon: IconButton(
-              icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 20, color: const Color(0xFF747686)),
+              icon: Icon(
+                obscure
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                size: 20,
+                color: const Color(0xFF747686),
+              ),
               onPressed: onToggleVisibility,
             ),
             hintText: '••••••••',
@@ -177,24 +287,63 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
   }
 }
 
-
 // ==========================================
 // 2. POPUP UBAH NOMOR TELEPON
 // ==========================================
 class ChangePhoneModal extends StatefulWidget {
-  const ChangePhoneModal({super.key});
+  const ChangePhoneModal({
+    required this.initialPhone,
+    required this.onSave,
+    super.key,
+  });
+
+  final String initialPhone;
+  final Future<void> Function(String phone) onSave;
 
   @override
   State<ChangePhoneModal> createState() => _ChangePhoneModalState();
 }
 
 class _ChangePhoneModalState extends State<ChangePhoneModal> {
-  final _phoneCtrl = TextEditingController(text: '+62 812-3456-7890');
+  late final _phoneCtrl = TextEditingController(text: widget.initialPhone);
+  bool _saving = false;
+  String? _error;
+
+  String get _normalizedPhone =>
+      _phoneCtrl.text.trim().replaceAll(RegExp(r'[\s()-]'), '');
+
+  bool get _phoneValid =>
+      RegExp(r'^\+?[0-9]{8,15}$').hasMatch(_normalizedPhone);
 
   @override
   void dispose() {
     _phoneCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_phoneValid || _saving) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave(_normalizedPhone);
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.pop(context);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Nomor telepon berhasil diperbarui.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -213,7 +362,8 @@ class _ChangePhoneModalState extends State<ChangePhoneModal> {
             // Drag Handle
             Center(
               child: Container(
-                width: 40, height: 4,
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
                   color: const Color(0xFFC4C5D7).withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(999),
@@ -226,48 +376,108 @@ class _ChangePhoneModalState extends State<ChangePhoneModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Ubah Nomor Telepon',
-                  style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF131B2E))),
+                const Text(
+                  'Ubah Nomor Telepon',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF131B2E),
+                  ),
+                ),
                 InkWell(
                   onTap: () => Navigator.pop(context),
                   borderRadius: BorderRadius.circular(999),
                   child: Container(
                     padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(color: Color(0xFFF2F3FF), shape: BoxShape.circle),
-                    child: const Icon(Icons.close, size: 18, color: Color(0xFF434655)),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF2F3FF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      size: 18,
+                      color: Color(0xFF434655),
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 4),
-            const Text('Nomor ini akan digunakan untuk dihubungi oleh PIC Sarpras terkait peminjaman.',
-              style: TextStyle(fontSize: 12, color: Color(0xFF505F76), height: 1.4)),
+            const Text(
+              'Nomor ini akan digunakan untuk dihubungi oleh PIC Sarpras terkait peminjaman.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF505F76),
+                height: 1.4,
+              ),
+            ),
             const SizedBox(height: 20),
 
             // Input: Nomor Telepon
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Nomor WhatsApp Aktif',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF131B2E))),
+                const Text(
+                  'Nomor WhatsApp Aktif',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF131B2E),
+                  ),
+                ),
                 const SizedBox(height: 6),
                 TextField(
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.phone,
-                  style: const TextStyle(fontSize: 14, color: Color(0xFF131B2E), fontWeight: FontWeight.w500),
+                  onChanged: (_) => setState(() {}),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF131B2E),
+                    fontWeight: FontWeight.w500,
+                  ),
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: const Color(0xFFF2F3FF),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                    prefixIcon: const Icon(Icons.phone_android, size: 20, color: Color(0xFF0037B0)),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.phone_android,
+                      size: 20,
+                      color: Color(0xFF0037B0),
+                    ),
                     hintText: '+62 8xx-xxxx-xxxx',
-                    hintStyle: const TextStyle(color: Color(0xFFC4C5D7), fontSize: 14),
+                    hintStyle: const TextStyle(
+                      color: Color(0xFFC4C5D7),
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
+            if (_phoneCtrl.text.isNotEmpty && !_phoneValid)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Masukkan nomor telepon yang valid (8–15 digit).',
+                  style: TextStyle(color: Color(0xFFBA1A1A)),
+                ),
+              ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: Color(0xFFBA1A1A)),
+                ),
+              ),
 
             // Info Banner Kecil
             Container(
@@ -282,8 +492,14 @@ class _ChangePhoneModalState extends State<ChangePhoneModal> {
                   Icon(Icons.info_outline, size: 16, color: Color(0xFF0037B0)),
                   SizedBox(width: 8),
                   Expanded(
-                    child: Text('Pastikan nomor yang dimasukkan adalah nomor WhatsApp yang aktif.',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF434655), height: 1.4)),
+                    child: Text(
+                      'Pastikan nomor yang dimasukkan adalah nomor WhatsApp yang aktif.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF434655),
+                        height: 1.4,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -295,19 +511,22 @@ class _ChangePhoneModalState extends State<ChangePhoneModal> {
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Nomor telepon berhasil diperbarui!'), behavior: SnackBarBehavior.floating),
-                  );
-                },
+                onPressed: _phoneValid && !_saving ? _save : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0037B0),
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-                child: const Text('Simpan Nomor', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                child: Text(
+                  _saving ? 'Menyimpan...' : 'Simpan Nomor',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -318,9 +537,14 @@ class _ChangePhoneModalState extends State<ChangePhoneModal> {
                 onPressed: () => Navigator.pop(context),
                 style: TextButton.styleFrom(
                   foregroundColor: const Color(0xFF434655),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-                child: const Text('Batal', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],
