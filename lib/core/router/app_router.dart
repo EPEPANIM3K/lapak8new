@@ -10,6 +10,7 @@ import 'package:lapak8new/features/profile/screens/profile_screen.dart';
 import 'package:lapak8new/features/qr/screens/qr_scanner_screen.dart';
 import 'package:lapak8new/features/chat/screens/chat_screen.dart';
 
+import 'package:lapak8new/features/admin/admin_shell.dart';
 import 'package:lapak8new/features/admin/screens/admin_dashboard_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_borrowings_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_history_screen.dart';
@@ -64,7 +65,9 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/borrowing-form',
-      builder: (_, __) => const BorrowingFormScreen(),
+      builder: (_, state) => BorrowingFormScreen(
+        initialFacilityId: state.extra is String ? state.extra as String : null,
+      ),
     ),
     GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
     GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
@@ -74,25 +77,30 @@ final GoRouter appRouter = GoRouter(
     GoRoute(path: '/scan', builder: (_, __) => const QrScannerScreen()),
 
     // ---------- ADMIN ----------
-    GoRoute(
-      path: '/admin/dashboard',
-      builder: (_, __) => const AdminDashboardScreen(),
-    ),
-    GoRoute(
-      path: '/admin/borrowings',
-      builder: (_, __) => const AdminBorrowingsScreen(),
-    ),
-    GoRoute(
-      path: '/admin/history',
-      builder: (_, __) => const AdminHistoryScreen(),
-    ),
-    GoRoute(
-      path: '/admin/items',
-      builder: (_, __) => const ManageFacilitiesScreen(),
-    ),
-    GoRoute(
-      path: '/admin/manage',
-      builder: (_, __) => const ManageUsersScreen(),
+    ShellRoute(
+      builder: (_, __, child) => AdminShell(child: child),
+      routes: [
+        GoRoute(
+          path: '/admin/dashboard',
+          builder: (_, __) => const AdminDashboardScreen(),
+        ),
+        GoRoute(
+          path: '/admin/borrowings',
+          builder: (_, __) => const AdminBorrowingsScreen(),
+        ),
+        GoRoute(
+          path: '/admin/history',
+          builder: (_, __) => const AdminHistoryScreen(),
+        ),
+        GoRoute(
+          path: '/admin/items',
+          builder: (_, __) => const ManageFacilitiesScreen(),
+        ),
+        GoRoute(
+          path: '/admin/manage',
+          builder: (_, __) => const ManageUsersScreen(),
+        ),
+      ],
     ),
     GoRoute(
       path: '/admin/profile',

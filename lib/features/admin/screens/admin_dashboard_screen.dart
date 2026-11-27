@@ -6,14 +6,15 @@ import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 import 'package:lapak8new/features/dashboard/widgets/summary_card.dart';
+import 'package:lapak8new/features/facilities/models/facility.dart';
+import 'package:lapak8new/features/facilities/services/facility_service.dart';
+import 'package:lapak8new/features/borrowings/models/peminjaman.dart';
+import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
 import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
-import 'package:lapak8new/shared/widgets/status_badge.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key, this.onReviewTap});
 
-  /// Dipanggil saat tombol "Tinjau" ditekan (diteruskan dari AdminShell
-  /// agar langsung pindah ke halaman Aktivitas > tab Peminjaman).
   final VoidCallback? onReviewTap;
 
   @override
@@ -21,42 +22,103 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  static const List<_Borrowing> _borrowings = [
-    _Borrowing(
-      initials: 'AP',
-      name: 'Arya Putra',
-      info: 'XII RPL 1 • NISN 21089',
-      status: BorrowStatus.waiting,
-      itemName: 'Huion Kamvas 16 Pro',
-      itemDate: 'Tgl: 24 Okt 2024 • 08:00 WIB',
-      icon: Icons.draw_outlined,
-      avatarBg: AppColors.primaryFixed,
-      avatarFg: AppColors.primary,
-      showReview: true,
-    ),
-    _Borrowing(
-      initials: 'SN',
-      name: 'Siti Nurhaliza',
-      info: 'XI MM 2 • Praktik Liputan',
-      status: BorrowStatus.borrowed,
-      itemName: 'Sony Alpha A7 III Kit',
-      itemDate: 'Tgl: 24 Okt 2024 • 3 Hari',
-      icon: Icons.photo_camera_outlined,
-      avatarBg: AppColors.primaryFixed,
-      avatarFg: AppColors.primary,
-    ),
-    _Borrowing(
-      initials: 'AH',
-      name: 'Drs. Agus Hidayat',
-      info: 'Guru TKJ • Uji Kompetensi',
-      status: BorrowStatus.approved,
-      itemName: 'MikroTik Cloud Core',
-      itemDate: 'Tgl: 24 Okt 2024 • Lab Jaringan',
-      icon: Icons.router_outlined,
-      avatarBg: AppColors.tertiaryFixed,
-      avatarFg: AppColors.onTertiaryFixedVariant,
-    ),
-  ];
+  int _totalItems = 0;
+  int _availableItems = 0;
+  int _activeBorrowings = 0;
+  int _pendingApprovals = 0;
+  List<Peminjaman> _recentBorrowings = const [];
+  List<_DailyActivity> _weeklyActivities = const [];
+  bool _isLoading = true;
+  bool _hasLoaded = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final results = await Future.wait<Object>([
+        facilityService.fetchFacilities(),
+        peminjamanService.ambilSemuaPeminjaman(perHalaman: 3),
+        peminjamanService.hitungMenungguPersetujuan(),
+        peminjamanService.hitungPeminjamanAktif(),
+        peminjamanService.ambilAktivitasMingguan(),
+      ]);
+      if (!mounted) return;
+
+      final facilities = results[0] as List<Facility>;
+      final recentBorrowings = results[1] as List<Peminjaman>;
+      final weeklyActivity = results[4] as AktivitasPeminjamanMingguan;
+
+      setState(() {
+        _totalItems = facilities.fold(
+          0,
+          (total, facility) => total + facility.totalUnit,
+        );
+        _availableItems = facilities.fold(
+          0,
+          (total, facility) =>
+              total +
+              (facility.isAvailable
+                  ? facility.unitTersedia.clamp(0, facility.totalUnit)
+                  : 0),
+        );
+        _recentBorrowings = recentBorrowings;
+        _pendingApprovals = results[2] as int;
+        _activeBorrowings = results[3] as int;
+        _weeklyActivities = _groupWeeklyActivity(weeklyActivity);
+        _hasLoaded = true;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<_DailyActivity> _groupWeeklyActivity(
+    AktivitasPeminjamanMingguan activity,
+  ) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final firstDay = today.subtract(const Duration(days: 6));
+    final borrowings = List<int>.filled(7, 0);
+    final returns = List<int>.filled(7, 0);
+
+    void addDates(List<DateTime> dates, List<int> counts) {
+      for (final value in dates) {
+        final local = value.toLocal();
+        final day = DateTime(local.year, local.month, local.day);
+        final index = day.difference(firstDay).inDays;
+        if (index >= 0 && index < counts.length) counts[index]++;
+      }
+    }
+
+    addDates(activity.pengajuan, borrowings);
+    addDates(activity.pengembalian, returns);
+
+    const weekdays = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    return List.generate(7, (index) {
+      final date = firstDay.add(Duration(days: index));
+      return _DailyActivity(
+        label: weekdays[date.weekday - 1],
+        borrowings: borrowings[index],
+        returns: returns[index],
+        isToday: index == 6,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,158 +126,68 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       // Desain memakai latar lavender (surfaceContainerLow), bukan background.
       backgroundColor: AppColors.surfaceContainerLow,
       bottomNavigationBar: const AdminBottomNav(currentIndex: 0),
-      body: Column(
-        children: [
-          _buildAdminHeader(context),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.mobileGutter,
-                AppSpacing.md,
-                AppSpacing.mobileGutter,
-                AppSpacing.xl,
-              ),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Text(
-                    'Dashboard',
-                    style: AppTextStyles.headlineMd(color: AppColors.onSurface),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const _WelcomeCard(),
-                const SizedBox(height: 16),
-                _ScanButton(
-                  onPressed: () => context.push('/scan'),
-                ),
-                const SizedBox(height: 24),
-                _SectionHeader(
-                  title: 'Inventaris',
-                  trailing: Text(
-                    'Update real-time',
-                    style: AppTextStyles.labelMd(
-                      weight: FontWeight.w700,
-                      color: AppColors.slate500,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildSummaryGrid(),
-                const SizedBox(height: 16),
-                const _ActivityChart(),
-                const SizedBox(height: 24),
-                const _SectionHeader(title: 'Peminjaman Terbaru', badge: '3'),
-                const SizedBox(height: 12),
-                for (final b in _borrowings) ...[
-                  _BorrowingCard(
-                    data: b,
-                    onReviewTap: widget.onReviewTap,
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              ],
-            ),
+      body: RefreshIndicator(
+        onRefresh: _loadDashboardData,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.mobileGutter,
+            AppSpacing.md,
+            AppSpacing.mobileGutter,
+            AppSpacing.xl,
           ),
-        ],
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Text(
+                'Dashboard',
+                style: AppTextStyles.headlineMd(color: AppColors.onSurface),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const _WelcomeCard(),
+            const SizedBox(height: 16),
+            _ScanButton(onPressed: () => context.push('/scan')),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              _ErrorCard(message: _error!, onRetry: _loadDashboardData),
+            ],
+            const SizedBox(height: 24),
+            _SectionHeader(
+              title: 'Inventaris',
+              trailing: Text(
+                _isLoading ? 'Memuat data...' : 'Data terbaru',
+                style: AppTextStyles.labelMd(
+                  weight: FontWeight.w700,
+                  color: AppColors.slate500,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildSummaryGrid(),
+            const SizedBox(height: 16),
+            _ActivityChart(
+              activities: _weeklyActivities,
+              isLoading: _isLoading,
+              hasError: _error != null && !_hasLoaded,
+            ),
+            const SizedBox(height: 24),
+            _SectionHeader(
+              title: 'Peminjaman Terbaru',
+              badge: _hasLoaded ? '${_recentBorrowings.length}' : null,
+            ),
+            const SizedBox(height: 12),
+            _buildRecentBorrowings(),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildAdminHeader(BuildContext context) {
-    final name = authProvider.user?.namaLengkap.trim() ?? '';
-    final initials = name
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .take(2)
-        .map((part) => part[0].toUpperCase())
-        .join();
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        boxShadow: AppShadows.sm,
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: SizedBox(
-          height: 64,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.mobileGutter,
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.school,
-                    size: 20,
-                    color: AppColors.onPrimary,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'LAPAK8',
-                        style: AppTextStyles.headlineSm(
-                          color: AppColors.primary,
-                        ).copyWith(letterSpacing: -0.45),
-                      ),
-                      Text(
-                        'SMK 8 MALANG',
-                        style: AppTextStyles.labelSm(
-                          weight: FontWeight.w500,
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Semantics(
-                  button: true,
-                  label: 'Buka profil admin',
-                  child: InkWell(
-                    onTap: () => context.push('/admin/profile'),
-                    customBorder: const CircleBorder(),
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryFixed,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.surfaceContainerLowest,
-                          width: 2,
-                        ),
-                      ),
-                      child: Text(
-                        initials.isEmpty ? 'A' : initials,
-                        style: AppTextStyles.labelMd(
-                          weight: FontWeight.w800,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  String _statValue(int value) {
+    if (_isLoading) return '...';
+    if (!_hasLoaded) return '—';
+    return value.toString();
   }
 
   Widget _buildSummaryGrid() {
@@ -226,9 +198,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             Expanded(
               child: SummaryCard(
-                value: '142',
+                value: _statValue(_totalItems),
                 title: 'Total Item',
-                subtitle: '+12 semester ini',
+                subtitle: 'Unit inventaris',
                 icon: Icons.inventory_2_outlined,
                 iconBackground: AppColors.primaryFixed,
                 iconColor: AppColors.primary,
@@ -241,7 +213,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: SummaryCard(
-                value: '98',
+                value: _statValue(_availableItems),
                 title: 'Tersedia',
                 subtitle: 'Siap dipinjam',
                 icon: Icons.check_circle,
@@ -262,9 +234,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             Expanded(
               child: SummaryCard(
-                value: '36',
-                title: 'Dipinjam',
-                subtitle: 'Siswa & Guru',
+                value: _statValue(_activeBorrowings),
+                title: 'Peminjaman Aktif',
+                subtitle: 'Transaksi berjalan',
                 icon: Icons.sync,
                 iconBackground: AppColors.primaryFixed,
                 iconColor: AppColors.primary,
@@ -276,7 +248,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: SummaryCard(
-                value: '8',
+                value: _statValue(_pendingApprovals),
                 title: 'Konfirmasi',
                 subtitle: 'Tinjau segera',
                 icon: Icons.priority_high,
@@ -291,6 +263,55 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ],
         ),
+      ],
+    );
+  }
+
+  Widget _buildRecentBorrowings() {
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 28),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (!_hasLoaded) return const SizedBox.shrink();
+    if (_recentBorrowings.isEmpty) {
+      return const _WhiteCard(
+        child: Column(
+          children: [
+            Icon(
+              Icons.event_busy_outlined,
+              size: 40,
+              color: AppColors.slate500,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Belum ada peminjaman',
+              style: TextStyle(
+                color: AppColors.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Peminjaman terbaru akan muncul di sini.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.slate600),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: [
+        for (final borrowing in _recentBorrowings) ...[
+          _BorrowingCard(
+            borrowing: borrowing,
+            onReviewTap: widget.onReviewTap ??
+                () => context.go('/admin/borrowings'),
+          ),
+          const SizedBox(height: 12),
+        ],
       ],
     );
   }
@@ -322,6 +343,44 @@ class _WhiteCard extends StatelessWidget {
   }
 }
 
+class _ErrorCard extends StatelessWidget {
+  const _ErrorCard({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return _WhiteCard(
+      child: Column(
+        children: [
+          const Icon(Icons.error_outline, color: AppColors.error, size: 32),
+          const SizedBox(height: 8),
+          Text(
+            'Gagal memuat data dashboard',
+            style: AppTextStyles.bodyMd(
+              weight: FontWeight.w700,
+              color: AppColors.error,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodySm(color: AppColors.slate600),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Coba lagi'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Kartu selamat datang
 // ---------------------------------------------------------------------------
@@ -330,11 +389,29 @@ class _WelcomeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _WhiteCard(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return AnimatedBuilder(
+      animation: authProvider,
+      builder: (context, _) {
+        final user = authProvider.user;
+        final name = user?.namaLengkap.trim();
+        final displayName =
+            name == null || name.isEmpty ? 'Pengelola' : name;
+        final role = switch (user?.peran) {
+          'admin' => 'Pengelola Sarpras',
+          'staf' => 'Staf Sarpras',
+          'guru' => 'Guru',
+          'siswa' => 'Siswa',
+          _ => 'Pengelola Sarpras',
+        };
+        final unit = user?.kelasAtauUnit?.trim();
+        final roleLabel =
+            unit == null || unit.isEmpty ? role : '$role • $unit';
+
+        return _WhiteCard(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -394,7 +471,7 @@ class _WelcomeCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            'Pak Bambang S., S.Kom',
+            displayName,
             style: AppTextStyles.headlineMd(
               color: AppColors.onSurface,
             ).copyWith(fontWeight: FontWeight.w700),
@@ -410,7 +487,7 @@ class _WelcomeCard extends StatelessWidget {
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
-                  'Pengelola Sarpras • SMK Negeri 8 Malang',
+                  roleLabel,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodySm(
                     weight: FontWeight.w500,
@@ -421,7 +498,9 @@ class _WelcomeCard extends StatelessWidget {
             ],
           ),
         ],
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -506,16 +585,47 @@ class _SectionHeader extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Grafik aktivitas 7 hari
 // ---------------------------------------------------------------------------
-class _ActivityChart extends StatelessWidget {
-  const _ActivityChart();
+class _DailyActivity {
+  const _DailyActivity({
+    required this.label,
+    required this.borrowings,
+    required this.returns,
+    required this.isToday,
+  });
 
-  static const List<String> _days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
-  static const List<double> _borrow = [47, 63, 35, 75, 55, 19];
-  static const List<double> _return = [31, 43, 39, 55, 47, 23];
-  static const int _activeIndex = 3; // Kam (hari ini) dicetak tebal
+  final String label;
+  final int borrowings;
+  final int returns;
+  final bool isToday;
+}
+
+class _ActivityChart extends StatelessWidget {
+  const _ActivityChart({
+    required this.activities,
+    required this.isLoading,
+    required this.hasError,
+  });
+
+  final List<_DailyActivity> activities;
+  final bool isLoading;
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) {
+    final highestCount = activities.fold<int>(
+      0,
+      (highest, day) => [
+        highest,
+        day.borrowings,
+        day.returns,
+      ].reduce((a, b) => a > b ? a : b),
+    );
+
+    double barHeight(int count) {
+      if (highestCount == 0) return 4;
+      return (count / highestCount * 76).clamp(4.0, 76.0).toDouble();
+    }
+
     return _WhiteCard(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
       child: Column(
@@ -577,42 +687,72 @@ class _ActivityChart extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
-          SizedBox(
-            height: 120,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: List.generate(_days.length, (i) {
-                final active = i == _activeIndex;
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+          if (isLoading)
+            const SizedBox(
+              height: 120,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (hasError)
+            SizedBox(
+              height: 120,
+              child: Center(
+                child: Text(
+                  'Aktivitas tidak dapat dimuat.',
+                  style: AppTextStyles.bodySm(color: AppColors.slate600),
+                ),
+              ),
+            )
+          else ...[
+            if (highestCount == 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Belum ada aktivitas dalam 7 hari terakhir.',
+                  style: AppTextStyles.bodySm(color: AppColors.slate600),
+                ),
+              ),
+            SizedBox(
+              height: 120,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  for (final day in activities)
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        _Bar(height: _borrow[i], color: AppColors.primary),
-                        const SizedBox(width: 4),
-                        _Bar(
-                          height: _return[i],
-                          color: AppColors.secondaryFixedDim,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            _Bar(
+                              height: barHeight(day.borrowings),
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 4),
+                            _Bar(
+                              height: barHeight(day.returns),
+                              color: AppColors.secondaryFixedDim,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          day.label,
+                          style: AppTextStyles.labelSm(
+                            weight: day.isToday
+                                ? FontWeight.w800
+                                : FontWeight.w500,
+                            color: day.isToday
+                                ? AppColors.onSurface
+                                : AppColors.slate500,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _days[i],
-                      style: AppTextStyles.labelSm(
-                        weight: active ? FontWeight.w800 : FontWeight.w500,
-                        color: active
-                            ? AppColors.onSurface
-                            : AppColors.slate500,
-                      ),
-                    ),
-                  ],
-                );
-              }),
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -654,39 +794,40 @@ class _LegendDot extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Kartu peminjaman terbaru
 // ---------------------------------------------------------------------------
-class _Borrowing {
-  final String initials;
-  final String name;
-  final String info;
-  final BorrowStatus status;
-  final String itemName;
-  final String itemDate;
-  final IconData icon;
-  final Color avatarBg;
-  final Color avatarFg;
-  final bool showReview;
-
-  const _Borrowing({
-    required this.initials,
-    required this.name,
-    required this.info,
-    required this.status,
-    required this.itemName,
-    required this.itemDate,
-    required this.icon,
-    required this.avatarBg,
-    required this.avatarFg,
-    this.showReview = false,
-  });
-}
-
 class _BorrowingCard extends StatelessWidget {
-  final _Borrowing data;
+  const _BorrowingCard({
+    required this.borrowing,
+    required this.onReviewTap,
+  });
+
+  final Peminjaman borrowing;
   final VoidCallback? onReviewTap;
-  const _BorrowingCard({required this.data, this.onReviewTap});
 
   @override
   Widget build(BuildContext context) {
+    final name = borrowing.namaPeminjam?.trim().isNotEmpty == true
+        ? borrowing.namaPeminjam!.trim()
+        : 'Pengguna LAPAK8';
+    final initials = name
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part[0].toUpperCase())
+        .join();
+    final details = [
+      if (borrowing.kelasPeminjam?.trim().isNotEmpty == true)
+        borrowing.kelasPeminjam!.trim(),
+      if (borrowing.nomorIndukPeminjam?.trim().isNotEmpty == true)
+        'ID: ${borrowing.nomorIndukPeminjam!.trim()}',
+    ].join(' • ');
+    final itemName = borrowing.items.isEmpty
+        ? borrowing.namaKegiatan
+        : borrowing.items.first.namaFasilitasSnapshot;
+    final date = borrowing.dibuatPada.toLocal();
+    final dateLabel =
+        'Diajukan: ${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/${date.year}';
+
     return _WhiteCard(
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -699,13 +840,13 @@ class _BorrowingCard extends StatelessWidget {
                 height: 44,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: data.avatarBg,
+                  color: AppColors.primaryFixed,
                   shape: BoxShape.circle,
                 ),
                 child: Text(
-                  data.initials,
+                  initials.isEmpty ? 'U' : initials,
                   style: AppTextStyles.headlineSm(
-                    color: data.avatarFg,
+                    color: AppColors.primary,
                   ).copyWith(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
               ),
@@ -715,7 +856,7 @@ class _BorrowingCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      data.name,
+                      name,
                       style: AppTextStyles.bodyMd(
                         weight: FontWeight.w700,
                         color: AppColors.onSurface,
@@ -723,7 +864,9 @@ class _BorrowingCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      data.info,
+                      details.isEmpty ? borrowing.labelKategori : details,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.bodySm(
                         weight: FontWeight.w500,
                         color: AppColors.slate600,
@@ -732,7 +875,7 @@ class _BorrowingCard extends StatelessWidget {
                   ],
                 ),
               ),
-              StatusBadge(status: data.status),
+              _BorrowingStatusBadge(status: borrowing.status),
             ],
           ),
           const SizedBox(height: 12),
@@ -745,14 +888,20 @@ class _BorrowingCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(data.icon, size: 22, color: AppColors.primary),
+                const Icon(
+                  Icons.inventory_2_outlined,
+                  size: 22,
+                  color: AppColors.primary,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        data.itemName,
+                        itemName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.bodySm(
                           weight: FontWeight.w700,
                           color: AppColors.onSurface,
@@ -760,7 +909,7 @@ class _BorrowingCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        data.itemDate,
+                        dateLabel,
                         style: AppTextStyles.bodySm(
                           weight: FontWeight.w500,
                           color: AppColors.slate600,
@@ -769,7 +918,8 @@ class _BorrowingCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (data.showReview)
+                if (borrowing.status ==
+                    StatusPeminjaman.menungguPersetujuan)
                   ElevatedButton(
                     onPressed: onReviewTap,
                     style: ElevatedButton.styleFrom(
@@ -791,6 +941,66 @@ class _BorrowingCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _BorrowingStatusBadge extends StatelessWidget {
+  const _BorrowingStatusBadge({required this.status});
+
+  final StatusPeminjaman status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (backgroundColor, foregroundColor) = switch (status) {
+      StatusPeminjaman.menungguPersetujuan => (
+          const Color(0xFFFFF1D6),
+          const Color(0xFFB45309),
+        ),
+      StatusPeminjaman.disetujui ||
+      StatusPeminjaman.dikembalikan => (
+          AppColors.tertiaryFixed,
+          AppColors.onTertiaryFixedVariant,
+        ),
+      StatusPeminjaman.dipinjam => (
+          AppColors.primaryFixed,
+          AppColors.primary,
+        ),
+      StatusPeminjaman.terlambat ||
+      StatusPeminjaman.ditolak => (
+          AppColors.errorContainer,
+          AppColors.error,
+        ),
+      StatusPeminjaman.dibatalkan ||
+      StatusPeminjaman.tidak_dikenal => (
+          AppColors.surfaceContainerHigh,
+          AppColors.slate600,
+        ),
+    };
+    final label = switch (status) {
+      StatusPeminjaman.menungguPersetujuan => 'Menunggu',
+      StatusPeminjaman.disetujui => 'Disetujui',
+      StatusPeminjaman.dipinjam => 'Dipinjam',
+      StatusPeminjaman.dikembalikan => 'Dikembalikan',
+      StatusPeminjaman.terlambat => 'Terlambat',
+      StatusPeminjaman.ditolak => 'Ditolak',
+      StatusPeminjaman.dibatalkan => 'Dibatalkan',
+      StatusPeminjaman.tidak_dikenal => 'Tidak dikenal',
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.labelSm(
+          weight: FontWeight.w600,
+          color: foregroundColor,
+        ),
       ),
     );
   }

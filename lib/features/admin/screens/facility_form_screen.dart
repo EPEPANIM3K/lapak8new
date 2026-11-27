@@ -1,51 +1,67 @@
-import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/admin/services/media_picker_service.dart';
+import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
+import 'package:lapak8new/features/facilities/models/facility.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 // Simpan di: lib/features/admin/screens/facility_form_screen.dart
 
 /// Data form barang. Dikirim ke form saat mode edit, dan dikembalikan
-/// (lewat `context.pop(data)`) saat pengguna menyimpan.
+/// (lewat `Navigator.pop(data)`) saat pengguna menyimpan.
 class FacilityFormData {
   const FacilityFormData({
     required this.name,
     this.category = '',
     required this.location,
+    this.locationId,
     required this.units,
     this.imageUrl,
-    this.imagePath,
+    this.imageBytes,
+    this.imageFileName,
+    this.removePhoto = false,
   });
 
   final String name;
   final String category;
   final String location;
+  final String? locationId;
   final int units;
   final String? imageUrl; // foto yang sudah ada di server
-  final String? imagePath; // foto baru yang dipilih dari galeri
+  final Uint8List? imageBytes; // foto baru yang dipilih
+  final String? imageFileName;
+  final bool removePhoto;
 }
 
 /// Mode tambah: `initial == null`. Mode edit: kirim data barang di `initial`.
 class FacilityFormScreen extends StatefulWidget {
-  const FacilityFormScreen({super.key, this.initial});
+  const FacilityFormScreen({
+    super.key,
+    this.initial,
+    this.locations = const [],
+  });
 
   final FacilityFormData? initial;
+  final List<LokasiItem> locations;
 
   static Future<FacilityFormData?> show(
     BuildContext context, {
     FacilityFormData? initial,
+    List<LokasiItem> locations = const [],
   }) {
     return showDialog<FacilityFormData>(
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.black54,
-      builder: (_) => FacilityFormScreen(initial: initial),
+      builder: (_) => FacilityFormScreen(
+        initial: initial,
+        locations: locations,
+      ),
     );
   }
 
@@ -54,10 +70,9 @@ class FacilityFormScreen extends StatefulWidget {
 }
 
 class _FacilityFormScreenState extends State<FacilityFormScreen> {
-  static const int _maxBytes = 5 * 1024 * 1024; // 5 MB
+  static const int _maxBytes = 10 * 1024 * 1024; // 10 MB
 
-  // TODO: ambil daftar lokasi dari backend.
-  static const List<String> _baseLocations = [
+  static const List<String> _fallbackLocations = [
     'Studio MM Lt. 2',
     'Sarpras Gedung A',
     'Gudang Sarpras',
@@ -66,23 +81,38 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
   ];
 
   final _formKey = GlobalKey<FormState>();
-  final _picker = ImagePicker();
+  final _picker = MediaPickerService();
 
   late final TextEditingController _nameCtrl;
   late final TextEditingController _categoryCtrl;
   late String? _location;
   late int _units;
-  String? _imagePath;
+  Uint8List? _imageBytes;
+  String? _imageFileName;
   String? _imageUrl;
+  bool _removePhoto = false;
 
   bool get _isEdit => widget.initial != null;
 
-  List<String> get _locations {
-    final loc = widget.initial?.location;
-    if (loc != null && loc.isNotEmpty && !_baseLocations.contains(loc)) {
-      return [loc, ..._baseLocations];
+  List<String> get _locationNames {
+    final names = widget.locations.isNotEmpty
+        ? widget.locations.map((l) => l.nama).toList()
+        : [..._fallbackLocations];
+    final initialLoc = widget.initial?.location;
+    if (initialLoc != null &&
+        initialLoc.isNotEmpty &&
+        initialLoc != '-' &&
+        !names.contains(initialLoc)) {
+      names.insert(0, initialLoc);
     }
-    return _baseLocations;
+    return names;
+  }
+
+  String? _findLocationId(String name) {
+    for (final loc in widget.locations) {
+      if (loc.nama == name) return loc.id;
+    }
+    return null;
   }
 
   @override
@@ -91,9 +121,12 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
     final d = widget.initial;
     _nameCtrl = TextEditingController(text: d?.name ?? '');
     _categoryCtrl = TextEditingController(text: d?.category ?? '');
-    _location = (d?.location.isNotEmpty ?? false) ? d!.location : null;
+    _location = (d?.location.isNotEmpty ?? false) && d!.location != '-'
+        ? d.location
+        : null;
     _units = d?.units ?? 1;
-    _imagePath = d?.imagePath;
+    _imageBytes = d?.imageBytes;
+    _imageFileName = d?.imageFileName;
     _imageUrl = d?.imageUrl;
   }
 
@@ -108,23 +141,48 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
   // Aksi
   // -------------------------------------------------------------------------
   Future<void> _pickPhoto() async {
-    final file = await _picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1600,
-      imageQuality: 85,
+    final source = await showMediaSourceSheet(
+      context,
+      isPhoto: true,
+      title: 'Foto Item Inventaris',
+      subtitle: 'Pilih sumber foto barang (semua format didukung).',
     );
-    if (file == null) return;
+    if (source == null || !mounted) return;
 
-    final ext = file.path.split('.').last.toLowerCase();
-    if (!['jpg', 'jpeg', 'png'].contains(ext)) {
-      _toast('Format foto harus JPG atau PNG.');
+    final outcome = await _picker.pickPhotos(source: source, remainingSlots: 1);
+    if (!mounted) return;
+
+    if (outcome.files.isEmpty) {
+      if (outcome.message != null) _toast(outcome.message!);
       return;
     }
-    if (await file.length() > _maxBytes) {
-      _toast('Ukuran foto maksimal 5MB.');
+
+    final file = outcome.files.first;
+    if (file.size > _maxBytes) {
+      _toast('Ukuran foto maksimal 10MB.');
       return;
     }
-    setState(() => _imagePath = file.path);
+
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      _toast('Gagal membaca berkas foto.');
+      return;
+    }
+
+    setState(() {
+      _imageBytes = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
+      _imageFileName = file.fileName;
+      _removePhoto = false;
+    });
+  }
+
+  void _clearPhoto() {
+    setState(() {
+      _imageBytes = null;
+      _imageFileName = null;
+      _imageUrl = null;
+      _removePhoto = true;
+    });
   }
 
   void _toast(String msg) {
@@ -154,14 +212,18 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
 
   void _submit() {
     if (!mounted) return;
+    final loc = _location!;
     Navigator.of(context).pop(
       FacilityFormData(
         name: _nameCtrl.text.trim(),
         category: _categoryCtrl.text.trim(),
-        location: _location!,
+        location: loc,
+        locationId: _findLocationId(loc),
         units: _units,
         imageUrl: _imageUrl,
-        imagePath: _imagePath,
+        imageBytes: _imageBytes,
+        imageFileName: _imageFileName,
+        removePhoto: _removePhoto,
       ),
     );
   }
@@ -203,7 +265,7 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
                       _buildPhoto(),
                       const SizedBox(height: 6),
                       Text(
-                        'Format yang didukung: JPG, PNG (maks. 5MB)',
+                        'Format yang didukung: Semua format gambar (maks. 10MB)',
                         style: AppTextStyles.labelSm(
                           weight: FontWeight.w500,
                           color: AppColors.slate600,
@@ -249,7 +311,7 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
                         style: AppTextStyles.bodyMd(color: AppColors.onSurface),
                         borderRadius: BorderRadius.circular(16),
                         items: [
-                          for (final l in _locations)
+                          for (final l in _locationNames)
                             DropdownMenuItem(value: l, child: Text(l)),
                         ],
                         onChanged: (v) => setState(() => _location = v),
@@ -379,7 +441,8 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
   }
 
   Widget _buildPhoto() {
-    final hasImage = _imagePath != null || _imageUrl != null;
+    final hasImage = _imageBytes != null ||
+        (_imageUrl != null && _imageUrl!.isNotEmpty);
 
     if (!hasImage) {
       return CustomPaint(
@@ -420,17 +483,22 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
       );
     }
 
-    final Widget image = _imagePath != null
-        ? Image.file(File(_imagePath!), fit: BoxFit.cover)
+    final fallback = Container(
+      color: AppColors.primaryFixed,
+      alignment: Alignment.center,
+      child: const Icon(Symbols.image, size: 40, color: AppColors.primary),
+    );
+
+    final Widget image = _imageBytes != null
+        ? Image.memory(
+            _imageBytes!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => fallback,
+          )
         : Image.network(
             _imageUrl!,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              color: AppColors.primaryFixed,
-              alignment: Alignment.center,
-              child: const Icon(Symbols.image,
-                  size: 40, color: AppColors.primary),
-            ),
+            errorBuilder: (_, __, ___) => fallback,
           );
 
     return ClipRRect(
@@ -445,7 +513,32 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
             Positioned(
               right: 12,
               bottom: 12,
-              child: _PhotoButton(label: 'Ganti Foto', onTap: _pickPhoto),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Material(
+                    color: AppColors.errorContainer,
+                    shape: const StadiumBorder(),
+                    child: InkWell(
+                      customBorder: const StadiumBorder(),
+                      onTap: _clearPhoto,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        child: Text(
+                          'Hapus',
+                          style: AppTextStyles.labelMd(
+                            weight: FontWeight.w700,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _PhotoButton(label: 'Ganti Foto', onTap: _pickPhoto),
+                ],
+              ),
             ),
           ],
         ),

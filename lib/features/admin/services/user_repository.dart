@@ -1,7 +1,11 @@
 // lib/features/admin/services/user_repository.dart
 // Menggunakan skema baru: tabel "pengguna" dengan kolom Indonesia.
 
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'package:lapak8new/core/storage/supabase_media_service.dart';
 
 // ---------------------------------------------------------------------------
 // Model pengguna untuk layar admin (berbeda dari AppUser di auth_provider)
@@ -16,6 +20,7 @@ class AppUser {
     this.kelas,
     this.nomorInduk,
     this.nomorTelepon,
+    this.fotoUrl,
   });
 
   final String id;
@@ -26,6 +31,7 @@ class AppUser {
   final String? kelas;         // kelas_atau_unit
   final String? nomorInduk;    // NISN / NIP
   final String? nomorTelepon;
+  final String? fotoUrl;
 
   bool get isActive => aktif;
   bool get isSiswa  => peran == 'siswa';
@@ -49,6 +55,7 @@ class AppUser {
     kelas:         map['kelas_atau_unit'] as String?,
     nomorInduk:    map['nomor_induk'] as String?,
     nomorTelepon:  map['telepon'] as String?,
+    fotoUrl:       map['foto_url'] as String?,
   );
 }
 
@@ -91,7 +98,7 @@ class UserRepository {
     var request = _db
         .from('pengguna')
         .select(
-          'id, nama_lengkap, email, nomor_induk, kelas_atau_unit, telepon, peran, aktif',
+          'id, nama_lengkap, email, nomor_induk, kelas_atau_unit, telepon, peran, aktif, foto_url',
         )
         .neq('peran', 'admin');
 
@@ -171,6 +178,9 @@ class UserRepository {
     String? nomorInduk,
     required String peran,
     required bool aktif,
+    Uint8List? photoBytes,
+    String? photoFileName,
+    bool removePhoto = false,
   }) async {
     await _db.rpc(
       'admin_perbarui_pengguna',
@@ -184,6 +194,54 @@ class UserRepository {
         'p_aktif':           aktif,
       },
     );
+
+    if (photoBytes != null) {
+      final url = await uploadAvatar(
+        userId: userId,
+        bytes: photoBytes,
+        fileName: photoFileName ?? 'avatar.png',
+      );
+      await updatePhotoUrl(userId, url);
+    } else if (removePhoto) {
+      await updatePhotoUrl(userId, null);
+    }
+  }
+
+  /// Mengunggah foto profil ke Supabase Storage dan mengembalikan public URL.
+  Future<String> uploadAvatar({
+    required String userId,
+    required Uint8List bytes,
+    required String fileName,
+  }) {
+    return supabaseMediaService.uploadImage(
+      primaryBucket: 'avatars',
+      folder: userId,
+      bytes: bytes,
+      fileName: fileName,
+    );
+  }
+
+  /// Memperbarui kolom `foto_url` pada tabel `pengguna`.
+  Future<void> updatePhotoUrl(String userId, String? fotoUrl) async {
+    await _db
+        .from('pengguna')
+        .update({'foto_url': fotoUrl})
+        .eq('id', userId);
+  }
+
+  /// Upload foto profil pengguna lalu simpan `foto_url` ke database.
+  Future<String> uploadAndSaveProfilePhoto({
+    required String userId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    final url = await uploadAvatar(
+      userId: userId,
+      bytes: bytes,
+      fileName: fileName,
+    );
+    await updatePhotoUrl(userId, url);
+    return url;
   }
 
   Future<void> updateEmail(String userId, String email) async {
@@ -199,6 +257,8 @@ class UserRepository {
     String? nomorInduk,
     String? nomorTelepon,
     bool aktif = true,
+    Uint8List? photoBytes,
+    String? photoFileName,
   }) async {
     final result = await _callFunction({
       'action':          'create',
@@ -213,7 +273,18 @@ class UserRepository {
     });
     final id = result['id'];
     if (id == null) throw const UserRepositoryException('ID akun baru tidak ditemukan.');
-    return id.toString();
+    final userId = id.toString();
+
+    if (photoBytes != null) {
+      final url = await uploadAvatar(
+        userId: userId,
+        bytes: photoBytes,
+        fileName: photoFileName ?? 'avatar.png',
+      );
+      await updatePhotoUrl(userId, url);
+    }
+
+    return userId;
   }
 
   Future<void> resetPassword(String userId, String newPassword) async {
@@ -222,6 +293,10 @@ class UserRepository {
       'id':       userId,
       'password': newPassword,
     });
+  }
+
+  Future<void> deleteUser(String userId) async {
+    await _callFunction({'action': 'delete', 'id': userId});
   }
 
   /// Panggil Edge Function `manage-users` dan kembalikan body JSON-nya.
@@ -240,7 +315,10 @@ class UserRepository {
       final message = details is Map && details['error'] != null
           ? details['error'].toString()
           : 'Permintaan gagal (kode ${error.status}).';
-      throw UserRepositoryException(message);
+      final detail = details is Map ? details['detail']?.toString() : null;
+      throw UserRepositoryException(
+        detail != null && detail.isNotEmpty ? '$message $detail' : message,
+      );
     }
   }
 

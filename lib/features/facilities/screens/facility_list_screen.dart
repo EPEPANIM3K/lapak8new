@@ -7,24 +7,14 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/lapak_header.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../models/facility.dart';
+import '../services/facility_service.dart';
 
 class FacilityListScreen extends StatefulWidget {
   const FacilityListScreen({super.key});
   @override
   State<FacilityListScreen> createState() => _FacilityListScreenState();
-}
-
-class _ItemData {
-  final String name, location, imageUrl;
-  final int units;
-  final bool available;
-  const _ItemData({
-    required this.name,
-    required this.location,
-    required this.units,
-    required this.available,
-    required this.imageUrl,
-  });
 }
 
 /// Ikon pin lokasi (heroicons outline, stroke 2) persis seperti di Dashboard.
@@ -36,9 +26,6 @@ const _pinSvg = '''
 ''';
 
 class _FacilityListScreenState extends State<FacilityListScreen> {
-  static const _avatarUrl =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCM9TBr73lAvJae_M-j8bVPXa69t9E8fJjw6s1fOkJB9Rwn5SdnSrc2vwOfl_FwiSc0PAsKLZ3OrWbOxQRw_0Nv8TltDOZ-YW8v68X2WTQJl29s3nRn2_K2GuSWHAvMZpMCZJe6iBeZDp5yEl_7IcjmKNNuCgejx9XkiISbISzKzJKsN4oi8-ZVu-ddev07E4AA7eAz81C-Lou8NTkx4lFKRMgys8zcncLJEU3cjaxS9X4CrRZuET7Y';
-
   // ===== Palette (sesuai desain) =====
   static const cSurfaceLowest = Color(0xFFFFFFFF);
   static const cSurfaceContainer = Color(0xFFEAEDFF);
@@ -55,35 +42,59 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
   final _searchCtrl = TextEditingController();
   String _filter = 'all';
   String _query = '';
-
-  final List<_ItemData> _items = const [
-    _ItemData(name: 'Proyektor Epson EB-X400', location: 'Lab RPL', units: 4, available: true,
-      imageUrl: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=600&q=80'),
-    _ItemData(name: 'Kamera DSLR Canon EOS', location: 'Studio Multimedia', units: 2, available: true,
-      imageUrl: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=600&q=80'),
-    _ItemData(name: 'Lab Komputer Multimedia', location: 'Gedung Praktek Lt. 1', units: 6, available: true,
-      imageUrl: 'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=600&q=80'),
-    _ItemData(name: 'Speaker Portable Advance', location: 'Ruang Sarpras', units: 3, available: true,
-      imageUrl: 'https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=600&q=80'),
-    _ItemData(name: 'Kabel Roll & HDMI Converter', location: 'Lab RPL', units: 0, available: false,
-      imageUrl: 'https://images.unsplash.com/photo-1558611848-73f7eb4001a1?auto=format&fit=crop&w=600&q=80'),
-    _ItemData(name: 'Tenda & Sound System', location: 'Gudang Sarpras', units: 0, available: false,
-      imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=600&q=80'),
-  ];
+  List<Facility> _items = const [];
+  bool _loading = true;
+  String? _error;
 
   @override
-  void dispose() { _searchCtrl.dispose(); super.dispose(); }
+  void initState() {
+    super.initState();
+    _load();
+  }
 
-  List<_ItemData> get _filtered => _items.where((item) {
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final list = await facilityService.fetchFacilities(onlyActive: true);
+      if (!mounted) return;
+      setState(() {
+        _items = list;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  List<Facility> get _filtered => _items.where((item) {
     final q = _query.toLowerCase();
-    final okQ = q.isEmpty || item.name.toLowerCase().contains(q) || item.location.toLowerCase().contains(q);
+    final okQ = q.isEmpty ||
+        item.nama.toLowerCase().contains(q) ||
+        item.lokasiNama.toLowerCase().contains(q) ||
+        item.kategori.toLowerCase().contains(q);
     final okF = _filter == 'all' ||
-        (_filter == 'available' && item.available) ||
-        (_filter == 'unavailable' && !item.available);
+        (_filter == 'available' && item.isAvailable) ||
+        (_filter == 'unavailable' && !item.isAvailable);
     return okQ && okF;
   }).toList();
 
-  void _clearSearch() { _searchCtrl.clear(); setState(() => _query = ''); }
+  void _clearSearch() {
+    _searchCtrl.clear();
+    setState(() => _query = '');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,20 +105,35 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
       body: Column(
         children: [
           LapakHeader(
-            avatarUrl: _avatarUrl,
+            avatarUrl: authProvider.user?.fotoUrl ?? '',
             onAvatarTap: () => context.push('/profile'),
           ),
           Expanded(
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _searchBar(),
-                  _titleAndFilters(filtered.length),
-                  if (filtered.isEmpty) _emptyState() else _grid(filtered),
-                ],
+            child: RefreshIndicator(
+              onRefresh: _load,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: ClampingScrollPhysics(),
+                ),
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _searchBar(),
+                    _titleAndFilters(filtered.length),
+                    if (_loading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 48),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (_error != null)
+                      _errorState()
+                    else if (filtered.isEmpty)
+                      _emptyState()
+                    else
+                      _grid(filtered),
+                  ],
+                ),
               ),
             ),
           ),
@@ -203,101 +229,167 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
     );
   }
 
-  Widget _grid(List<_ItemData> items) => GridView.builder(
-    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 0.55,
-    ),
-    itemCount: items.length,
-    itemBuilder: (_, i) => _itemCard(items[i]),
-  );
+  Widget _grid(List<Facility> items) {
+    final rows = <Widget>[];
+    for (var i = 0; i < items.length; i += 2) {
+      final left = items[i];
+      final right = i + 1 < items.length ? items[i + 1] : null;
+      if (rows.isNotEmpty) rows.add(const SizedBox(height: 12));
+      rows.add(
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _itemCard(left)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: right == null
+                  ? const SizedBox.shrink()
+                  : _itemCard(right),
+            ),
+          ],
+        ),
+      );
+    }
 
-  Widget _itemCard(_ItemData item) => Container(
-    clipBehavior: Clip.antiAlias,
-    decoration: BoxDecoration(
-      color: AppColors.white,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      border: Border.all(color: AppColors.slateBorder),
-      boxShadow: AppShadows.sm,
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AspectRatio(
-          aspectRatio: 1,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              const ColoredBox(color: AppColors.slate100),
-              Image.network(
-                item.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    const ColoredBox(color: AppColors.slate100),
-              ),
-              Positioned(
-                top: 10,
-                right: 10,
-                child: _StockBadge(label: item.units, available: item.available),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.outfit(
-                        size: 14,
-                        lineHeight: 20,
-                        weight: FontWeight.w700,
-                        color: AppColors.slate900),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: rows,
+      ),
+    );
+  }
+
+  Widget _itemCard(Facility item) {
+    final available = item.isAvailable;
+    final imgUrl = item.fotoUrl;
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.slateBorder),
+        boxShadow: AppShadows.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                const ColoredBox(
+                  color: AppColors.slate100,
+                  child: Center(
+                    child: Icon(Icons.inventory_2_outlined,
+                        size: 36, color: AppColors.slate400),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      SvgPicture.string(_pinSvg, width: 14, height: 14),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          item.location,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.jakarta(
-                              size: 12,
-                              lineHeight: 16,
-                              color: AppColors.slate500),
-                        ),
+                ),
+                if (imgUrl != null && imgUrl.isNotEmpty)
+                  Image.network(
+                    imgUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const ColoredBox(
+                      color: AppColors.slate100,
+                      child: Center(
+                        child: Icon(Icons.inventory_2_outlined,
+                            size: 36, color: AppColors.slate400),
                       ),
-                    ],
+                    ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              _BorrowButton(
-                available: item.available,
-                onTap: item.available
-                    ? () => context.push('/borrowing-form')
-                    : null,
-              ),
-            ],
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: _StockBadge(
+                    label: item.unitTersedia,
+                    available: available,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.kategori,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.jakarta(
+                        size: 10,
+                        lineHeight: 14,
+                        weight: FontWeight.w700,
+                        color: AppColors.slate500,
+                      ).copyWith(letterSpacing: 0.4),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      item.nama,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.outfit(
+                          size: 14,
+                          lineHeight: 20,
+                          weight: FontWeight.w700,
+                          color: AppColors.slate900),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        SvgPicture.string(_pinSvg, width: 14, height: 14),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            item.lokasiNama,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.jakarta(
+                                size: 12,
+                                lineHeight: 16,
+                                color: AppColors.slate500),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _BorrowButton(
+                  available: available,
+                  onTap: available
+                      ? () => context.push('/borrowing-form', extra: item.id)
+                      : null,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorState() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
+    child: Column(children: [
+      Text(
+        _error!,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 13, color: cError),
+      ),
+      const SizedBox(height: 12),
+      TextButton.icon(
+        onPressed: _load,
+        icon: const Icon(Icons.refresh),
+        label: const Text('Coba lagi'),
+      ),
+    ]),
   );
 
   Widget _emptyState() => Padding(
@@ -392,7 +484,7 @@ class _BorrowButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Center(
               child: Text(
-                available ? 'Pinjam' : 'Booked',
+                'Pinjam',
                 style: AppTextStyles.jakarta(
                     size: 12,
                     lineHeight: 16,

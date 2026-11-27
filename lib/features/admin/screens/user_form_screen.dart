@@ -1,11 +1,15 @@
-import 'dart:typed_data';
+import 'dart:io' show File;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/admin/services/media_picker_service.dart';
+import 'package:lapak8new/features/admin/widgets/avatar_preview_dialog.dart';
+import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 // Simpan di: lib/features/admin/screens/user_form_screen.dart
@@ -27,17 +31,27 @@ class UserFormData {
     required this.active,
     this.phone = '',
     this.photo,
+    this.photoFileName,
+    this.photoUrl,
+    this.removePhoto = false,
+    this.userSubcategory,
   });
 
   final String name;
   final String password;
   final String email;
   final String idNumber; // NISN / NIP
-  final String? roleClass; // kelas / unit
-  final String role;
+  final String? roleClass; // kelas (khusus siswa/guru)
+  final String role; // student | teacher | staff | petugas | user
   final bool active;
   final String phone; // no. telepon (dipakai di mode edit)
   final Uint8List? photo;
+  final String? photoFileName;
+  final String? photoUrl;
+  final bool removePhoto;
+  /// Sub-kategori untuk role 'user': 'siswa' atau 'guru'.
+  /// Null jika role 'petugas'.
+  final String? userSubcategory;
 }
 
 // Warna lokal yang belum ada di AppColors.
@@ -76,44 +90,40 @@ class _UserFormScreenState extends State<UserFormScreen> {
   final _emailCtrl = TextEditingController();
   final _idCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  final _picker = MediaPickerService();
 
-  static const _roleClassOptions = <(String, String, String)>[
-    ('student', 'XI Multimedia (DKV)', 'Siswa - XI Multimedia (DKV)'),
-    ('student', 'X RPL 1', 'Siswa - X RPL 1'),
-    ('student', 'XI RPL 1', 'Siswa - XI RPL 1'),
-    ('student', 'XII RPL 1', 'Siswa - XII RPL 1'),
-    ('student', 'X TKJ 3', 'Siswa - X TKJ 3'),
-    ('student', 'XI MM 2', 'Siswa - XI MM 2'),
-    ('student', 'XII DKV 1', 'Siswa - XII DKV 1'),
-    ('teacher', 'Guru Kejuruan', 'Guru - Guru Kejuruan'),
-    ('staff', 'Staf Sarpras', 'Staf - Staf Sarpras'),
+  /// Pilihan kelas (hanya nama kelas, tanpa prefix peran).
+  static const _kelasOptions = <String>[
+    'X RPL 1',
+    'XI RPL 1',
+    'XII RPL 1',
+    'X TKJ 3',
+    'XI MM 2',
+    'XI Multimedia (DKV)',
+    'XII DKV 1',
   ];
 
-  String? _roleClass;
-  String _accountRole = 'student';
+  String? _kelas;
+  /// 'petugas' | 'siswa' | 'guru'
+  String _role = 'siswa';
   bool _active = true;
   bool _hidePass = true;
   Uint8List? _photo;
+  String? _photoFileName;
+  String? _photoUrl;
+  bool _removePhoto = false;
 
   bool get _isEdit => widget.initial != null;
+  bool get _hasPhoto => _photo != null || (_photoUrl != null && _photoUrl!.isNotEmpty);
+  bool get _isPetugas => _role == 'petugas';
 
-  List<(String, String, String)> get _roleClassChoices {
-    final options = [..._roleClassOptions];
-    if (_roleClass != null &&
-        !options.any((option) =>
-            option.$1 == _accountRole && option.$2 == _roleClass)) {
-      final label = switch (_accountRole) {
-        'teacher' => 'Guru',
-        'staff' => 'Staf',
-        _ => 'Siswa',
-      };
-      options.add((_accountRole, _roleClass!, '$label - $_roleClass'));
+  List<String> get _kelasChoices {
+    final options = [..._kelasOptions];
+    if (_kelas != null && _kelas!.isNotEmpty && !options.contains(_kelas)) {
+      options.add(_kelas!);
     }
     return options;
   }
-
-  String _roleOptionValue(String role, String roleClass) =>
-      '$role::$roleClass';
 
   @override
   void initState() {
@@ -125,11 +135,27 @@ class _UserFormScreenState extends State<UserFormScreen> {
       _emailCtrl.text = i.email;
       _idCtrl.text = i.idNumber;
       _phoneCtrl.text = i.phone;
-      _roleClass = i.roleClass;
-      _accountRole = i.role;
       _active = i.active;
       _photo = i.photo;
+      _photoFileName = i.photoFileName;
+      _photoUrl = i.photoUrl;
+      _applyInitialRole(i);
     }
+  }
+
+  void _applyInitialRole(UserFormData i) {
+    final role = i.role.toLowerCase().trim();
+    final sub = i.userSubcategory?.toLowerCase().trim();
+    if (role == 'staff' || role == 'petugas' || role == 'staf') {
+      _role = 'petugas';
+      // Preserve existing class/unit for staff/petugas to avoid data loss on edit.
+      _kelas = i.roleClass;
+      return;
+    }
+    _role = (role == 'teacher' || role == 'guru' || sub == 'guru')
+        ? 'guru'
+        : 'siswa';
+    _kelas = i.roleClass;
   }
 
   @override
@@ -142,12 +168,60 @@ class _UserFormScreenState extends State<UserFormScreen> {
     super.dispose();
   }
 
-  void _pickPhoto() {
-    // TODO: pakai image_picker, lalu setState(() => _photo = bytes);
-    // Batasi format JPG/PNG dan ukuran maks 2MB.
+  Future<void> _pickPhoto() async {
+    final source = await showMediaSourceSheet(
+      context,
+      isPhoto: true,
+      title: 'Tambah Foto Pengguna',
+      subtitle: 'Pilih sumber foto pengguna.',
+    );
+    if (source == null || !mounted) return;
+
+    final outcome = await _picker.pickPhotos(source: source, remainingSlots: 1);
+    if (!mounted) return;
+
+    if (outcome.files.isEmpty) {
+      if (outcome.message != null) _showSnack(outcome.message!);
+      return;
+    }
+
+    final file = outcome.files.first;
+    if (file.size > 10 * 1024 * 1024) {
+      _showSnack('Ukuran foto maksimal 10MB.');
+      return;
+    }
+
+    final use = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => AvatarPreviewDialog(file: file),
+    );
+    if (use != true || !mounted) return;
+
+    Uint8List? bytes = file.bytes == null ? null : Uint8List.fromList(file.bytes!);
+    if (bytes == null && !kIsWeb && file.localPath.isNotEmpty) {
+      bytes = await File(file.localPath).readAsBytes();
+    }
+    if (bytes == null || !mounted) return;
+    setState(() {
+      _photo = bytes;
+      _photoFileName = file.fileName;
+      _removePhoto = false;
+    });
   }
 
-  void _removePhoto() => setState(() => _photo = null);
+  void _removePhotoAction() => setState(() {
+        _photo = null;
+        _photoFileName = null;
+        _photoUrl = null;
+        _removePhoto = true;
+      });
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   void _submit() {
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -158,10 +232,14 @@ class _UserFormScreenState extends State<UserFormScreen> {
       email: _emailCtrl.text.trim(),
       idNumber: _idCtrl.text.trim(),
       phone: _phoneCtrl.text.trim(),
-      roleClass: _roleClass,
-      role: _accountRole,
+      roleClass: _kelas,
+      role: _mapRoleToLegacy(_role),
       active: _active,
       photo: _photo,
+      photoFileName: _photoFileName,
+      photoUrl: _photoUrl,
+      removePhoto: _removePhoto,
+      userSubcategory: _role == 'petugas' ? null : _role,
     );
 
     // Mode tambah: langsung simpan.
@@ -187,6 +265,19 @@ class _UserFormScreenState extends State<UserFormScreen> {
         },
       ),
     );
+  }
+
+  /// Mapping UI role -> legacy role string for UserFormData compatibility.
+  String _mapRoleToLegacy(String role) {
+    switch (role.toLowerCase().trim()) {
+      case 'petugas':
+        return 'staff';
+      case 'guru':
+        return 'teacher';
+      case 'siswa':
+      default:
+        return 'student';
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -226,7 +317,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
                       _buildPhoto(),
                       const SizedBox(height: 6),
                       Text(
-                        'Format yang didukung: JPG, PNG (maks. 2MB)',
+                        'Format yang didukung: Semua format gambar (maks. 10MB)',
                         style: AppTextStyles.labelSm(
                           weight: FontWeight.w500,
                           color: AppColors.slate600,
@@ -316,9 +407,11 @@ class _UserFormScreenState extends State<UserFormScreen> {
                             : null,
                       ),
                       const SizedBox(height: 16),
-                      const _FieldLabel('Peran & Kelas / Unit',
-                          required: true),
-                      _buildRoleClassDropdown(),
+                      _FieldLabel('Kelas', required: !_isPetugas),
+                      _buildKelasDropdown(),
+                      const SizedBox(height: 16),
+                      const _FieldLabel('Role', required: true),
+                      _buildRoleDropdown(),
                       const SizedBox(height: 16),
                       const _FieldLabel('Status Akun'),
                       _buildStatusToggle(),
@@ -404,13 +497,31 @@ class _UserFormScreenState extends State<UserFormScreen> {
               child: SizedBox(
                 width: 76,
                 height: 76,
-                child: _photo == null
-                    ? const ColoredBox(
-                        color: AppColors.surfaceContainerLowest,
-                        child: Icon(Symbols.person,
-                            color: AppColors.primary, size: 36),
+                child: _photo != null
+                    ? Image.memory(
+                        _photo!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const ColoredBox(
+                          color: AppColors.surfaceContainerLowest,
+                          child: Icon(Symbols.person,
+                              color: AppColors.primary, size: 36),
+                        ),
                       )
-                    : Image.memory(_photo!, fit: BoxFit.cover),
+                    : (_photoUrl != null && _photoUrl!.isNotEmpty)
+                        ? Image.network(
+                            _photoUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const ColoredBox(
+                              color: AppColors.surfaceContainerLowest,
+                              child: Icon(Symbols.person,
+                                  color: AppColors.primary, size: 36),
+                            ),
+                          )
+                        : const ColoredBox(
+                            color: AppColors.surfaceContainerLowest,
+                            child: Icon(Symbols.person,
+                                color: AppColors.primary, size: 36),
+                          ),
               ),
             ),
             const SizedBox(width: 12),
@@ -433,12 +544,12 @@ class _UserFormScreenState extends State<UserFormScreen> {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       _PhotoButton(
-                        label: _photo == null ? 'Pilih Foto' : 'Ganti Foto',
+                        label: _hasPhoto ? 'Ganti Foto' : 'Pilih Foto',
                         onTap: _pickPhoto,
                       ),
-                      if (_photo != null)
+                      if (_hasPhoto)
                         TextButton(
-                          onPressed: _removePhoto,
+                          onPressed: _removePhotoAction,
                           style: TextButton.styleFrom(
                             foregroundColor: AppColors.error,
                             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -511,36 +622,56 @@ class _UserFormScreenState extends State<UserFormScreen> {
     );
   }
 
-  Widget _buildRoleClassDropdown() {
-    final choices = _roleClassChoices;
-    final value = _roleClass == null
-        ? null
-        : _roleOptionValue(_accountRole, _roleClass!);
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      isExpanded: true,
-      icon: const Icon(Symbols.keyboard_arrow_down,
-          color: AppColors.slate600),
-      decoration:
-          _decoration(hint: 'Pilih peran dan kelas / unit', icon: Symbols.school),
-      style: AppTextStyles.bodyMd(color: AppColors.onSurface),
-      borderRadius: BorderRadius.circular(16),
+  // ---- Kelas dropdown -----------------------------------------------------
+  Widget _buildKelasDropdown() {
+    final choices = _kelasChoices;
+    return _ModernDropdown<String>(
+      value: _kelas,
+      hint: _isPetugas ? 'Tidak diperlukan untuk Petugas' : 'Pilih kelas',
+      icon: Symbols.school,
+      enabled: !_isPetugas,
       items: [
-        for (final option in choices)
-          DropdownMenuItem(
-            value: _roleOptionValue(option.$1, option.$2),
-            child: Text(option.$3, overflow: TextOverflow.ellipsis),
-          ),
+        for (final kelas in choices)
+          _ModernDropdownItem(value: kelas, label: kelas),
       ],
-      validator: (v) => v == null ? 'Peran dan kelas / unit wajib dipilih' : null,
+      validator: (v) {
+        if (_isPetugas) return null;
+        if (v == null || v.trim().isEmpty) return 'Kelas wajib dipilih';
+        return null;
+      },
+      onChanged: _isPetugas
+          ? null
+          : (value) {
+              if (value == null) return;
+              setState(() => _kelas = value);
+            },
+    );
+  }
+
+  // ---- Role dropdown ------------------------------------------------------
+  Widget _buildRoleDropdown() {
+    return _ModernDropdown<String>(
+      value: _role,
+      hint: 'Pilih role',
+      icon: Symbols.manage_accounts,
+      items: const [
+        _ModernDropdownItem(value: 'petugas', label: 'Petugas'),
+        _ModernDropdownItem(value: 'siswa', label: 'Siswa'),
+        _ModernDropdownItem(value: 'guru', label: 'Guru'),
+      ],
+      validator: (v) {
+        if (v == null || v.isEmpty) return 'Role wajib dipilih';
+        return null;
+      },
       onChanged: (value) {
         if (value == null) return;
-        final selected = choices.firstWhere(
-          (option) => _roleOptionValue(option.$1, option.$2) == value,
-        );
         setState(() {
-          _accountRole = selected.$1;
-          _roleClass = selected.$2;
+          _role = value;
+          if (_role == 'petugas') {
+            // Kelas hanya relevan untuk Siswa/Guru. Kosongkan agar
+            // kelas tidak ikut tersimpan untuk Petugas.
+            _kelas = null;
+          }
         });
       },
     );
@@ -716,6 +847,356 @@ class _FieldLabel extends StatelessWidget {
           color: AppColors.onSurface,
         ),
       ),
+    );
+  }
+}
+
+class _ModernDropdownItem<T> {
+  const _ModernDropdownItem({
+    required this.value,
+    required this.label,
+    this.icon,
+  });
+
+  final T value;
+  final String label;
+  final IconData? icon;
+}
+
+class _ModernDropdown<T> extends StatefulWidget {
+  const _ModernDropdown({
+    required this.items,
+    required this.onChanged,
+    this.value,
+    this.hint,
+    this.icon,
+    this.validator,
+    this.enabled = true,
+  });
+
+  final List<_ModernDropdownItem<T>> items;
+  final ValueChanged<T?>? onChanged;
+  final T? value;
+  final String? hint;
+  final IconData? icon;
+  final String? Function(T?)? validator;
+  final bool enabled;
+
+  @override
+  State<_ModernDropdown<T>> createState() => _ModernDropdownState<T>();
+}
+
+class _ModernDropdownState<T> extends State<_ModernDropdown<T>>
+    with SingleTickerProviderStateMixin {
+  final LayerLink _link = LayerLink();
+  final GlobalKey _fieldKey = GlobalKey();
+  OverlayEntry? _overlay;
+  late final AnimationController _controller;
+  late final Animation<double> _expand;
+  late final Animation<double> _fade;
+  bool _open = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+      reverseDuration: const Duration(milliseconds: 140),
+    );
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    _expand = curved;
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+  }
+
+  @override
+  void dispose() {
+    _overlay?.remove();
+    _overlay = null;
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ModernDropdown<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled && _open) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _close();
+      });
+    }
+    if (widget.value != oldWidget.value && _open) {
+      _overlay?.markNeedsBuild();
+    }
+  }
+
+  _ModernDropdownItem<T>? get _selectedItem {
+    for (final item in widget.items) {
+      if (item.value == widget.value) return item;
+    }
+    return null;
+  }
+
+  void _toggle() {
+    if (!widget.enabled || widget.onChanged == null) return;
+    if (_open) {
+      _close();
+    } else {
+      _openOverlay();
+    }
+  }
+
+  void _openOverlay() {
+    if (_open) return;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+    _overlay = OverlayEntry(builder: _buildOverlay);
+    overlay.insert(_overlay!);
+    setState(() => _open = true);
+    _controller.forward(from: 0);
+  }
+
+  void _close() {
+    if (!_open) return;
+    if (mounted) setState(() => _open = false);
+    _controller.stop();
+    _overlay?.remove();
+    _overlay = null;
+  }
+
+  void _select(_ModernDropdownItem<T> item) {
+    widget.onChanged?.call(item.value);
+    _close();
+  }
+
+  Widget _buildOverlay(BuildContext context) {
+    final renderBox = _fieldKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return const SizedBox.shrink();
+    final size = renderBox.size;
+    final offset = renderBox.localToGlobal(Offset.zero);
+    final screen = MediaQuery.sizeOf(context);
+    final spaceBelow = screen.height - offset.dy - size.height - 12;
+    final spaceAbove = offset.dy - 12;
+    final openAbove = spaceBelow < 220 && spaceAbove > spaceBelow;
+    final maxHeight = (openAbove ? spaceAbove : spaceBelow)
+        .clamp(140.0, 280.0)
+        .toDouble();
+
+    final menu = FadeTransition(
+      opacity: _fade,
+      child: SizeTransition(
+        sizeFactor: _expand,
+        alignment: openAbove ? Alignment.bottomCenter : Alignment.topCenter,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.primaryFixed),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1A191C1E),
+                  blurRadius: 16,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              shrinkWrap: true,
+              itemCount: widget.items.length,
+              itemBuilder: (context, index) {
+                final item = widget.items[index];
+                final selected = item.value == widget.value;
+                return InkWell(
+                  onTap: () => _select(item),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    color: selected
+                        ? AppColors.primaryFixed.fade(0.45)
+                        : Colors.transparent,
+                    child: Row(
+                      children: [
+                        if (item.icon != null) ...[
+                          Icon(
+                            item.icon,
+                            size: 18,
+                            color: selected
+                                ? AppColors.primary
+                                : AppColors.slate600,
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        Expanded(
+                          child: Text(
+                            item.label,
+                            style: AppTextStyles.bodyMd(
+                              weight:
+                                  selected ? FontWeight.w700 : FontWeight.w500,
+                              color: selected
+                                  ? AppColors.primary
+                                  : AppColors.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (selected)
+                          const Icon(Symbols.check_rounded,
+                              size: 18, color: AppColors.primary),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final positioned = openAbove
+        ? Positioned(
+            width: size.width,
+            child: CompositedTransformFollower(
+              link: _link,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.topLeft,
+              followerAnchor: Alignment.bottomLeft,
+              offset: const Offset(0, -6),
+              child: menu,
+            ),
+          )
+        : Positioned(
+            width: size.width,
+            child: CompositedTransformFollower(
+              link: _link,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.bottomLeft,
+              followerAnchor: Alignment.topLeft,
+              offset: const Offset(0, 6),
+              child: menu,
+            ),
+          );
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _close,
+            child: const SizedBox.expand(),
+          ),
+        ),
+        positioned,
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _selectedItem;
+    final enabled = widget.enabled && widget.onChanged != null;
+
+    return FormField<T>(
+      initialValue: widget.value,
+      validator: widget.validator,
+      builder: (field) {
+        final hasError = field.hasError;
+        final borderColor = !enabled
+            ? AppColors.primaryFixed.fade(0.7)
+            : hasError
+                ? AppColors.error
+                : _open
+                    ? AppColors.primary
+                    : AppColors.primaryFixed;
+        final bgColor = enabled
+            ? AppColors.primaryFixed.fade(0.35)
+            : AppColors.surfaceContainerLow;
+
+        final trigger = CompositedTransformTarget(
+          link: _link,
+          child: GestureDetector(
+            key: _fieldKey,
+            onTap: enabled ? _toggle : null,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: borderColor,
+                  width: _open ? 1.5 : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    widget.icon ?? Symbols.expand_more,
+                    size: 22,
+                    color: enabled ? AppColors.slate600 : AppColors.slate400,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      selected?.label ?? widget.hint ?? 'Pilih',
+                      style: selected != null
+                          ? AppTextStyles.bodyMd(
+                              color: enabled
+                                  ? AppColors.onSurface
+                                  : AppColors.slate500,
+                            )
+                          : AppTextStyles.bodyMd(color: AppColors.slate500),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _open ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    child: Icon(
+                      Symbols.keyboard_arrow_down,
+                      color: enabled ? AppColors.slate600 : AppColors.slate400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        // Keep FormField value in sync
+        if (field.value != widget.value) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (field.mounted) field.didChange(widget.value);
+          });
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            trigger,
+            if (hasError)
+              Padding(
+                padding: const EdgeInsets.only(left: 12, top: 6),
+                child: Text(
+                  field.errorText ?? '',
+                  style: AppTextStyles.labelSm(color: AppColors.error),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

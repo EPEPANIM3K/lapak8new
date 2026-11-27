@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -23,7 +24,8 @@ class AppBottomNavItem {
   final String route;
 }
 
-/// Navigasi bawah melayang: putih 90% + blur 40, radius 48, tinggi 72.
+/// Navigasi bawah melayang: putih 90%, radius 48, tinggi 72.
+/// Blur 40 dipakai native; web memakai latar transparan tanpa backdrop filter.
 /// Dapat dipasang di `Positioned(bottom: 0, ...)` atau `Scaffold.bottomNavigationBar`.
 class AppBottomNav extends StatelessWidget {
   const AppBottomNav({
@@ -45,19 +47,51 @@ class AppBottomNav extends StatelessWidget {
   /// Menu untuk siswa/guru (sesuai desain).
   static const userItems = [
     AppBottomNavItem(icon: Symbols.home, label: 'Beranda', route: '/'),
-    AppBottomNavItem(icon: Symbols.category, label: 'Item', route: '/facilities'),
     AppBottomNavItem(
-        icon: Symbols.event_available, label: 'Pinjaman', showBadge: true, route: '/borrowings'),
-    AppBottomNavItem(icon: Symbols.history, label: 'Riwayat', route: '/history'),
+      icon: Symbols.category,
+      label: 'Item',
+      route: '/facilities',
+    ),
+    AppBottomNavItem(
+      icon: Symbols.event_available,
+      label: 'Pinjaman',
+      showBadge: true,
+      route: '/borrowings',
+    ),
+    AppBottomNavItem(
+      icon: Symbols.history,
+      label: 'Riwayat',
+      route: '/history',
+    ),
   ];
 
   /// Menu untuk pengelola sarpras (admin).
   static const dashboardItems = [
-    AppBottomNavItem(icon: Symbols.home, label: 'Beranda', route: '/admin/dashboard'),
-    AppBottomNavItem(icon: Symbols.swap_horiz, label: 'Aktivitas', route: '/admin/borrowings'),
-    AppBottomNavItem(icon: Symbols.history, label: 'Riwayat', route: '/admin/history'),
-    AppBottomNavItem(icon: Symbols.category, label: 'Item', route: '/admin/items'),
-    AppBottomNavItem(icon: Symbols.tune, label: 'Kelola', route: '/admin/manage'),
+    AppBottomNavItem(
+      icon: Symbols.home,
+      label: 'Beranda',
+      route: '/admin/dashboard',
+    ),
+    AppBottomNavItem(
+      icon: Symbols.swap_horiz,
+      label: 'Aktivitas',
+      route: '/admin/borrowings',
+    ),
+    AppBottomNavItem(
+      icon: Symbols.history,
+      label: 'Riwayat',
+      route: '/admin/history',
+    ),
+    AppBottomNavItem(
+      icon: Symbols.category,
+      label: 'Item',
+      route: '/admin/items',
+    ),
+    AppBottomNavItem(
+      icon: Symbols.tune,
+      label: 'Kelola',
+      route: '/admin/manage',
+    ),
   ];
 
   /// Tinggi total area nav (pt 4 + bar 72 + pb 12), belum termasuk safe area bawah.
@@ -66,6 +100,25 @@ class AppBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final navContent = Container(
+      color: AppColors.surfaceContainerLowest.fade(0.9),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            for (var i = 0; i < items.length; i++)
+              _NavItem(
+                item: items[i],
+                selected: i == currentIndex,
+                useRouter: useRouter,
+                onTap: () => onTap(i),
+              ),
+          ],
+        ),
+      ),
+    );
     return Padding(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.mobileGutter,
@@ -87,28 +140,12 @@ class AppBottomNav extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppRadius.xl),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(
-              color: AppColors.surfaceContainerLowest.fade(0.9),
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-              child: Material(
-                type: MaterialType.transparency,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    for (var i = 0; i < items.length; i++)
-                      _NavItem(
-                        item: items[i],
-                        selected: i == currentIndex,
-                        useRouter: useRouter,
-                        onTap: () => onTap(i),
-                      ),
-                  ],
+          child: kIsWeb
+              ? navContent
+              : BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                  child: navContent,
                 ),
-              ),
-            ),
-          ),
         ),
       ),
     );
@@ -122,10 +159,10 @@ class AdminBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AppBottomNav(
-        items: AppBottomNav.dashboardItems,
-        currentIndex: currentIndex,
-        onTap: (_) {},
-      );
+    items: AppBottomNav.dashboardItems,
+    currentIndex: currentIndex,
+    onTap: (_) {},
+  );
 }
 
 class _NavItem extends StatelessWidget {
@@ -163,9 +200,13 @@ class _NavItem extends StatelessWidget {
                 children: [
                   MsIcon(item.icon, size: 24, color: color),
                   const SizedBox(height: 2),
-                  Text(item.label,
-                      style: AppTextStyles.labelSm(
-                          weight: FontWeight.w700, color: color)),
+                  Text(
+                    item.label,
+                    style: AppTextStyles.labelSm(
+                      weight: FontWeight.w700,
+                      color: color,
+                    ),
+                  ),
                 ],
               ),
               if (item.showBadge)
@@ -181,8 +222,9 @@ class _NavItem extends StatelessWidget {
                       // ring-2 ring-surface-container-lowest
                       boxShadow: [
                         BoxShadow(
-                            color: AppColors.surfaceContainerLowest,
-                            spreadRadius: 2),
+                          color: AppColors.surfaceContainerLowest,
+                          spreadRadius: 2,
+                        ),
                       ],
                     ),
                   ),

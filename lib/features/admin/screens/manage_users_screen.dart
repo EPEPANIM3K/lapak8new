@@ -120,6 +120,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         nomorInduk:    data.idNumber,
         nomorTelepon:  data.phone,
         aktif:         data.active,
+        photoBytes:    data.photo,
+        photoFileName: data.photoFileName,
       );
       if (!mounted) return;
       _showMessage('Akun berhasil dibuat.');
@@ -141,14 +143,20 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       context,
       isAdmin: true,
       initial: UserFormData(
-        name:      user.nama,
-        password:  '',
-        email:     user.email,
-        idNumber:  user.nomorInduk ?? '',
-        roleClass: user.kelas,
-        role:      roleForm,
-        active:    user.aktif,
-        phone:     user.nomorTelepon ?? '',
+        name:            user.nama,
+        password:        '',
+        email:           user.email,
+        idNumber:        user.nomorInduk ?? '',
+        roleClass:       user.kelas,
+        role:            roleForm,
+        active:          user.aktif,
+        phone:           user.nomorTelepon ?? '',
+        photoUrl:        user.fotoUrl,
+        userSubcategory: switch (user.peran) {
+          'guru'  => 'guru',
+          'siswa' => 'siswa',
+          _       => null,
+        },
       ),
     );
     if (data == null || !mounted) return;
@@ -167,8 +175,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         phone:      data.phone,
         kelas:      data.roleClass,
         nomorInduk: data.idNumber,
-        peran:      peranBaru,
-        aktif:      data.active,
+        peran:         peranBaru,
+        aktif:         data.active,
+        photoBytes:    data.photo,
+        photoFileName: data.photoFileName,
+        removePhoto:   data.removePhoto,
       );
       if (data.email != user.email) {
         await userRepository.updateEmail(user.id, data.email);
@@ -218,6 +229,37 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         onConfirm: () => _setActive(user, false),
       ),
     );
+  }
+
+  Future<void> _confirmDelete(AppUser user) async {
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => ConfirmDialog(
+        icon: Symbols.delete,
+        title: 'Hapus Akun?',
+        message:
+            'Akun ${user.nama} akan dihapus permanen. Jika akun memiliki data terkait (mis. riwayat peminjaman), hapus bisa gagal — nonaktifkan akun sebagai alternatif.',
+        confirmText: 'Hapus Akun',
+        confirmIcon: Symbols.delete,
+        confirmColor: AppColors.error,
+        iconColor: AppColors.error,
+        iconBackground: AppColors.errorContainer,
+        onConfirm: () => _deleteUser(user),
+      ),
+    );
+  }
+
+  Future<void> _deleteUser(AppUser user) async {
+    try {
+      await userRepository.deleteUser(user.id);
+      if (!mounted) return;
+      _showMessage('Akun berhasil dihapus.');
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(error.toString(), isError: true);
+    }
   }
 
   Future<void> _setActive(AppUser user, bool aktif) async {
@@ -375,6 +417,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 onManage: () => _editAccount(user),
                 onReactivate: () => _reactivate(user),
                 onSuspend: () => _confirmSuspend(user),
+                onDelete: () => _confirmDelete(user),
               ),
               const SizedBox(height: 16),
             ],
@@ -512,12 +555,14 @@ class _UserCard extends StatelessWidget {
     required this.onManage,
     required this.onReactivate,
     required this.onSuspend,
+    required this.onDelete,
   });
 
   final AppUser user;
   final VoidCallback onManage;
   final VoidCallback onReactivate;
   final VoidCallback onSuspend;
+  final VoidCallback onDelete;
 
   String get _initials {
     final words = user.nama.trim().split(RegExp(r'\s+'));
@@ -544,13 +589,29 @@ class _UserCard extends StatelessWidget {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: AppColors.primaryFixed,
-                child: Text(
-                  _initials,
-                  style: AppTextStyles.labelLg(
-                    weight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                ),
+                child: user.fotoUrl != null && user.fotoUrl!.isNotEmpty
+                    ? ClipOval(
+                        child: Image.network(
+                          user.fotoUrl!,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Text(
+                            _initials,
+                            style: AppTextStyles.labelLg(
+                              weight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Text(
+                        _initials,
+                        style: AppTextStyles.labelLg(
+                          weight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -617,6 +678,14 @@ class _UserCard extends StatelessWidget {
                     color: AppColors.error,
                   ),
                 ),
+              IconButton(
+                tooltip: 'Hapus akun',
+                onPressed: onDelete,
+                icon: const Icon(
+                  Symbols.delete,
+                  color: AppColors.error,
+                ),
+              ),
             ],
           ),
         ],

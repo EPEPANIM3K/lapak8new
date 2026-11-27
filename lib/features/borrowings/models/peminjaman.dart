@@ -8,6 +8,7 @@ class FasilitasRingkas {
   const FasilitasRingkas({
     required this.id,
     required this.nama,
+    required this.kategori,
     required this.lokasi,
     required this.totalUnit,
     required this.status,
@@ -16,24 +17,39 @@ class FasilitasRingkas {
 
   final String id;
   final String nama;
-  final String lokasi;    // nama lokasi (join dari tabel lokasi)
-  final int    totalUnit;
-  final String status;    // 'tersedia' | 'pemeliharaan' | 'tidak_aktif'
+  final String kategori;
+  final String lokasi; // nama lokasi (join dari tabel lokasi)
+  final int totalUnit;
+  final String status; // 'tersedia' | 'pemeliharaan' | 'tidak_aktif'
   final String? fotoUrl;
 
   bool get tersedia => status == 'tersedia' && totalUnit > 0;
+  bool get isRuangan => kategori.trim().toLowerCase() == 'ruangan';
 
   factory FasilitasRingkas.fromMap(Map<String, dynamic> map) {
     final lokasi = map['lokasi'] as Map<String, dynamic>?;
     return FasilitasRingkas(
-      id:         map['id'] as String,
-      nama:       map['nama'] as String,
-      lokasi:     lokasi?['nama'] as String? ?? '-',
-      totalUnit:  (map['total_unit'] as num).toInt(),
-      status:     map['status'] as String,
-      fotoUrl:    map['foto_url'] as String?,
+      id: map['id'] as String,
+      nama: map['nama'] as String,
+      kategori: map['kategori'] as String? ?? '',
+      lokasi: lokasi?['nama'] as String? ?? '-',
+      totalUnit: (map['total_unit'] as num).toInt(),
+      status: map['status'] as String,
+      fotoUrl: map['foto_url'] as String?,
     );
   }
+}
+
+class ItemPeminjamanInput {
+  const ItemPeminjamanInput({
+    required this.fasilitasId,
+    required this.namaFasilitas,
+    required this.jumlah,
+  });
+
+  final String fasilitasId;
+  final String namaFasilitas;
+  final int jumlah;
 }
 
 // ---------------------------------------------------------------------------
@@ -45,18 +61,22 @@ class ItemPeminjaman {
     required this.fasilitasId,
     required this.namaFasilitasSnapshot,
     required this.jumlah,
+    this.fotoUrl,
   });
 
   final String id;
   final String fasilitasId;
   final String namaFasilitasSnapshot;
-  final int    jumlah;
+  final int jumlah;
+  final String? fotoUrl;
 
   factory ItemPeminjaman.fromMap(Map<String, dynamic> map) => ItemPeminjaman(
-    id:                   map['id'] as String,
-    fasilitasId:          map['fasilitas_id'] as String,
+    id: map['id'] as String,
+    fasilitasId: map['fasilitas_id'] as String,
     namaFasilitasSnapshot: map['nama_fasilitas_snapshot'] as String,
-    jumlah:               (map['jumlah'] as num).toInt(),
+    jumlah: (map['jumlah'] as num).toInt(),
+    fotoUrl:
+        (map['fasilitas'] as Map<String, dynamic>?)?['foto_url'] as String?,
   );
 }
 
@@ -76,35 +96,35 @@ enum StatusPeminjaman {
 
   static StatusPeminjaman dariString(String nilai) => switch (nilai) {
     'menunggu_persetujuan' => menungguPersetujuan,
-    'disetujui'            => disetujui,
-    'ditolak'              => ditolak,
-    'dibatalkan'           => dibatalkan,
-    'dipinjam'             => dipinjam,
-    'dikembalikan'         => dikembalikan,
-    'terlambat'            => terlambat,
-    _                      => tidak_dikenal,
+    'disetujui' => disetujui,
+    'ditolak' => ditolak,
+    'dibatalkan' => dibatalkan,
+    'dipinjam' => dipinjam,
+    'dikembalikan' => dikembalikan,
+    'terlambat' => terlambat,
+    _ => tidak_dikenal,
   };
 
   String get nilaiDb => switch (this) {
     StatusPeminjaman.menungguPersetujuan => 'menunggu_persetujuan',
-    StatusPeminjaman.disetujui           => 'disetujui',
-    StatusPeminjaman.ditolak             => 'ditolak',
-    StatusPeminjaman.dibatalkan          => 'dibatalkan',
-    StatusPeminjaman.dipinjam            => 'dipinjam',
-    StatusPeminjaman.dikembalikan        => 'dikembalikan',
-    StatusPeminjaman.terlambat           => 'terlambat',
-    StatusPeminjaman.tidak_dikenal       => 'tidak_dikenal',
+    StatusPeminjaman.disetujui => 'disetujui',
+    StatusPeminjaman.ditolak => 'ditolak',
+    StatusPeminjaman.dibatalkan => 'dibatalkan',
+    StatusPeminjaman.dipinjam => 'dipinjam',
+    StatusPeminjaman.dikembalikan => 'dikembalikan',
+    StatusPeminjaman.terlambat => 'terlambat',
+    StatusPeminjaman.tidak_dikenal => 'tidak_dikenal',
   };
 
   String get label => switch (this) {
     StatusPeminjaman.menungguPersetujuan => 'Menunggu Persetujuan',
-    StatusPeminjaman.disetujui           => 'Disetujui',
-    StatusPeminjaman.ditolak             => 'Ditolak',
-    StatusPeminjaman.dibatalkan          => 'Dibatalkan',
-    StatusPeminjaman.dipinjam            => 'Sedang Dipinjam',
-    StatusPeminjaman.dikembalikan        => 'Dikembalikan',
-    StatusPeminjaman.terlambat           => 'Terlambat',
-    StatusPeminjaman.tidak_dikenal       => 'Tidak Dikenal',
+    StatusPeminjaman.disetujui => 'Disetujui',
+    StatusPeminjaman.ditolak => 'Ditolak',
+    StatusPeminjaman.dibatalkan => 'Dibatalkan',
+    StatusPeminjaman.dipinjam => 'Sedang Dipinjam',
+    StatusPeminjaman.dikembalikan => 'Dikembalikan',
+    StatusPeminjaman.terlambat => 'Terlambat',
+    StatusPeminjaman.tidak_dikenal => 'Tidak Dikenal',
   };
 }
 
@@ -130,6 +150,7 @@ class Peminjaman {
     this.dikembalikanPada,
     this.namaPeminjam,
     this.nomorIndukPeminjam,
+    this.kelasPeminjam,
     this.items = const [],
   });
 
@@ -152,12 +173,13 @@ class Peminjaman {
   // Data join (opsional, dimuat bersama query)
   final String? namaPeminjam;
   final String? nomorIndukPeminjam;
+  final String? kelasPeminjam;
   final List<ItemPeminjaman> items;
 
   String get labelKategori => switch (kategori) {
     'praktik' => 'Praktik',
-    'ekskul'  => 'Ekskul / IT',
-    _         => 'Lainnya',
+    'ekskul' => 'Ekskul / IT',
+    _ => 'Lainnya',
   };
 
   factory Peminjaman.fromMap(Map<String, dynamic> map) {
@@ -169,26 +191,40 @@ class Peminjaman {
 
     final peminjam = map['pengguna'] as Map<String, dynamic>?;
     final rawItems = map['item_peminjaman'] as List<dynamic>?;
+    final rawApprovals = map['persetujuan_peminjaman'] as List<dynamic>?;
+    final rejectionReason =
+        map['alasan_penolakan'] as String? ??
+        rawApprovals
+            ?.whereType<Map>()
+            .map((approval) => approval['alasan_penolakan'])
+            .whereType<String>()
+            .firstWhere((reason) => reason.trim().isNotEmpty, orElse: () => '');
 
     return Peminjaman(
-      id:                    map['id'] as String,
-      kodeBooking:           map['kode_booking'] as String,
-      peminjamId:            map['peminjam_id'] as String,
-      kategori:              map['kategori'] as String,
-      namaKegiatan:          map['nama_kegiatan'] as String,
-      catatanTujuan:         map['catatan_tujuan'] as String?,
-      mulaiPada:             DateTime.parse(map['mulai_pada'] as String),
-      estimasiKembaliPada:   DateTime.parse(map['estimasi_kembali_pada'] as String),
-      status:                StatusPeminjaman.dariString(map['status'] as String),
-      alasanPenolakan:       map['alasan_penolakan'] as String?,
-      diajukanPada:          DateTime.parse(map['diajukan_pada'] as String),
-      disetujuiPada:         tanggal('disetujui_pada'),
-      diambilPada:           tanggal('diambil_pada'),
-      dikembalikanPada:      tanggal('dikembalikan_pada'),
-      dibuatPada:            DateTime.parse(map['dibuat_pada'] as String),
-      namaPeminjam:          peminjam?['nama_lengkap'] as String?,
-      nomorIndukPeminjam:    peminjam?['nomor_induk'] as String?,
-      items: rawItems
+      id: map['id'] as String,
+      kodeBooking: map['kode_booking'] as String,
+      peminjamId: map['peminjam_id'] as String,
+      kategori: map['kategori'] as String,
+      namaKegiatan: map['nama_kegiatan'] as String,
+      catatanTujuan: map['catatan_tujuan'] as String?,
+      mulaiPada: DateTime.parse(map['mulai_pada'] as String),
+      estimasiKembaliPada: DateTime.parse(
+        map['estimasi_kembali_pada'] as String,
+      ),
+      status: StatusPeminjaman.dariString(map['status'] as String),
+      alasanPenolakan: rejectionReason?.isEmpty == true
+          ? null
+          : rejectionReason,
+      diajukanPada: DateTime.parse(map['diajukan_pada'] as String),
+      disetujuiPada: tanggal('disetujui_pada'),
+      diambilPada: tanggal('diambil_pada'),
+      dikembalikanPada: tanggal('dikembalikan_pada'),
+      dibuatPada: DateTime.parse(map['dibuat_pada'] as String),
+      namaPeminjam: peminjam?['nama_lengkap'] as String?,
+      nomorIndukPeminjam: peminjam?['nomor_induk'] as String?,
+      kelasPeminjam: peminjam?['kelas_atau_unit'] as String?,
+      items:
+          rawItems
               ?.map((e) => ItemPeminjaman.fromMap(e as Map<String, dynamic>))
               .toList() ??
           const [],

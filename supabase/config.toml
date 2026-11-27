@@ -1,4 +1,5 @@
-project_id = "oqyhowjjndkjerdouhfl"
+# Isi project_id dengan ID project Supabase baru setelah `supabase link`.
+project_id = "htwczamdwdhsjogqmpke"
 
 [functions.manage-users]
 verify_jwt = true

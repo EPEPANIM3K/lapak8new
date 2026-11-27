@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -7,32 +5,12 @@ import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/admin/screens/facility_form_screen.dart';
+import 'package:lapak8new/features/facilities/models/facility.dart';
+import 'package:lapak8new/features/facilities/services/facility_service.dart';
 import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 // Simpan di: lib/features/admin/screens/manage_facilities_screen.dart
-
-class _Item {
-  const _Item({
-    required this.name,
-    required this.category,
-    required this.location,
-    required this.available,
-    required this.total,
-    required this.placeholderIcon,
-    this.imageUrl,
-    this.imagePath,
-  });
-
-  final String name;
-  final String category;
-  final String location;
-  final int available; // jumlah yang tersedia
-  final int total; // jumlah keseluruhan
-  final IconData placeholderIcon;
-  final String? imageUrl; // isi bila sudah ada foto (URL)
-  final String? imagePath; // foto lokal yang baru dipilih
-}
 
 enum _ItemFilter { all, available, unavailable }
 
@@ -46,144 +24,162 @@ class ManageFacilitiesScreen extends StatefulWidget {
 class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
   _ItemFilter _filter = _ItemFilter.all;
   String _query = '';
+  List<Facility> _items = const [];
+  List<LokasiItem> _locations = const [];
+  bool _loading = true;
+  String? _error;
 
-  // TODO: ganti dengan data dari backend.
-  final List<_Item> _items = [
-    const _Item(
-      name: 'Huion Kamvas 16',
-      category: 'JURUSAN DKV',
-      location: 'Studio MM Lt. 2',
-      available: 4,
-      total: 5,
-      placeholderIcon: Symbols.draw,
-    ),
-    const _Item(
-      name: 'Sony Alpha A7 III Kit',
-      category: 'AUDIO VISUAL',
-      location: 'Sarpras Gedung A',
-      available: 2,
-      total: 4,
-      placeholderIcon: Symbols.photo_camera,
-    ),
-    const _Item(
-      name: 'Epson EB-X400',
-      category: 'SARPRAS UMUM',
-      location: 'Gudang Sarpras',
-      available: 0,
-      total: 3,
-      placeholderIcon: Symbols.cast,
-    ),
-    const _Item(
-      name: 'VR Oculus Quest 2',
-      category: 'RPL / TKJ',
-      location: 'Lab RPL 1',
-      available: 8,
-      total: 10,
-      placeholderIcon: Symbols.view_in_ar,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
-  int get _totalAvailable => _items.fold(0, (s, i) => s + i.available);
-  int get _totalBorrowed => _items.fold(0, (s, i) => s + (i.total - i.available));
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final results = await Future.wait([
+        facilityService.fetchFacilities(),
+        facilityService.fetchLocations(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _items = results[0] as List<Facility>;
+        _locations = results[1] as List<LokasiItem>;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  int get _totalAvailable =>
+      _items.fold(0, (s, i) => s + (i.isAvailable ? i.unitTersedia : 0));
+  int get _totalBorrowed => _items.fold(0, (s, i) => s + i.unitDipinjam);
 
   int _count(_ItemFilter f) => _items.where((i) => _matchesFilter(i, f)).length;
 
-  bool _matchesFilter(_Item i, _ItemFilter f) {
+  bool _matchesFilter(Facility i, _ItemFilter f) {
     switch (f) {
       case _ItemFilter.all:
         return true;
       case _ItemFilter.available:
-        return i.available > 0;
+        return i.isAvailable;
       case _ItemFilter.unavailable:
-        return i.available == 0;
+        return !i.isAvailable;
     }
   }
 
-  List<_Item> get _visible {
+  List<Facility> get _visible {
     final q = _query.trim().toLowerCase();
     return _items.where((i) {
       if (!_matchesFilter(i, _filter)) return false;
       if (q.isEmpty) return true;
-      return i.name.toLowerCase().contains(q) ||
-          i.category.toLowerCase().contains(q) ||
-          i.location.toLowerCase().contains(q);
+      return i.nama.toLowerCase().contains(q) ||
+          i.kategori.toLowerCase().contains(q) ||
+          i.lokasiNama.toLowerCase().contains(q);
     }).toList();
   }
 
-  Future<void> _confirmDelete(_Item item) async {
+  void _showSnack(String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: isError ? AppColors.error : null,
+        ),
+      );
+  }
+
+  Future<void> _confirmDelete(Facility item) async {
     await showDialog<void>(
       context: context,
       builder: (_) => ConfirmDialog(
         icon: Symbols.delete,
         title: 'Hapus item?',
-        message: '"${item.name}" akan dihapus dari inventaris.',
+        message: '"${item.nama}" akan dihapus dari inventaris.',
         confirmText: 'Ya, Hapus',
         confirmIcon: Symbols.delete,
         confirmColor: AppColors.error,
         iconColor: AppColors.error,
         iconBackground: AppColors.errorContainer,
-        onConfirm: () {
-          if (!mounted) return;
-          // TODO: hapus di backend
-          setState(() => _items.remove(item));
-        },
+        onConfirm: () => _deleteItem(item),
       ),
     );
   }
 
+  Future<void> _deleteItem(Facility item) async {
+    try {
+      await facilityService.deleteFacility(item.id);
+      if (!mounted) return;
+      _showSnack('Item "${item.nama}" berhasil dihapus.');
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack(e.toString(), isError: true);
+    }
+  }
+
   /// [item] null = tambah barang baru, selain itu = edit.
-  Future<void> _openForm([_Item? item]) async {
+  Future<void> _openForm([Facility? item]) async {
     final result = await FacilityFormScreen.show(
       context,
+      locations: _locations,
       initial: item == null
           ? null
           : FacilityFormData(
-              name: item.name,
-              category: item.category,
-              location: item.location,
-              units: item.available,
-              imageUrl: item.imageUrl,
-              imagePath: item.imagePath,
+              name: item.nama,
+              category: item.kategori == 'SARPRAS UMUM' ? '' : item.kategori,
+              location: item.lokasiNama,
+              locationId: item.lokasiId,
+              units: item.totalUnit,
+              imageUrl: item.fotoUrl,
             ),
     );
     if (result == null || !mounted) return;
 
-    // TODO: simpan ke backend
-    setState(() {
+    try {
       if (item == null) {
-        _items.insert(
-          0,
-          _Item(
-            name: result.name,
-            category: result.category.isEmpty
-                ? 'LAINNYA'
-                : result.category.toUpperCase(),
-            location: result.location,
-            available: result.units,
-            total: result.units,
-            placeholderIcon: Symbols.inventory_2,
-            imageUrl: result.imageUrl,
-            imagePath: result.imagePath,
-          ),
+        await facilityService.createFacility(
+          nama: result.name,
+          kategori: result.category,
+          lokasiId: result.locationId,
+          lokasiNama: result.location,
+          totalUnit: result.units,
+          imageBytes: result.imageBytes,
+          imageFileName: result.imageFileName,
         );
+        if (!mounted) return;
+        _showSnack('Item "${result.name}" berhasil ditambahkan.');
       } else {
-        final borrowed = item.total - item.available;
-        final i = _items.indexOf(item);
-        if (i == -1) return;
-        _items[i] = _Item(
-          name: result.name,
-          category: result.category.isEmpty
-              ? 'LAINNYA'
-              : result.category.toUpperCase(),
-          location: result.location,
-          available: result.units,
-          total: result.units + borrowed,
-          placeholderIcon: item.placeholderIcon,
-          imageUrl: result.imageUrl,
-          imagePath: result.imagePath,
+        await facilityService.updateFacility(
+          item.id,
+          nama: result.name,
+          kategori: result.category,
+          lokasiId: result.locationId,
+          lokasiNama: result.location,
+          totalUnit: result.units,
+          imageBytes: result.imageBytes,
+          imageFileName: result.imageFileName,
+          existingFotoUrl: result.imageUrl,
+          removePhoto: result.removePhoto,
         );
+        if (!mounted) return;
+        _showSnack('Perubahan item "${result.name}" berhasil disimpan.');
       }
-    });
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack(e.toString(), isError: true);
+    }
   }
 
   @override
@@ -194,119 +190,150 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLow,
       bottomNavigationBar: const AdminBottomNav(currentIndex: 3),
-      body: CustomScrollView(
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(
-                      gutter, AppSpacing.md, gutter, 0),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Data Barang',
-                                style: AppTextStyles.headlineMd(
-                                    color: AppColors.onSurface)),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Kelola pengajuan & pengembalian sekolah',
-                              style: AppTextStyles.bodyMd(
-                                  color: AppColors.slate600),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _AddButton(onPressed: () => _openForm()),
-                      const SizedBox(height: 16),
-                      _SearchField(
-                        onChanged: (v) => setState(() => _query = v),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildFilters(),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _StatCard(
-                              label: 'Siap',
-                              value: _totalAvailable,
-                              color: AppColors.onTertiaryFixedVariant,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _StatCard(
-                              label: 'Dipinjam',
-                              value: _totalBorrowed,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                    ]),
-                  ),
-                ),
-                if (items.isEmpty)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 48),
-                      child: Center(
-                        child: Text(
-                          'Item tidak ditemukan',
-                          style:
-                              AppTextStyles.bodyMd(color: AppColors.slate500),
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: gutter),
-                    sliver: SliverGrid(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        mainAxisExtent: 282,
-                      ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, i) => _ItemCard(
-                          item: items[i],
-                          onEdit: () => _openForm(items[i]),
-                          onDelete: () => _confirmDelete(items[i]),
-                        ),
-                        childCount: items.length,
-                      ),
-                    ),
-                  ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                  gutter, AppSpacing.md, gutter, 0),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Symbols.verified,
-                            size: 16, color: AppColors.slate500),
-                        const SizedBox(width: 6),
+                        Text('Data Barang',
+                            style: AppTextStyles.headlineMd(
+                                color: AppColors.onSurface)),
+                        const SizedBox(height: 2),
                         Text(
-                          'Sinkronisasi Realtime SIM-Sarpras',
-                          style: AppTextStyles.labelMd(
-                            weight: FontWeight.w500,
-                            color: AppColors.slate500,
-                          ),
+                          'Kelola inventaris barang & fasilitas sekolah',
+                          style: AppTextStyles.bodyMd(
+                              color: AppColors.slate600),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  _AddButton(onPressed: () => _openForm()),
+                  const SizedBox(height: 16),
+                  _SearchField(
+                    onChanged: (v) => setState(() => _query = v),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildFilters(),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _StatCard(
+                          label: 'Siap',
+                          value: _totalAvailable,
+                          color: AppColors.onTertiaryFixedVariant,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _StatCard(
+                          label: 'Dipinjam',
+                          value: _totalBorrowed,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ]),
+              ),
+            ),
+            if (_loading)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 48),
+                  child: Center(child: CircularProgressIndicator()),
                 ),
-               ],
-             ),
-     );
+              )
+            else if (_error != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: gutter, vertical: 32),
+                  child: Column(
+                    children: [
+                      Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.bodyMd(color: AppColors.error),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton.icon(
+                        onPressed: _load,
+                        icon: const Icon(Symbols.refresh),
+                        label: const Text('Coba lagi'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (items.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 48),
+                  child: Center(
+                    child: Text(
+                      'Item tidak ditemukan',
+                      style: AppTextStyles.bodyMd(color: AppColors.slate500),
+                    ),
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: gutter),
+                sliver: SliverGrid(
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    mainAxisExtent: 282,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) => _ItemCard(
+                      item: items[i],
+                      onEdit: () => _openForm(items[i]),
+                      onDelete: () => _confirmDelete(items[i]),
+                    ),
+                    childCount: items.length,
+                  ),
+                ),
+              ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Symbols.verified,
+                        size: 16, color: AppColors.slate500),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Sinkronisasi Realtime SIM-Sarpras',
+                      style: AppTextStyles.labelMd(
+                        weight: FontWeight.w500,
+                        color: AppColors.slate500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildFilters() {
@@ -408,7 +435,7 @@ class _SearchField extends StatelessWidget {
         onChanged: onChanged,
         style: AppTextStyles.bodyMd(color: AppColors.onSurface),
         decoration: InputDecoration(
-          hintText: 'Cari item, no. aset, atau merk...',
+          hintText: 'Cari item, kategori, atau lokasi...',
           hintStyle: AppTextStyles.bodyMd(color: AppColors.slate500),
           prefixIcon: const Icon(Symbols.search, color: AppColors.slate600),
           border: InputBorder.none,
@@ -481,13 +508,13 @@ class _ItemCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  final _Item item;
+  final Facility item;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final inStock = item.available > 0;
+    final inStock = item.isAvailable;
 
     return Container(
       decoration: BoxDecoration(
@@ -535,8 +562,8 @@ class _ItemCard extends StatelessWidget {
                         const SizedBox(width: 5),
                         Text(
                           inStock
-                              ? '${item.available} Tersedia'
-                              : '${item.available} Terisi',
+                              ? '${item.unitTersedia} Tersedia'
+                              : '${item.unitTersedia} Terisi',
                           style: AppTextStyles.labelSm(
                             weight: FontWeight.w700,
                             color: inStock
@@ -560,7 +587,7 @@ class _ItemCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item.category,
+                    item.kategori,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.labelSm(
@@ -570,7 +597,7 @@ class _ItemCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    item.name,
+                    item.nama,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.bodyMd(
@@ -586,7 +613,7 @@ class _ItemCard extends StatelessWidget {
                       const SizedBox(width: 3),
                       Expanded(
                         child: Text(
-                          item.location,
+                          item.lokasiNama,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTextStyles.bodySm(
@@ -653,21 +680,13 @@ class _ItemCard extends StatelessWidget {
     final placeholder = Container(
       color: AppColors.primaryFixed.fade(0.6),
       alignment: Alignment.center,
-      child: Icon(item.placeholderIcon, size: 48, color: AppColors.primary),
+      child: const Icon(Symbols.inventory_2, size: 48, color: AppColors.primary),
     );
 
-    if (item.imagePath != null) {
-      return Image.file(
-        File(item.imagePath!),
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => placeholder,
-      );
-    }
-
-    if (item.imageUrl == null) return placeholder;
+    if (item.fotoUrl == null || item.fotoUrl!.isEmpty) return placeholder;
 
     return Image.network(
-      item.imageUrl!,
+      item.fotoUrl!,
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => placeholder,
       loadingBuilder: (context, child, progress) =>
