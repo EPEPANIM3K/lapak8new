@@ -302,32 +302,28 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
   static const Color emerald100 = Color(0xFFD1FAE5);
   static const Color emerald950 = Color(0xFF022C22);
   static const Color emerald700 = Color(0xFF047857);
-  static const Color rose500 = Color(0xFFF43F5E);
   static const Color rose600 = Color(0xFFE11D48);
   static const Color rose950 = Color(0xFF4C0519);
   static const Color rose700 = Color(0xFFBE123C);
   static const Color rose100 = Color(0xFFFFE4E6);
   static const Color red400 = Color(0xFFF87171);
   static const Color badgeBlueBg = Color(0xFFE8F0FE);
-  static const Color dateCardBg = Color(0xFFEDF2FE);
 
   // ----- State -----
   final ScrollController _scrollController = ScrollController();
-  final TextEditingController _kegiatanController =
-      TextEditingController(text: 'Praktik Uji Coba Aplikasi Web Siswa');
+  final TextEditingController _kegiatanController = TextEditingController(
+    text: 'Praktik Uji Coba Aplikasi Web Siswa',
+  );
 
   late FasilitasRingkas _selectedRoom;
   bool _calendarOpen = false;
   late DateTime _selectedDate;
-  late String _selectedDateText;
 
   int _jamMulai = 8;
   int _jamSelesai = 12;
   int _units = 1;
   bool _termsAccepted = true;
   bool _isSubmitting = false;
-
-  late List<CalDay> _calendarDays;
 
   @override
   void initState() {
@@ -337,101 +333,7 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
     _selectedDate = DateUtils.dateOnly(
       DateTime.now().add(const Duration(days: 2)),
     );
-    _selectedDateText = _formatFullLabel(_selectedDate);
-    _calendarDays = _buildCalendarDays(_selectedDate);
   }
-
-  static String _formatFullLabel(DateTime d) {
-    const days = [
-      'Senin',
-      'Selasa',
-      'Rabu',
-      'Kamis',
-      'Jumat',
-      'Sabtu',
-      'Minggu',
-    ];
-    const months = [
-      'Januari',
-      'Februari',
-      'Maret',
-      'April',
-      'Mei',
-      'Juni',
-      'Juli',
-      'Agustus',
-      'September',
-      'Oktober',
-      'November',
-      'Desember',
-    ];
-    return '${days[d.weekday - 1]}, ${d.day} ${months[d.month - 1]} ${d.year}';
-  }
-
-  List<CalDay> _buildCalendarDays(DateTime targetMonth) {
-    final list = <CalDay>[];
-    final firstDayOfMonth = DateTime(targetMonth.year, targetMonth.month, 1);
-    final daysInMonth = DateTime(
-      targetMonth.year,
-      targetMonth.month + 1,
-      0,
-    ).day;
-    final minDate = DateUtils.dateOnly(
-      DateTime.now().add(const Duration(days: 2)),
-    );
-
-    // Weekday: Monday = 1, Sunday = 7
-    final prevMonthOffset = firstDayOfMonth.weekday - 1;
-    final prevMonthLastDay = DateTime(
-      targetMonth.year,
-      targetMonth.month,
-      0,
-    ).day;
-
-    for (int i = prevMonthOffset - 1; i >= 0; i--) {
-      list.add(CalDay(day: prevMonthLastDay - i, isOffset: true));
-    }
-
-    for (int day = 1; day <= daysInMonth; day++) {
-      final curDate = DateTime(targetMonth.year, targetMonth.month, day);
-      final isPastOrTooSoon = curDate.isBefore(minDate);
-      final isSelected =
-          curDate.year == _selectedDate.year &&
-          curDate.month == _selectedDate.month &&
-          curDate.day == _selectedDate.day;
-
-      // Simulasi hari Minggu / Sabtu terisi
-      final isWeekend = curDate.weekday == 6 || curDate.weekday == 7;
-      final CalStatus status;
-      if (isPastOrTooSoon) {
-        status = CalStatus.unavailable;
-      } else if (isSelected) {
-        status = CalStatus.selected;
-      } else if (isWeekend) {
-        status = CalStatus.full;
-      } else {
-        status = CalStatus.available;
-      }
-
-      list.add(
-        CalDay(
-          day: day,
-          date: curDate,
-          fullLabel: _formatFullLabel(curDate),
-          status: status,
-        ),
-      );
-    }
-
-    while (list.length % 7 != 0) {
-      final nextDay = (list.length % 7) + 1;
-      list.add(CalDay(day: nextDay, isOffset: true));
-    }
-
-    return list;
-  }
-
-  int get _durationHours => _jamSelesai - _jamMulai;
 
   // Conflict check: 09-11 or 13-14 already booked
   bool get _hasConflict {
@@ -447,20 +349,6 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
     _scrollController.dispose();
     _kegiatanController.dispose();
     super.dispose();
-  }
-
-  void _pickDate(CalDay day) {
-    if (day.status != CalStatus.available && day.status != CalStatus.selected) {
-      return;
-    }
-    setState(() {
-      _selectedDateText = day.fullLabel;
-      if (day.date != null) {
-        _selectedDate = day.date!;
-      }
-      _calendarOpen = false;
-      _calendarDays = _buildCalendarDays(_selectedDate);
-    });
   }
 
   void _updateStart(int v) {
@@ -582,10 +470,7 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
         fontFamily: GoogleFonts.outfit().fontFamily,
         scaffoldBackgroundColor: surface,
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primary,
-          primary: primary,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: primary, primary: primary),
       ),
       child: Scaffold(
         backgroundColor: surface,
@@ -627,163 +512,22 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
               ),
             ),
             // Top App Bar
-            _buildTopBar(),
+            _BookingTopBar(
+              onBack: () => context.pop(),
+              onHome: () {
+                _scrollController.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOut,
+                );
+              },
+            ),
             // Bottom sticky action bar
-            _buildBottomBar(),
+            _BookingBottomBar(
+              isSubmitting: _isSubmitting,
+              onSubmit: _submitBooking,
+            ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // ---------- Top Bar ----------
-  Widget _buildTopBar() {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-        decoration: BoxDecoration(
-          color: surface.withValues(alpha: 0.9),
-          border: const Border(
-            bottom: BorderSide(color: Color(0xFFEAEDFF), width: 0.6),
-          ),
-        ),
-        child: SafeArea(
-          bottom: false,
-          child: SizedBox(
-            height: 56,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  _iconBtn(
-                    icon: Icons.arrow_back,
-                    onTap: () => context.pop(),
-                    alignLeft: true,
-                  ),
-                  const Expanded(
-                    child: Text(
-                      'Formulir Booking',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: onSurface,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                  ),
-                  _iconBtn(
-                    icon: Icons.home_outlined,
-                    onTap: () {
-                      _scrollController.animateTo(
-                        0,
-                        duration: const Duration(milliseconds: 350),
-                        curve: Curves.easeInOut,
-                      );
-                    },
-                    alignLeft: false,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _iconBtn({
-    required IconData icon,
-    required VoidCallback onTap,
-    required bool alignLeft,
-  }) {
-    return Transform.translate(
-      offset: Offset(alignLeft ? -4 : 4, 0),
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox(
-            width: 40,
-            height: 40,
-            child: Icon(icon, size: 22, color: onSurface),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ---------- Bottom Bar ----------
-  Widget _buildBottomBar() {
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-        decoration: BoxDecoration(
-          color: surface.withValues(alpha: 0.95),
-          border: const Border(
-            top: BorderSide(color: Color(0xFFEAEDFF), width: 0.6),
-          ),
-        ),
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-        child: SafeArea(
-          top: false,
-          child: Center(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 448),
-              width: double.infinity,
-              child: SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submitBooking,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primary,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: const Color(0xFFCBD5E1),
-                    elevation: 4,
-                    shadowColor: primary.withValues(alpha: 0.25),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                  ),
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Lanjut ke Konfirmasi',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                                letterSpacing: -0.1,
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Icon(
-                              Icons.arrow_forward,
-                              size: 18,
-                              color: Colors.white,
-                            ),
-                          ],
-                        ),
-                ),
-              ),
-            ),
-          ),
         ),
       ),
     );
@@ -906,456 +650,29 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
 
   // ---------- Date Section ----------
   Widget _buildDateSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Header
-        Row(
-          children: [
-            const Icon(Icons.calendar_month, size: 20, color: primary),
-            const SizedBox(width: 8),
-            const Expanded(
-              child: Text(
-                'Tanggal Peminjaman',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: onSurface,
-                ),
-              ),
-            ),
-            GestureDetector(
-              onTap: () => setState(() => _calendarOpen = !_calendarOpen),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: badgeBlueBg,
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.edit, size: 14, color: primary),
-                    SizedBox(width: 4),
-                    Text(
-                      'Ubah',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        // Selected Date Card
-        GestureDetector(
-          onTap: () => setState(() => _calendarOpen = !_calendarOpen),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: dateCardBg,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.calendar_today, size: 22, color: primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _selectedDateText,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: onSurface,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Expandable Calendar
-        AnimatedSize(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeInOut,
-          child: _calendarOpen ? _buildCalendar() : const SizedBox.shrink(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCalendar() {
-    const monthNames = [
-      'Januari',
-      'Februari',
-      'Maret',
-      'April',
-      'Mei',
-      'Juni',
-      'Juli',
-      'Agustus',
-      'September',
-      'Oktober',
-      'November',
-      'Desember',
-    ];
-    final monthLabel =
-        '${monthNames[_selectedDate.month - 1]} ${_selectedDate.year}';
-
-    return Container(
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surfaceLowest,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: slate100),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                monthLabel,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: onSurface,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: slate100,
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: const Text(
-                  'Min. H+2',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: slate500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Day names
-          Row(
-            children: [
-              for (final d in ['Sen', 'Sel', 'Rab', 'Kam', 'Jum'])
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      d,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: slate400,
-                      ),
-                    ),
-                  ),
-                ),
-              const Expanded(
-                child: Center(
-                  child: Text(
-                    'Sab',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: rose500,
-                    ),
-                  ),
-                ),
-              ),
-              const Expanded(
-                child: Center(
-                  child: Text(
-                    'Min',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: rose500,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          // Day cells
-          _buildCalendarGrid(),
-          const SizedBox(height: 10),
-          const Divider(height: 1, color: slate100),
-          const SizedBox(height: 8),
-          // Legend
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _legendDot(emerald500, 'Tersedia'),
-              const SizedBox(width: 12),
-              _legendDot(rose500, 'Penuh'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCalendarGrid() {
-    final rows = <Widget>[];
-    for (int i = 0; i < _calendarDays.length; i += 7) {
-      final rowChildren = <Widget>[];
-      for (int j = i; j < i + 7 && j < _calendarDays.length; j++) {
-        rowChildren.add(Expanded(child: _buildDayCell(_calendarDays[j])));
-      }
-      while (rowChildren.length < 7) {
-        rowChildren.add(const Expanded(child: SizedBox()));
-      }
-      rows.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(children: rowChildren),
-        ),
-      );
-    }
-    return Column(children: rows);
-  }
-
-  Widget _buildDayCell(CalDay day) {
-    if (day.isOffset || day.status == CalStatus.unavailable) {
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        alignment: Alignment.center,
-        child: Text(
-          '${day.day}',
-          style: const TextStyle(fontSize: 12, color: slate300),
-        ),
-      );
-    }
-
-    final bool isSelected = day.status == CalStatus.selected;
-    final bool isFull = day.status == CalStatus.full;
-    final Color dotColor = isFull
-        ? rose500
-        : (isSelected ? emerald500 : emerald500);
-
-    return GestureDetector(
-      onTap: () => _pickDate(day),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        margin: const EdgeInsets.symmetric(horizontal: 1.5),
-        decoration: BoxDecoration(
-          color: isSelected ? primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            Text(
-              '${day.day}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                color: isSelected ? Colors.white : onSurface,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: dotColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _legendDot(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 11, color: slate600)),
-      ],
+    return _BookingDateSection(
+      selectedDate: _selectedDate,
+      calendarOpen: _calendarOpen,
+      minDaysAhead: 2,
+      markWeekendsFull: true,
+      onToggleCalendar: () => setState(() => _calendarOpen = !_calendarOpen),
+      onDateSelected: (date) {
+        setState(() {
+          _selectedDate = date;
+          _calendarOpen = false;
+        });
+      },
     );
   }
 
   // ---------- Time Section ----------
   Widget _buildTimeSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Row(
-          children: [
-            Icon(Icons.schedule, size: 20, color: primary),
-            SizedBox(width: 8),
-            Text(
-              'Waktu Peminjaman',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: onSurface,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _buildTimeSelectCard(
-                label: 'Jam Mulai',
-                value: _jamMulai,
-                options: const [7, 8, 9, 10, 11, 12, 13, 14, 15],
-                onChanged: _updateStart,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildTimeSelectCard(
-                label: 'Jam Selesai',
-                value: _jamSelesai,
-                options: const [9, 10, 11, 12, 13, 14, 15, 16],
-                onChanged: _updateEnd,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        // Duration card
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: dateCardBg,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.schedule, size: 18, color: slate700),
-                  SizedBox(width: 8),
-                  Text(
-                    'Durasi Peminjaman',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: slate700,
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                '$_durationHours Jam',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: onSurface,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTimeSelectCard({
-    required String label,
-    required int value,
-    required List<int> options,
-    required ValueChanged<int> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: surfaceLowest,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: slate100),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: slate500,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: options.contains(value) ? value : options.first,
-                    isDense: true,
-                    icon: const SizedBox.shrink(),
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: onSurface,
-                      fontFamily: GoogleFonts.outfit().fontFamily,
-                    ),
-                    dropdownColor: surfaceLowest,
-                    borderRadius: BorderRadius.circular(12),
-                    items: options
-                        .map(
-                          (v) => DropdownMenuItem<int>(
-                            value: v,
-                            child: Text('${v.toString().padLeft(2, '0')}:00'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) onChanged(v);
-                    },
-                  ),
-                ),
-              ),
-              const Icon(Icons.expand_more, size: 20, color: slate700),
-            ],
-          ),
-        ],
-      ),
+    return _BookingTimeSection(
+      jamMulai: _jamMulai,
+      jamSelesai: _jamSelesai,
+      endOptions: const [9, 10, 11, 12, 13, 14, 15, 16],
+      onStartChanged: _updateStart,
+      onEndChanged: _updateEnd,
     );
   }
 
@@ -1468,6 +785,21 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _legendDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 11, color: slate600)),
+      ],
     );
   }
 
@@ -1788,20 +1120,23 @@ class _ItemBookingForm extends StatefulWidget {
 
 class _ItemBookingFormState extends State<_ItemBookingForm> {
   // ----- Colors -----
-  static const Color brandBlue = Color(0xFF1D4ED8);
-  static const Color bgColor = Color(0xFFF4F7FC);
-  static const Color textColor = Color(0xFF0F172A);
+  static const Color brandBlue = Color(0xFF0037B0);
+  static const Color bgColor = Color(0xFFF6F8FE);
+  static const Color textColor = Color(0xFF131B2E);
   static const Color mutedColor = Color(0xFF64748B);
   static const Color slateBg = Color(0xFFE2E8F0);
   static const Color slateBorder = Color(0xFFCBD5E1);
 
-  final TextEditingController _activityController =
-      TextEditingController(text: 'Praktik Uji Coba Aplikasi Web Siswa');
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _activityController = TextEditingController(
+    text: 'Praktik Uji Coba Aplikasi Web Siswa',
+  );
   final Map<String, int> _selectedItems = {};
 
   DateTime _selectedDate = DateUtils.dateOnly(
     DateTime.now().add(const Duration(days: 1)),
   );
+  bool _calendarOpen = false;
   int _jamMulai = 8;
   int _jamSelesai = 12;
   bool _isSubmitting = false;
@@ -1822,6 +1157,24 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
   int get totalTypes => _cartEntries.length;
   int get totalUnits => _cartEntries.fold(0, (sum, i) => sum + i.quantity);
 
+  void _updateStart(int value) {
+    setState(() {
+      _jamMulai = value;
+      if (_jamSelesai <= _jamMulai) {
+        _jamSelesai = (_jamMulai + 1).clamp(8, 17);
+      }
+    });
+  }
+
+  void _updateEnd(int value) {
+    setState(() {
+      _jamSelesai = value;
+      if (_jamSelesai <= _jamMulai) {
+        _jamMulai = (_jamSelesai - 1).clamp(7, 16);
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1832,50 +1185,9 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _activityController.dispose();
     super.dispose();
-  }
-
-  String _formatDate(DateTime date) {
-    const days = [
-      'Senin',
-      'Selasa',
-      'Rabu',
-      'Kamis',
-      'Jumat',
-      'Sabtu',
-      'Minggu',
-    ];
-    const months = [
-      'Januari',
-      'Februari',
-      'Maret',
-      'April',
-      'Mei',
-      'Juni',
-      'Juli',
-      'Agustus',
-      'September',
-      'Oktober',
-      'November',
-      'Desember',
-    ];
-    return '${days[date.weekday - 1]}, ${date.day} ${months[date.month - 1]} ${date.year}';
-  }
-
-  Future<void> _selectDate() async {
-    final firstDate = DateUtils.dateOnly(
-      DateTime.now().add(const Duration(days: 1)),
-    );
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate.isBefore(firstDate)
-          ? firstDate
-          : _selectedDate,
-      firstDate: firstDate,
-      lastDate: firstDate.add(const Duration(days: 90)),
-    );
-    if (date != null && mounted) setState(() => _selectedDate = date);
   }
 
   void _changeQty(String id, int delta) {
@@ -1978,97 +1290,64 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
     return Theme(
       data: ThemeData(
         fontFamily: GoogleFonts.outfit().fontFamily,
-        scaffoldBackgroundColor: const Color(0xFFEEF2F8),
+        scaffoldBackgroundColor: bgColor,
         useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: brandBlue,
+          primary: brandBlue,
+        ),
       ),
       child: Scaffold(
         backgroundColor: bgColor,
-        body: Center(
-          child: Container(
-            width: 430,
-            constraints: const BoxConstraints(maxWidth: 430),
-            decoration: const BoxDecoration(
-              color: bgColor,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _buildTopBar(),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const SizedBox(height: 4),
-                          _buildBookingHeaderCard(),
-                          const SizedBox(height: 20),
-                          _buildItemListSection(),
-                          const SizedBox(height: 20),
-                          _buildLoanDateSection(),
-                          const SizedBox(height: 20),
-                          _buildLoanTimeSection(),
-                          const SizedBox(height: 20),
-                          _buildActivityNameSection(),
-                          const SizedBox(height: 20),
-                          _buildStockBanner(),
-                          const SizedBox(height: 12),
-                          _buildPrimaryCTA(),
-                        ],
-                      ),
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                padding: const EdgeInsets.only(top: 56 + 12, bottom: 96),
+                child: Center(
+                  child: Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(maxWidth: 448),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildBookingHeaderCard(),
+                        const SizedBox(height: 14),
+                        _buildLoanDateSection(),
+                        const SizedBox(height: 14),
+                        _buildLoanTimeSection(),
+                        const SizedBox(height: 14),
+                        _buildActivityNameSection(),
+                        const SizedBox(height: 14),
+                        _buildItemListSection(),
+                        const SizedBox(height: 14),
+                        _buildStockBanner(),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ---------- Top Bar ----------
-  Widget _buildTopBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(color: bgColor.withValues(alpha: 0.95)),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _iconButton(icon: Icons.arrow_back, onTap: () => context.pop()),
-          const Text(
-            'Formulir Booking',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: textColor,
-              letterSpacing: -0.2,
+            _BookingTopBar(
+              onBack: () => context.pop(),
+              onHome: () {
+                _scrollController.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOut,
+                );
+              },
             ),
-          ),
-          _iconButton(icon: Icons.home_outlined, onTap: () => context.go('/')),
-        ],
-      ),
-    );
-  }
-
-  Widget _iconButton({required IconData icon, required VoidCallback onTap}) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Container(
-          width: 36,
-          height: 36,
-          alignment: Alignment.center,
-          child: Icon(icon, size: 20, color: textColor),
+            _BookingBottomBar(
+              isSubmitting: _isSubmitting,
+              onSubmit: _submit,
+            ),
+          ],
         ),
       ),
     );
@@ -2451,210 +1730,97 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
 
   // ---------- Date Section ----------
   Widget _buildLoanDateSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Row(
-          children: [
-            Icon(Icons.calendar_today_outlined, size: 20, color: brandBlue),
-            SizedBox(width: 8),
-            Text(
-              'Tanggal Peminjaman',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: textColor,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        GestureDetector(
-          onTap: _selectDate,
-          child: _selectLikeBox(
-            icon: Icons.calendar_today_outlined,
-            child: Text(
-              _formatDate(_selectedDate),
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: textColor,
-              ),
-            ),
-          ),
-        ),
-      ],
+    return _BookingDateSection(
+      selectedDate: _selectedDate,
+      calendarOpen: _calendarOpen,
+      minDaysAhead: 1,
+      markWeekendsFull: false,
+      onToggleCalendar: () => setState(() => _calendarOpen = !_calendarOpen),
+      onDateSelected: (date) {
+        setState(() {
+          _selectedDate = date;
+          _calendarOpen = false;
+        });
+      },
     );
   }
 
-  // ---------- Time Section ----------
   Widget _buildLoanTimeSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Row(
-          children: [
-            Icon(Icons.access_time, size: 20, color: brandBlue),
-            SizedBox(width: 8),
-            Text(
-              'Waktu Peminjaman',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: textColor,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _timeBox(
-                label: 'Jam Mulai',
-                value: _jamMulai,
-                options: const [7, 8, 9, 10, 11, 12, 13, 14, 15],
-                onChanged: (v) => setState(() {
-                  _jamMulai = v;
-                  if (_jamSelesai <= _jamMulai) {
-                    _jamSelesai = (_jamMulai + 1).clamp(8, 17);
-                  }
-                }),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _timeBox(
-                label: 'Jam Selesai',
-                value: _jamSelesai,
-                options: const [8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
-                onChanged: (v) => setState(() {
-                  _jamSelesai = v;
-                  if (_jamSelesai <= _jamMulai) {
-                    _jamMulai = (_jamSelesai - 1).clamp(7, 16);
-                  }
-                }),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _timeBox({
-    required String label,
-    required int value,
-    required List<int> options,
-    required ValueChanged<int> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: slateBg.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: slateBorder.withValues(alpha: 0.7)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(fontSize: 11, color: mutedColor),
-                ),
-                DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: options.contains(value) ? value : options.first,
-                    isDense: true,
-                    isExpanded: true,
-                    icon: const SizedBox.shrink(),
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: textColor,
-                      height: 1.1,
-                      fontFamily: GoogleFonts.outfit().fontFamily,
-                    ),
-                    items: options
-                        .map(
-                          (v) => DropdownMenuItem(
-                            value: v,
-                            child: Text('${v.toString().padLeft(2, '0')}:00'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) onChanged(v);
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.keyboard_arrow_down, size: 16, color: mutedColor),
-        ],
-      ),
+    return _BookingTimeSection(
+      jamMulai: _jamMulai,
+      jamSelesai: _jamSelesai,
+      endOptions: const [8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+      onStartChanged: _updateStart,
+      onEndChanged: _updateEnd,
     );
   }
 
   // ---------- Activity Name ----------
   Widget _buildActivityNameSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Row(
-          children: [
-            Icon(Icons.info_outline, size: 20, color: brandBlue),
-            SizedBox(width: 8),
-            Text(
-              'Nama Kegiatan / Kebutuhan',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: textColor,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _activityController,
-          textCapitalization: TextCapitalization.sentences,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: textColor,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: slateBg.withValues(alpha: 0.5),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(
-                color: slateBorder.withValues(alpha: 0.7),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.info_outline, size: 18, color: brandBlue),
+              SizedBox(width: 6),
+              Text(
+                'Nama Kegiatan / Kebutuhan',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: textColor,
+                ),
               ),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(
-                color: slateBorder.withValues(alpha: 0.7),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _activityController,
+            textCapitalization: TextCapitalization.sentences,
+            style: const TextStyle(fontSize: 13, color: textColor),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
+              hintText: 'Misal: Praktik Pemrograman Web Siswa',
+              hintStyle: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF94A3B8),
               ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: brandBlue, width: 1.5),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: brandBlue, width: 1),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -2728,74 +1894,834 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
     );
   }
 
-  // ---------- Primary CTA ----------
-  Widget _buildPrimaryCTA() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _isSubmitting ? null : _submit,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: brandBlue,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: const Color(0xFFCBD5E1),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(50),
+}
+
+// =============================================================================
+// Shared Models & Widgets
+// =============================================================================
+class _BookingTopBar extends StatelessWidget {
+  const _BookingTopBar({required this.onBack, required this.onHome});
+
+  final VoidCallback onBack;
+  final VoidCallback onHome;
+
+  static const _surface = Color(0xFFF6F8FE);
+  static const _onSurface = Color(0xFF131B2E);
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _surface.withValues(alpha: 0.9),
+          border: const Border(
+            bottom: BorderSide(color: Color(0xFFEAEDFF), width: 0.6),
           ),
-          elevation: 8,
-          shadowColor: brandBlue.withValues(alpha: 0.25),
         ),
-        child: _isSubmitting
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
-            : const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+        child: SafeArea(
+          bottom: false,
+          child: SizedBox(
+            height: 56,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
                 children: [
-                  Text(
-                    'Lanjut ke Konfirmasi',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                  _iconBtn(icon: Icons.arrow_back, onTap: onBack),
+                  const Expanded(
+                    child: Text(
+                      'Formulir Booking',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _onSurface,
+                        letterSpacing: -0.3,
+                      ),
                     ),
                   ),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward, size: 20, color: Colors.white),
+                  _iconBtn(icon: Icons.home_outlined, onTap: onHome),
                 ],
               ),
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  // ---------- Shared helper ----------
-  Widget _selectLikeBox({required IconData icon, required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: slateBg.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: slateBorder.withValues(alpha: 0.7)),
+  Widget _iconBtn({required IconData icon, required VoidCallback onTap}) {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(icon, size: 22, color: _onSurface),
+        ),
       ),
-      child: Row(
+    );
+  }
+}
+
+class _BookingBottomBar extends StatelessWidget {
+  const _BookingBottomBar({required this.isSubmitting, required this.onSubmit});
+
+  final bool isSubmitting;
+  final VoidCallback onSubmit;
+
+  static const _surface = Color(0xFFF6F8FE);
+  static const _primary = Color(0xFF0037B0);
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _surface.withValues(alpha: 0.95),
+          border: const Border(
+            top: BorderSide(color: Color(0xFFEAEDFF), width: 0.6),
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        child: SafeArea(
+          top: false,
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 448),
+              width: double.infinity,
+              child: SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: isSubmitting ? null : onSubmit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFFCBD5E1),
+                    elevation: 4,
+                    shadowColor: _primary.withValues(alpha: 0.25),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                  ),
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Lanjut ke Konfirmasi',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                letterSpacing: -0.1,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Icon(
+                              Icons.arrow_forward,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BookingDateSection extends StatelessWidget {
+  const _BookingDateSection({
+    required this.selectedDate,
+    required this.calendarOpen,
+    required this.minDaysAhead,
+    required this.markWeekendsFull,
+    required this.onToggleCalendar,
+    required this.onDateSelected,
+  });
+
+  final DateTime selectedDate;
+  final bool calendarOpen;
+  final int minDaysAhead;
+  final bool markWeekendsFull;
+  final VoidCallback onToggleCalendar;
+  final ValueChanged<DateTime> onDateSelected;
+
+  static const _primary = Color(0xFF0037B0);
+  static const _onSurface = Color(0xFF131B2E);
+  static const _badgeBlueBg = Color(0xFFE8F0FE);
+  static const _dateCardBg = Color(0xFFEDF2FE);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.calendar_month, size: 20, color: _primary),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Tanggal Peminjaman',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _onSurface,
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: onToggleCalendar,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: _badgeBlueBg,
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.edit, size: 14, color: _primary),
+                    SizedBox(width: 4),
+                    Text(
+                      'Ubah',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: onToggleCalendar,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _dateCardBg,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 22, color: _primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _formatBookingDate(selectedDate),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: _onSurface,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          child: calendarOpen
+              ? _BookingCalendar(
+                  selectedDate: selectedDate,
+                  minDaysAhead: minDaysAhead,
+                  markWeekendsFull: markWeekendsFull,
+                  onDateSelected: onDateSelected,
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+}
+
+class _BookingTimeSection extends StatelessWidget {
+  const _BookingTimeSection({
+    required this.jamMulai,
+    required this.jamSelesai,
+    required this.endOptions,
+    required this.onStartChanged,
+    required this.onEndChanged,
+  });
+
+  final int jamMulai;
+  final int jamSelesai;
+  final List<int> endOptions;
+  final ValueChanged<int> onStartChanged;
+  final ValueChanged<int> onEndChanged;
+
+  static const _primary = Color(0xFF0037B0);
+  static const _onSurface = Color(0xFF131B2E);
+  static const _slate700 = Color(0xFF334155);
+  static const _dateCardBg = Color(0xFFEDF2FE);
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = jamSelesai - jamMulai;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.schedule, size: 20, color: _primary),
+            SizedBox(width: 8),
+            Text(
+              'Waktu Peminjaman',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: _onSurface,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _BookingTimeSelectCard(
+                label: 'Jam Mulai',
+                value: jamMulai,
+                options: const [7, 8, 9, 10, 11, 12, 13, 14, 15],
+                onChanged: onStartChanged,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _BookingTimeSelectCard(
+                label: 'Jam Selesai',
+                value: jamSelesai,
+                options: endOptions,
+                onChanged: onEndChanged,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: _dateCardBg,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.schedule, size: 18, color: _slate700),
+                  SizedBox(width: 8),
+                  Text(
+                    'Durasi Peminjaman',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: _slate700,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                '$duration Jam',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+String _formatBookingDate(DateTime date) {
+  const weekdays = [
+    'Senin',
+    'Selasa',
+    'Rabu',
+    'Kamis',
+    'Jumat',
+    'Sabtu',
+    'Minggu',
+  ];
+  const months = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
+  return '${weekdays[date.weekday - 1]}, ${date.day} ${months[date.month - 1]} ${date.year}';
+}
+
+class _BookingCalendar extends StatefulWidget {
+  const _BookingCalendar({
+    required this.selectedDate,
+    required this.minDaysAhead,
+    required this.onDateSelected,
+    this.markWeekendsFull = false,
+  });
+
+  final DateTime selectedDate;
+  final int minDaysAhead;
+  final ValueChanged<DateTime> onDateSelected;
+  final bool markWeekendsFull;
+
+  @override
+  State<_BookingCalendar> createState() => _BookingCalendarState();
+}
+
+class _BookingCalendarState extends State<_BookingCalendar> {
+  static const _surface = Color(0xFFFFFFFF);
+  static const _primary = Color(0xFF0037B0);
+  static const _onSurface = Color(0xFF131B2E);
+  static const _slate100 = Color(0xFFF1F5F9);
+  static const _slate300 = Color(0xFFCBD5E1);
+  static const _slate400 = Color(0xFF94A3B8);
+  static const _slate500 = Color(0xFF64748B);
+  static const _slate600 = Color(0xFF475569);
+  static const _emerald500 = Color(0xFF10B981);
+  static const _rose500 = Color(0xFFF43F5E);
+
+  late DateTime _visibleMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    _visibleMonth = DateTime(
+      widget.selectedDate.year,
+      widget.selectedDate.month,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _BookingCalendar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedDate.year != widget.selectedDate.year ||
+        oldWidget.selectedDate.month != widget.selectedDate.month) {
+      _visibleMonth = DateTime(
+        widget.selectedDate.year,
+        widget.selectedDate.month,
+      );
+    }
+  }
+
+  List<CalDay> get _days {
+    final firstOfMonth = DateTime(_visibleMonth.year, _visibleMonth.month);
+    final daysInMonth = DateTime(
+      _visibleMonth.year,
+      _visibleMonth.month + 1,
+      0,
+    ).day;
+    final previousMonthDays = DateTime(
+      _visibleMonth.year,
+      _visibleMonth.month,
+      0,
+    ).day;
+    final minDate = DateUtils.dateOnly(
+      DateTime.now().add(Duration(days: widget.minDaysAhead)),
+    );
+    final cells = <CalDay>[];
+
+    for (var i = 1; i < firstOfMonth.weekday; i++) {
+      cells.add(
+        CalDay(
+          day: previousMonthDays - firstOfMonth.weekday + i + 1,
+          isOffset: true,
+        ),
+      );
+    }
+    for (var day = 1; day <= daysInMonth; day++) {
+      final date = DateTime(_visibleMonth.year, _visibleMonth.month, day);
+      final isSelected = DateUtils.isSameDay(date, widget.selectedDate);
+      final isUnavailable = date.isBefore(minDate);
+      final isFull =
+          widget.markWeekendsFull &&
+          (date.weekday == DateTime.saturday ||
+              date.weekday == DateTime.sunday);
+      final status = isUnavailable
+          ? CalStatus.unavailable
+          : isSelected
+          ? CalStatus.selected
+          : isFull
+          ? CalStatus.full
+          : CalStatus.available;
+      cells.add(CalDay(day: day, date: date, status: status));
+    }
+    var nextMonthDay = 1;
+    while (cells.length % 7 != 0) {
+      cells.add(CalDay(day: nextMonthDay++, isOffset: true));
+    }
+    return cells;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const monthNames = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    final days = _days;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _slate100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(icon, size: 20, color: brandBlue),
-          const SizedBox(width: 12),
-          child,
+          Row(
+            children: [
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 30,
+                  height: 30,
+                ),
+                onPressed: () => setState(
+                  () => _visibleMonth = DateTime(
+                    _visibleMonth.year,
+                    _visibleMonth.month - 1,
+                  ),
+                ),
+                icon: const Icon(Icons.chevron_left, color: _slate600),
+              ),
+              Expanded(
+                child: Text(
+                  '${monthNames[_visibleMonth.month - 1]} ${_visibleMonth.year}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: _onSurface,
+                  ),
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 30,
+                  height: 30,
+                ),
+                onPressed: () => setState(
+                  () => _visibleMonth = DateTime(
+                    _visibleMonth.year,
+                    _visibleMonth.month + 1,
+                  ),
+                ),
+                icon: const Icon(Icons.chevron_right, color: _slate600),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _slate100,
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: Text(
+                  'Min. H+${widget.minDaysAhead}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: _slate500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              for (final day in ['Sen', 'Sel', 'Rab', 'Kam', 'Jum'])
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      day,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _slate400,
+                      ),
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    'Sab',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _rose500,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    'Min',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _rose500,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          for (var row = 0; row < days.length; row += 7)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  for (var column = 0; column < 7; column++)
+                    Expanded(child: _buildDayCell(days[row + column])),
+                ],
+              ),
+            ),
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: _slate100),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              _legend(_emerald500, 'Tersedia'),
+              if (widget.markWeekendsFull) ...[
+                const SizedBox(width: 12),
+                _legend(_rose500, 'Penuh'),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDayCell(CalDay day) {
+    if (day.isOffset) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        alignment: Alignment.center,
+        child: Text(
+          '${day.day}',
+          style: const TextStyle(fontSize: 12, color: _slate300),
+        ),
+      );
+    }
+    final selected = day.status == CalStatus.selected;
+    final full = day.status == CalStatus.full;
+    final unavailable = day.status == CalStatus.unavailable;
+    return GestureDetector(
+      onTap: unavailable || full
+          ? null
+          : () => widget.onDateSelected(day.date!),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        margin: const EdgeInsets.symmetric(horizontal: 1.5),
+        decoration: BoxDecoration(
+          color: selected ? _primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            Text(
+              '${day.day}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                color: unavailable
+                    ? _slate300
+                    : selected
+                    ? Colors.white
+                    : _onSurface,
+              ),
+            ),
+            const SizedBox(height: 2),
+            if (!unavailable)
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: full ? _rose500 : _emerald500,
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _legend(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 11, color: _slate600)),
+      ],
+    );
+  }
+}
+
+class _BookingTimeSelectCard extends StatelessWidget {
+  const _BookingTimeSelectCard({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final String label;
+  final int value;
+  final List<int> options;
+  final ValueChanged<int> onChanged;
+
+  static const _surface = Color(0xFFFFFFFF);
+  static const _onSurface = Color(0xFF131B2E);
+  static const _slate100 = Color(0xFFF1F5F9);
+  static const _slate500 = Color(0xFF64748B);
+  static const _slate700 = Color(0xFF334155);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _slate100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: _slate500,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: options.contains(value) ? value : options.first,
+                    isDense: true,
+                    icon: const SizedBox.shrink(),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: _onSurface,
+                      fontFamily: GoogleFonts.outfit().fontFamily,
+                    ),
+                    dropdownColor: _surface,
+                    borderRadius: BorderRadius.circular(12),
+                    items: options
+                        .map(
+                          (hour) => DropdownMenuItem<int>(
+                            value: hour,
+                            child: Text(
+                              '${hour.toString().padLeft(2, '0')}:00',
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (hour) {
+                      if (hour != null) onChanged(hour);
+                    },
+                  ),
+                ),
+              ),
+              const Icon(Icons.expand_more, size: 20, color: _slate700),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-// =============================================================================
-// Shared Models & Widgets
-// =============================================================================
 class _CartEntry {
   const _CartEntry({required this.facility, required this.quantity});
   final FasilitasRingkas facility;
