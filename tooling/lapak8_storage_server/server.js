@@ -37,7 +37,6 @@ const MAX_PHOTOS = 6;
 const MAX_VIDEOS = 1;
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8 MB / foto
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB / video
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 // Ekstensi kanonik + tipe MIME yang diterima. Declared mime harus cocok.
 const PHOTO_RULES = {
@@ -453,15 +452,6 @@ function routeOf(method, rawPath) {
     return { name: 'health' };
   }
   if (
-    method === 'POST' &&
-    segments.length === 3 &&
-    segments[0] === 'api' &&
-    segments[1] === 'v1' &&
-    segments[2] === 'chat'
-  ) {
-    return { name: 'chat' };
-  }
-  if (
     segments.length < 4 ||
     segments[0] !== 'api' ||
     segments[1] !== 'v1' ||
@@ -529,115 +519,6 @@ async function handle(req, res) {
 
   if (!route) {
     throw new HttpError(404, 'not_found', 'Endpoint tidak ditemukan.');
-  }
-
-  if (route.name === 'chat') {
-    const raw = await readBody(req, 64 * 1024);
-    let payload;
-    try {
-      payload = JSON.parse(raw.toString('utf8'));
-    } catch {
-      throw new HttpError(400, 'invalid_json', 'Format pesan tidak valid.');
-    }
-    const messages = payload && payload.messages;
-    if (!Array.isArray(messages) || messages.length === 0 || messages.length > 20) {
-      throw new HttpError(
-        400,
-        'invalid_messages',
-        'Kirim antara 1 sampai 20 pesan percakapan.',
-      );
-    }
-    const contents = messages.map((message) => {
-      if (
-        !message ||
-        !['user', 'model'].includes(message.role) ||
-        typeof message.text !== 'string' ||
-        !message.text.trim() ||
-        message.text.length > 1200
-      ) {
-        throw new HttpError(400, 'invalid_message', 'Isi pesan tidak valid.');
-      }
-      return {
-        role: message.role,
-        parts: [{ text: message.text.trim() }],
-      };
-    });
-    if (contents[contents.length - 1].role !== 'user') {
-      throw new HttpError(
-        400,
-        'invalid_messages',
-        'Pesan terakhir harus berasal dari pengguna.',
-      );
-    }
-    if (!process.env.GEMINI_API_KEY) {
-      throw new HttpError(
-        503,
-        'chat_not_configured',
-        'Chatbot belum dikonfigurasi. Admin perlu memasang GEMINI_API_KEY di server.',
-      );
-    }
-
-    const geminiUrl = new URL(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`,
-    );
-    geminiUrl.searchParams.set('key', process.env.GEMINI_API_KEY);
-    let geminiResponse;
-    try {
-      geminiResponse = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{
-              text: 'Kamu adalah asisten LAPAK8, aplikasi peminjaman fasilitas sekolah SMKN 8 Malang. Jawab dalam bahasa Indonesia dengan ramah dan ringkas. Bantu pertanyaan tentang penggunaan aplikasi, alur peminjaman, pengembalian, dan aturan umum. Jangan mengarang ketersediaan barang, status peminjaman, kontak, atau kebijakan yang tidak diberikan; arahkan pengguna ke menu terkait atau PIC jika membutuhkan data aktual. Kamu tidak memiliki akses ke database LAPAK8.',
-            }],
-          },
-          contents,
-          generationConfig: { maxOutputTokens: 512, temperature: 0.6 },
-        }),
-        signal: AbortSignal.timeout(30000),
-      });
-    } catch (error) {
-      if (error.name === 'TimeoutError') {
-        throw new HttpError(504, 'gemini_timeout', 'Gemini terlalu lama merespons.');
-      }
-      console.error('[lapak8-storage] Gemini tidak dapat dijangkau:', error.message);
-      throw new HttpError(502, 'gemini_unavailable', 'Layanan Gemini sedang tidak tersedia.');
-    }
-
-    if (!geminiResponse.ok) {
-      console.error(
-        `[lapak8-storage] Gemini mengembalikan HTTP ${geminiResponse.status}.`,
-      );
-      if (geminiResponse.status === 429) {
-        throw new HttpError(
-          429,
-          'gemini_rate_limited',
-          'Batas penggunaan AI tercapai. Coba lagi sebentar.',
-        );
-      }
-      throw new HttpError(502, 'gemini_error', 'Gemini gagal memproses pesan.');
-    }
-
-    let geminiPayload;
-    try {
-      geminiPayload = await geminiResponse.json();
-    } catch {
-      throw new HttpError(502, 'invalid_gemini_response', 'Respons Gemini tidak valid.');
-    }
-    const candidates = Array.isArray(geminiPayload?.candidates)
-      ? geminiPayload.candidates
-      : [];
-    const text = candidates
-      .flatMap((candidate) => candidate?.content?.parts || [])
-      .map((part) => (typeof part?.text === 'string' ? part.text : ''))
-      .join('')
-      .trim();
-    if (!text) {
-      throw new HttpError(502, 'empty_gemini_response', 'Gemini mengirim respons kosong.');
-    }
-    sendJson(res, 200, { ok: true, data: { text } });
-    return;
   }
 
   const returnIdFromRoute = safeId(route.returnId, 'returnId');

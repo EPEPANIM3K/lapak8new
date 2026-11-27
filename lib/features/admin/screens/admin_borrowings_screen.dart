@@ -57,6 +57,7 @@ class _Loan {
     this.note,
     this.avatarUrl,
     this.borrowingId,
+    this.isLate = false,
   });
 
   final String code;
@@ -77,6 +78,7 @@ class _Loan {
   final String? note;
   final String? avatarUrl; // isi bila sudah ada foto profil
   final String? borrowingId;
+  final bool isLate;
 
   String get initials {
     final parts = name.replaceAll('Drs. ', '').trim().split(' ');
@@ -223,35 +225,43 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
   _Loan _toLoan(Peminjaman p) {
     final status = switch (p.status) {
       StatusPeminjaman.menungguPersetujuan => _LoanStatus.waiting,
-      StatusPeminjaman.disetujui           => _LoanStatus.approved,
-      StatusPeminjaman.dipinjam            => _LoanStatus.borrowed,
-      StatusPeminjaman.dikembalikan        => _LoanStatus.done,
-      StatusPeminjaman.ditolak             => _LoanStatus.rejected,
-      StatusPeminjaman.dibatalkan          => _LoanStatus.cancelled,
-      StatusPeminjaman.terlambat           => _LoanStatus.late,
-      _                                    => _LoanStatus.waiting,
+      StatusPeminjaman.disetujui => _LoanStatus.approved,
+      StatusPeminjaman.dipinjam => _LoanStatus.borrowed,
+      StatusPeminjaman.dikembalikan => _LoanStatus.done,
+      StatusPeminjaman.ditolak => _LoanStatus.rejected,
+      StatusPeminjaman.dibatalkan => _LoanStatus.cancelled,
+      StatusPeminjaman.terlambat => _LoanStatus.late,
+      _ => _LoanStatus.waiting,
     };
-    final namaItem = p.items.isNotEmpty ? p.items.first.namaFasilitasSnapshot : '—';
-    final jumlah   = p.items.isNotEmpty ? p.items.first.jumlah : 0;
+    final namaItem = p.items.isNotEmpty
+        ? p.items.first.namaFasilitasSnapshot
+        : '—';
+    final jumlah = p.items.isNotEmpty ? p.items.first.jumlah : 0;
     return _Loan(
-      code:          p.kodeBooking,
-      name:          p.namaPeminjam ?? 'Pengguna LAPAK8',
-      subtitle:      p.nomorIndukPeminjam != null ? 'ID: ${p.nomorIndukPeminjam}' : 'Pengguna LAPAK8',
-      status:        status,
-      itemName:      namaItem,
-      serial:        '$jumlah unit • ${p.labelKategori}',
-      itemIcon:      Symbols.category,
-      detailIcon:    Symbols.schedule,
-      detail:        '${_formatDateTime(p.mulaiPada)} - ${_formatDateTime(p.estimasiKembaliPada)}',
-      isTeacher:     false,
-      extra:         p.namaKegiatan,
-      extraColor:    AppColors.primary,
-      highlight:     null,
+      code: p.kodeBooking,
+      name: p.namaPeminjam ?? 'Pengguna LAPAK8',
+      subtitle: p.nomorIndukPeminjam != null
+          ? 'ID: ${p.nomorIndukPeminjam}'
+          : 'Pengguna LAPAK8',
+      status: status,
+      itemName: namaItem,
+      serial: '$jumlah unit • ${p.labelKategori}',
+      itemIcon: Symbols.category,
+      detailIcon: Symbols.schedule,
+      detail:
+          '${_formatDateTime(p.mulaiPada)} - ${_formatDateTime(p.estimasiKembaliPada)}',
+      isTeacher: false,
+      extra: p.namaKegiatan,
+      extraColor: AppColors.primary,
+      highlight: null,
       highlightColor: null,
       trailingDetail: null,
-      note:          p.alasanPenolakan,
-      avatarUrl:     null,
-      borrowingId:   p.id,
+      note: p.alasanPenolakan,
+      avatarUrl: null,
+      borrowingId: p.id,
+      isLate:
+          p.status == StatusPeminjaman.terlambat ||
+          DateTime.now().isAfter(p.estimasiKembaliPada),
     );
   }
 
@@ -432,13 +442,120 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
       await _svc.ubahStatus(
         id,
         status: status,
-        alasanPenolakan: status == 'ditolak' ? 'Ditolak oleh petugas Sarpras.' : null,
+        alasanPenolakan: status == 'ditolak'
+            ? 'Ditolak oleh petugas Sarpras.'
+            : null,
       );
       await _loadLoans(showLoading: false);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(successMessage)));
+    } on PeminjamanException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.pesan)));
+    } finally {
+      if (mounted) setState(() => _updatingBorrowingIds.remove(id));
+    }
+  }
+
+  Future<void> _confirmManualReturn(_Loan loan) async {
+    final id = loan.borrowingId;
+    if (id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ID peminjaman tidak tersedia.')),
+      );
+      return;
+    }
+
+    final noteController = TextEditingController();
+    var condition = 'baik';
+    Map<String, String?>? confirmation;
+    try {
+      confirmation = await showDialog<Map<String, String?>>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Catat Pengembalian'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Peminjam: ${loan.name}'),
+                  const SizedBox(height: 8),
+                  Text('Barang: ${loan.itemName} (${loan.serial})'),
+                  const SizedBox(height: 8),
+                  Text(
+                    loan.isLate
+                        ? 'Status: Terlambat'
+                        : 'Status: Belum terlambat',
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: condition,
+                    decoration: const InputDecoration(
+                      labelText: 'Kondisi barang',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'baik', child: Text('Baik')),
+                      DropdownMenuItem(value: 'rusak', child: Text('Rusak')),
+                      DropdownMenuItem(value: 'hilang', child: Text('Hilang')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => condition = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Catatan (opsional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(dialogContext, {
+                  'kondisi': condition,
+                  'catatan': noteController.text,
+                }),
+                child: const Text('Konfirmasi'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      noteController.dispose();
+    }
+
+    if (confirmation == null || !mounted) return;
+    setState(() => _updatingBorrowingIds.add(id));
+    try {
+      await _svc.selesaikanPengembalian(
+        peminjamanId: id,
+        kondisiBarang: confirmation['kondisi']!,
+        catatan: confirmation['catatan'],
+      );
+      await _loadLoans(showLoading: false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pengembalian berhasil dicatat.')),
+      );
     } on PeminjamanException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -640,11 +757,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
                     'dipinjam',
                     'Peminjaman ditandai sedang dipinjam.',
                   ),
-                  onMarkReturned: () => _updateBorrowingStatus(
-                    l,
-                    'dikembalikan',
-                    'Pengembalian peminjaman telah dicatat.',
-                  ),
+                  onMarkReturned: () => _confirmManualReturn(l),
                   onSuspend: () => _confirmSuspend(l),
                 ),
                 const SizedBox(height: 16),
@@ -1143,7 +1256,8 @@ class _LoanCard extends StatelessWidget {
               onPressed: isUpdating ? null : onMarkBorrowed,
             ),
           ],
-          if (loan.status == _LoanStatus.borrowed) ...[
+          if (loan.status == _LoanStatus.borrowed ||
+              loan.status == _LoanStatus.late) ...[
             const SizedBox(height: 16),
             _ActionButton(
               label: 'Catat Pengembalian',

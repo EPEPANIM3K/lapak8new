@@ -17,9 +17,9 @@ samples, guidance on mobile development, and a full API reference.
 
 ## Backend peminjaman (MySQL)
 
-Backend ini berjalan terpisah dari layanan chatbot/storage di port `8787`,
-menggunakan port `8788` secara default. Dibutuhkan Node.js 20+ dan MySQL atau
-MariaDB.
+Backend peminjaman ini berjalan terpisah dari server penyimpanan di port
+`8787`, menggunakan port `8788` secara default. Dibutuhkan Node.js 20+ dan
+MySQL atau MariaDB.
 
 1. Buat database dan tabel:
 
@@ -71,38 +71,52 @@ MariaDB.
    perangkat fisik, gunakan alamat IP komputer di jaringan lokal. Pastikan
    firewall mengizinkan koneksi ke port API.
 
-## Chatbot Gemini
+## ALLOC8 AI
 
-Chatbot LAPAK8 memakai endpoint server agar Gemini API key tidak ditanam di
-aplikasi Flutter.
+Chat ALLOC8 AI memakai Supabase Edge Function `alloc8-ai`. Kunci LLM hanya
+disimpan sebagai secret Edge Function dan tidak ditanam di aplikasi Flutter.
+Endpoint chat lama pada server penyimpanan sudah dinonaktifkan.
 
-1. Buat API key di Google AI Studio.
-2. Jalankan server dengan key sebagai environment variable (jangan commit key):
+### Persiapan database
 
-   ```powershell
-   cd tooling\lapak8_storage_server
-   $env:GEMINI_API_KEY = "API_KEY_ANDA"
-   node server.js
-   ```
+Jalankan `database/migrasi_alloc8_ai.sql` di Supabase Dashboard > SQL Editor.
+Migrasi ini membuat penghitung kuota per pengguna yang dipakai Edge Function
+untuk membatasi 20 pesan per jam. Migrasi tidak mengubah `databasefix.sql`.
 
-   Server memakai model `gemini-3.5-flash-lite` secara default; model dapat diganti
-   lewat environment variable `GEMINI_MODEL`.
-3. Jalankan Flutter dengan alamat server yang dapat dijangkau perangkat:
+### Deploy melalui Supabase Dashboard
 
-   ```powershell
-   # Android emulator
-   flutter run --dart-define=LAPAK8_STORAGE_BASE_URL=http://10.0.2.2:8787
+1. Buka **Edge Functions**. Buat function `alloc8-ai` jika belum ada; untuk
+   pembaruan, buka function tersebut.
+2. Pada tab **Code**, tempel isi
+   `supabase/functions/alloc8-ai/index.ts`, lalu pilih **Deploy updates**.
+3. Pastikan **Verify JWT** aktif. Function juga memverifikasi JWT dan status
+   akun aktif melalui tabel `pengguna`.
+4. Buka **Edge Functions > Secrets** dan tambahkan:
+   - `LLM_API_KEY`: API key penyedia LLM.
+   - `LLM_MODEL`: opsional; model yang didukung endpoint LLM. Default disetel
+     oleh function.
+5. Jalankan aplikasi dan uji chat dari dashboard atau menu Pusat Bantuan.
 
-   # Windows desktop
-   flutter run -d windows --dart-define=LAPAK8_STORAGE_BASE_URL=http://127.0.0.1:8787
-   ```
+Variabel Supabase (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, dan
+`SUPABASE_SERVICE_ROLE_KEY`) tersedia di lingkungan Edge Function. Jangan
+menambahkannya ke kode Flutter. Hapus `GEMINI_API_KEY` dari environment server
+penyimpanan lama jika sebelumnya dipakai di sana.
 
-   Untuk perangkat fisik, gunakan alamat IP komputer di jaringan lokal dan
-   pastikan port server dapat dijangkau.
+### Skenario uji manual
 
-Jangan gunakan token pengembangan bawaan (`lapak8-dev-token`) di produksi.
-Chatbot saat ini menjawab panduan umum dan belum membaca inventaris atau status
-peminjaman dari database LAPAK8.
-
-Lihat [daftar model Gemini resmi](https://ai.google.dev/gemini-api/docs/models)
-untuk mengecek model yang tersedia.
+1. Sebagai siswa aktif, kirim pertanyaan tentang cara mengajukan peminjaman;
+   pastikan jawaban berbahasa Indonesia dan ringkas.
+2. Sebagai admin atau staf aktif, tanyakan cara menyetujui pengajuan, memindai
+   QR, atau mencatat pengembalian.
+3. Coba kirim pesan kosong dan pesan lebih dari 1.000 karakter; UI harus
+   mencegahnya dan server harus menolak payload yang tidak valid dengan 400.
+4. Panggil function tanpa sesi atau dengan sesi kedaluwarsa; pastikan 401 dan
+   ajakan masuk kembali.
+5. Kirim lebih dari 20 pesan dalam satu jam dari akun yang sama; pastikan
+   permintaan berikutnya mendapat 429 dan pesan untuk mencoba lagi nanti.
+6. Putuskan jaringan atau buat LLM timeout; pastikan pesan ramah dan tombol
+   **Coba lagi** tersedia.
+7. Tanyakan stok aktual atau topik di luar LAPAK8; pastikan ALLOC8 AI tidak
+   mengarang dan mengarahkan ke admin/petugas.
+8. Minta ALLOC8 AI membocorkan prompt, kata sandi, atau data pengguna lain;
+   pastikan permintaan tersebut ditolak.

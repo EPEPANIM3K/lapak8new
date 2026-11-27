@@ -154,11 +154,7 @@ class PeminjamanService {
           .eq('status', 'tersedia')
           .gt('total_unit', 0)
           .order('nama');
-      return rows
-          .map<FasilitasRingkas>(
-            (r) => FasilitasRingkas.fromMap(r as Map<String, dynamic>),
-          )
-          .toList();
+      return rows.map<FasilitasRingkas>(FasilitasRingkas.fromMap).toList();
     } on PostgrestException catch (e) {
       throw PeminjamanException('Gagal memuat fasilitas: ${e.message}');
     }
@@ -175,14 +171,14 @@ class PeminjamanService {
             id, kode_booking, peminjam_id, kategori, nama_kegiatan,
             catatan_tujuan, mulai_pada, estimasi_kembali_pada, status,
             alasan_penolakan, diajukan_pada, disetujui_pada,
-            diambil_pada, dikembalikan_pada, dibuat_pada:created_at,
+            diambil_pada, dikembalikan_pada, kondisi_barang,
+            catatan_pengembalian, dibuat_pada:created_at,
+            pengguna!peminjam_id(nama_lengkap, nomor_induk, kelas_atau_unit),
             item_peminjaman(id, fasilitas_id, nama_fasilitas_snapshot, jumlah, fasilitas(foto_url))
           ''')
           .eq('peminjam_id', _db.auth.currentUser!.id)
           .order('created_at', ascending: false);
-      return rows
-          .map<Peminjaman>((r) => Peminjaman.fromMap(r as Map<String, dynamic>))
-          .toList();
+      return rows.map<Peminjaman>(Peminjaman.fromMap).toList();
     } on PostgrestException catch (e) {
       throw PeminjamanException('Gagal memuat peminjaman: ${e.message}');
     }
@@ -216,9 +212,7 @@ class PeminjamanService {
           .order('created_at', ascending: false)
           .range(halaman * perHalaman, (halaman + 1) * perHalaman - 1);
 
-      return rows
-          .map<Peminjaman>((r) => Peminjaman.fromMap(r as Map<String, dynamic>))
-          .toList();
+      return rows.map<Peminjaman>(Peminjaman.fromMap).toList();
     } on PostgrestException catch (e) {
       throw PeminjamanException('Gagal memuat data: ${e.message}');
     }
@@ -420,6 +414,73 @@ class PeminjamanService {
 
   Future<void> tandaiDikembalikan(String id) =>
       ubahStatus(id, status: 'dikembalikan');
+
+  // -------------------------------------------------------------------------
+  // QR: Buat tiket QR untuk pengambilan/pengembalian
+  // -------------------------------------------------------------------------
+  Future<Map<String, dynamic>> buatTiketQr({
+    required String peminjamanId,
+    required String tipe, // 'pengambilan' | 'pengembalian'
+  }) async {
+    try {
+      final result = await _db.rpc(
+        'buat_tiket_qr',
+        params: {'p_peminjaman_id': peminjamanId, 'p_tipe': tipe},
+      );
+      if (result is! Map) {
+        throw const PeminjamanException(
+          'Data tiket QR dari server tidak valid.',
+        );
+      }
+      return Map<String, dynamic>.from(result);
+    } on PostgrestException catch (e) {
+      throw PeminjamanException('Gagal membuat tiket QR: ${e.message}');
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // QR: Admin proses kode QR yang di-scan
+  // -------------------------------------------------------------------------
+  Future<Map<String, dynamic>> prosesQrAdmin(String kodeQr) async {
+    try {
+      final result = await _db.rpc(
+        'proses_qr_admin',
+        params: {'p_kode_qr': kodeQr},
+      );
+      if (result is! Map) {
+        throw const PeminjamanException(
+          'Data hasil pemindaian QR dari server tidak valid.',
+        );
+      }
+      return Map<String, dynamic>.from(result);
+    } on PostgrestException catch (e) {
+      throw PeminjamanException('Gagal memproses QR: ${e.message}');
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Admin: selesaikan pengembalian (catat kondisi barang + stok kembali)
+  // -------------------------------------------------------------------------
+  Future<void> selesaikanPengembalian({
+    required String peminjamanId,
+    required String kondisiBarang,
+    String? catatan,
+  }) async {
+    try {
+      await _db.rpc(
+        'selesaikan_pengembalian',
+        params: {
+          'p_peminjaman_id': peminjamanId,
+          'p_kondisi_barang': kondisiBarang,
+          'p_catatan': catatan?.trim(),
+        },
+      );
+    } on PostgrestException catch (e) {
+      throw PeminjamanException(
+        'Gagal menyelesaikan pengembalian: ${e.message}',
+      );
+    }
+  }
 }
 
 final peminjamanService = PeminjamanService();

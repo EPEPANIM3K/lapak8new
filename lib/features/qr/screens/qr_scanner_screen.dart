@@ -1,13 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:zxing2/qrcode.dart' as zx;
 
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
 
 // Simpan di: lib/features/scanner/screens/qr_scanner_screen.dart
 
@@ -57,16 +60,61 @@ class _QrScannerScreenState extends State<QrScannerScreen>
     _handleResult(code);
   }
 
+  /// Pindai dari galeri. Di HP dicoba pemindai bawaan dulu; kalau gagal
+  /// (atau di web), gambar dibaca dengan decoder Dart murni.
   Future<void> _pickFromGallery() async {
     if (_busy) return;
-    final file = await _picker.pickImage(source: ImageSource.gallery);
-    if (file == null) return;
+    try {
+      final file = await _picker.pickImage(source: ImageSource.gallery);
+      if (file == null) return;
 
-    final capture = await _controller.analyzeImage(file.path);
-    final code = (capture == null || capture.barcodes.isEmpty)
-        ? null
-        : capture.barcodes.first.rawValue;
-    _handleResult(code);
+      String? code;
+      if (!kIsWeb) {
+        try {
+          final capture = await _controller.analyzeImage(file.path);
+          if (capture != null && capture.barcodes.isNotEmpty) {
+            code = capture.barcodes.first.rawValue;
+          }
+        } catch (_) {
+          // lanjut ke decoder Dart di bawah
+        }
+      }
+      if (code == null || code.isEmpty) {
+        code = _decodeQrFromBytes(await file.readAsBytes());
+      }
+      _handleResult(code);
+    } catch (_) {
+      _handleResult(null);
+    }
+  }
+
+  /// Membaca QR dari byte gambar (PNG/JPG). Berfungsi di semua platform.
+  String? _decodeQrFromBytes(Uint8List bytes) {
+    try {
+      var image = img.decodeImage(bytes);
+      if (image == null) return null;
+
+      const maxSide = 1200;
+      if (image.width > maxSide || image.height > maxSide) {
+        image = image.width >= image.height
+            ? img.copyResize(image, width: maxSide)
+            : img.copyResize(image, height: maxSide);
+      }
+
+      final source = zx.RGBLuminanceSource(
+        image.width,
+        image.height,
+        image
+            .convert(numChannels: 4)
+            .getBytes(order: img.ChannelOrder.abgr)
+            .buffer
+            .asInt32List(),
+      );
+      final bitmap = zx.BinaryBitmap(zx.HybridBinarizer(source));
+      return zx.QRCodeReader().decode(bitmap).text;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// [code] null/kosong = QR tidak terbaca atau tidak valid.
@@ -76,31 +124,182 @@ class _QrScannerScreenState extends State<QrScannerScreen>
     await _controller.stop();
     if (!mounted) return;
 
-    // TODO: validasi [code] ke backend (cek tiket aktif, belum kedaluwarsa, dst.)
-    final success = code != null && code.isNotEmpty;
+    try {
+      if (code == null || code.isEmpty) {
+        await _showResult(
+          success: false,
+          message: 'QR tidak terbaca. Coba pindai kembali.',
+        );
+        return;
+      }
 
+      final result = await peminjamanService.prosesQrAdmin(code);
+      switch (result['tipe_tiket']) {
+        case 'pengambilan':
+          await _showResult(
+            success: true,
+            title: 'Pengambilan Berhasil',
+            message:
+                'Peminjaman ${result['kode_booking'] ?? ''} telah ditandai '
+                'sedang dipinjam.',
+          );
+          break;
+        case 'pengembalian':
+          await _confirmQrReturn(result);
+          break;
+        default:
+          throw const PeminjamanException(
+            'Jenis tiket QR dari server tidak valid.',
+          );
+      }
+    } on PeminjamanException catch (error) {
+      await _showResult(success: false, message: error.pesan);
+    } catch (_) {
+      await _showResult(
+        success: false,
+        message:
+            'Terjadi kesalahan saat memproses QR. Periksa koneksi lalu coba lagi.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+        await _controller.start();
+      }
+    }
+  }
+
+  Future<void> _confirmQrReturn(Map<String, dynamic> result) async {
+    final borrowingId = result['peminjaman_id'];
+    if (borrowingId is! String || borrowingId.isEmpty) {
+      throw const PeminjamanException('ID peminjaman dari server tidak valid.');
+    }
+    final borrower = result['peminjam'];
+    final borrowerName = borrower is Map
+        ? borrower['nama_lengkap'] as String? ?? 'Peminjam LAPAK8'
+        : 'Peminjam LAPAK8';
+    final items = result['items'];
+    final itemSummary = items is List
+        ? items
+              .whereType<Map>()
+              .map((item) {
+                final name = item['nama_fasilitas'] as String? ?? 'Barang';
+                final quantity = item['jumlah'] as num? ?? 1;
+                return '$name (${quantity.toInt()} unit)';
+              })
+              .join(', ')
+        : 'Barang tidak diketahui';
+    final late = result['terlambat'] == true;
+    final noteController = TextEditingController();
+    var condition = 'baik';
+    final confirmation = await showDialog<Map<String, String?>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Konfirmasi Pengembalian'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Peminjam: $borrowerName'),
+                const SizedBox(height: 8),
+                Text('Barang: $itemSummary'),
+                const SizedBox(height: 8),
+                Text(
+                  late ? 'Status: Terlambat' : 'Status: Belum terlambat',
+                  style: TextStyle(
+                    color: late ? AppColors.error : AppColors.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: condition,
+                  decoration: const InputDecoration(
+                    labelText: 'Kondisi barang',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'baik', child: Text('Baik')),
+                    DropdownMenuItem(value: 'rusak', child: Text('Rusak')),
+                    DropdownMenuItem(value: 'hilang', child: Text('Hilang')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => condition = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noteController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Catatan (opsional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, {
+                'kondisi': condition,
+                'catatan': noteController.text,
+              }),
+              child: const Text('Konfirmasi'),
+            ),
+          ],
+        ),
+      ),
+    );
+    noteController.dispose();
+
+    if (confirmation == null) {
+      await _showResult(
+        success: false,
+        message:
+            'Pengembalian belum dikonfirmasi. Tiket QR ini sudah digunakan; '
+            'minta peminjam membuat QR baru untuk mencoba lagi.',
+      );
+      return;
+    }
+
+    await peminjamanService.selesaikanPengembalian(
+      peminjamanId: borrowingId,
+      kondisiBarang: confirmation['kondisi']!,
+      catatan: confirmation['catatan'],
+    );
+    await _showResult(
+      success: true,
+      title: 'Pengembalian Selesai',
+      message: 'Pengembalian ${result['kode_booking'] ?? ''} berhasil dicatat.',
+    );
+  }
+
+  Future<void> _showResult({
+    required bool success,
+    required String message,
+    String? title,
+  }) async {
+    if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       isDismissible: false,
       enableDrag: false,
       backgroundColor: Colors.transparent,
-      builder: (_) => _ResultSheet(
+      builder: (sheetContext) => _ResultSheet(
         success: success,
-        message: success
-            ? 'Kode tiket: $code'
-            : 'QR tidak terbaca atau bukan tiket LAPAK8 yang valid.',
-        onPrimary: () {
-          Navigator.pop(context);
-          if (success) {
-            // TODO: buka halaman detail peminjaman untuk kode ini
-          }
-        },
+        title: title,
+        message: message,
+        onPrimary: () => Navigator.pop(sheetContext),
       ),
     );
-
-    if (!mounted) return;
-    setState(() => _busy = false);
-    await _controller.start();
   }
 
   // -------------------------------------------------------------------------
@@ -114,7 +313,12 @@ class _QrScannerScreenState extends State<QrScannerScreen>
         children: [
           _buildAppBar(context),
           Expanded(child: _buildCameraArea()),
-          const _QuickGuide(),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.4,
+            ),
+            child: const SingleChildScrollView(child: _QuickGuide()),
+          ),
         ],
       ),
     );
@@ -141,10 +345,14 @@ class _QrScannerScreenState extends State<QrScannerScreen>
                 },
               ),
               const SizedBox(width: 4),
-              Text(
-                'Scan Tiket Akses',
-                style: AppTextStyles.headlineSm(color: AppColors.onSurface)
-                    .copyWith(fontWeight: FontWeight.w700),
+              Expanded(
+                child: Text(
+                  'Scan Tiket Akses',
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.headlineSm(
+                    color: AppColors.onSurface,
+                  ).copyWith(fontWeight: FontWeight.w700),
+                ),
               ),
             ],
           ),
@@ -198,11 +406,13 @@ class _QrScannerScreenState extends State<QrScannerScreen>
                       height: 3,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(2),
-                        gradient: const LinearGradient(colors: [
-                          Colors.transparent,
-                          Color(0xFF38BDF8),
-                          Colors.transparent,
-                        ]),
+                        gradient: const LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            Color(0xFF38BDF8),
+                            Colors.transparent,
+                          ],
+                        ),
                         boxShadow: const [
                           BoxShadow(
                             color: Color(0x8038BDF8),
@@ -222,8 +432,10 @@ class _QrScannerScreenState extends State<QrScannerScreen>
                   top: 12,
                   left: 0,
                   right: 0,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       _TestChip(
                         label: 'Tes Berhasil',
@@ -231,7 +443,6 @@ class _QrScannerScreenState extends State<QrScannerScreen>
                         color: const Color(0xFF34D399),
                         onTap: () => _handleResult('BK-2024-089'),
                       ),
-                      const SizedBox(width: 8),
                       _TestChip(
                         label: 'Tes Gagal',
                         icon: Symbols.error,
@@ -242,13 +453,16 @@ class _QrScannerScreenState extends State<QrScannerScreen>
                   ),
                 ),
 
-              // Kontrol bawah: lampu, galeri, ganti kamera.
+              // Kontrol bawah: lampu, galeri (bukan web), ganti kamera.
               Positioned(
-                left: 0,
-                right: 0,
+                left: 16,
+                right: 16,
                 bottom: 20,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 16,
+                  runSpacing: 12,
                   children: [
                     ValueListenableBuilder<MobileScannerState>(
                       valueListenable: _controller,
@@ -261,9 +475,7 @@ class _QrScannerScreenState extends State<QrScannerScreen>
                         );
                       },
                     ),
-                    const SizedBox(width: 16),
                     _GalleryButton(onTap: _pickFromGallery),
-                    const SizedBox(width: 16),
                     _RoundControl(
                       icon: Symbols.cameraswitch,
                       onTap: _controller.switchCamera,
@@ -339,8 +551,11 @@ class _CornerPainter extends CustomPainter {
       Path()
         ..moveTo(0, h - len)
         ..lineTo(0, h - r)
-        ..arcToPoint(Offset(r, h),
-            radius: const Radius.circular(r), clockwise: false)
+        ..arcToPoint(
+          Offset(r, h),
+          radius: const Radius.circular(r),
+          clockwise: false,
+        )
         ..lineTo(len, h),
       paint,
     );
@@ -349,8 +564,11 @@ class _CornerPainter extends CustomPainter {
       Path()
         ..moveTo(w - len, h)
         ..lineTo(w - r, h)
-        ..arcToPoint(Offset(w, h - r),
-            radius: const Radius.circular(r), clockwise: false)
+        ..arcToPoint(
+          Offset(w, h - r),
+          radius: const Radius.circular(r),
+          clockwise: false,
+        )
         ..lineTo(w, h - len),
       paint,
     );
@@ -478,6 +696,13 @@ class _CameraError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final denied = error.errorCode == MobileScannerErrorCode.permissionDenied;
+    final message = denied
+        ? (kIsWeb
+              ? 'Izin kamera ditolak.\nIzinkan kamera untuk situs ini di browser, lalu muat ulang halaman.'
+              : 'Izin kamera ditolak.\nAktifkan izin kamera di pengaturan aplikasi.')
+        : (kIsWeb
+              ? 'Kamera tidak dapat dibuka.\nCoba pakai "Pilih dari Galeri".'
+              : 'Kamera tidak dapat dibuka.\nCoba pakai "Pilih dari Galeri".');
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -487,9 +712,7 @@ class _CameraError extends StatelessWidget {
             const Icon(Symbols.no_photography, color: Colors.white70, size: 48),
             const SizedBox(height: 12),
             Text(
-              denied
-                  ? 'Izin kamera ditolak.\nAktifkan izin kamera di pengaturan aplikasi.'
-                  : 'Kamera tidak dapat dibuka.\nCoba pakai "Pilih dari Galeri".',
+              message,
               textAlign: TextAlign.center,
               style: AppTextStyles.bodyMd(color: Colors.white70),
             ),
@@ -525,8 +748,9 @@ class _QuickGuide extends StatelessWidget {
             children: [
               Text(
                 'Panduan Akses Cepat',
-                style: AppTextStyles.headlineSm(color: AppColors.onSurface)
-                    .copyWith(fontWeight: FontWeight.w700),
+                style: AppTextStyles.headlineSm(
+                  color: AppColors.onSurface,
+                ).copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 12),
               const IntrinsicHeight(
@@ -537,8 +761,7 @@ class _QuickGuide extends StatelessWidget {
                       child: _GuideCard(
                         icon: Symbols.light_mode,
                         title: 'Pencahayaan Cukup',
-                        body:
-                            'Gunakan tombol lampu flash bila ruangan redup.',
+                        body: 'Gunakan tombol lampu flash bila ruangan redup.',
                       ),
                     ),
                     SizedBox(width: 12),
@@ -621,11 +844,13 @@ class _ResultSheet extends StatelessWidget {
     required this.success,
     required this.message,
     required this.onPrimary,
+    this.title,
   });
 
   final bool success;
   final String message;
   final VoidCallback onPrimary;
+  final String? title;
 
   @override
   Widget build(BuildContext context) {
@@ -659,9 +884,10 @@ class _ResultSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            success ? 'Tiket Valid' : 'Scan Gagal',
-            style: AppTextStyles.headlineSm(color: AppColors.onSurface)
-                .copyWith(fontWeight: FontWeight.w700),
+            title ?? (success ? 'Tiket Valid' : 'Scan Gagal'),
+            style: AppTextStyles.headlineSm(
+              color: AppColors.onSurface,
+            ).copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 6),
           Text(

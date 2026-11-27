@@ -46,6 +46,11 @@ dependencies:
   mime: ^2.1.0
   flutter_secure_storage: ^11.2.0
   supabase_flutter: ^2.18.3
+  qr_flutter: ^4.1.0
+  web: ^1.1.2
+  file_saver: ^0.7.0
+  image: ^4.13.1
+  zxing2: ^0.2.4
 
 dev_dependencies:
   flutter_test:

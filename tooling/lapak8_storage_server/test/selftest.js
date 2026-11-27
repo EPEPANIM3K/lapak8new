@@ -39,7 +39,6 @@ function startServer() {
         LAPAK8_STORAGE: storageDir,
         LAPAK8_ADMIN_TOKEN: TOKEN,
         LAPAK8_TOKENS: '',
-        GEMINI_API_KEY: '',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -137,24 +136,7 @@ async function main() {
   const noAuth = await fetch(`${BASE}/api/v1/inspections/${RETURN_ID}/docs`);
   check('tanpa token ditolak 401', noAuth.status === 401, 'status ' + noAuth.status);
 
-  const chatNoAuth = await fetch(`${BASE}/api/v1/chat`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ messages: [{ role: 'user', text: 'Halo' }] }),
-  });
-  check('chatbot tanpa token ditolak 401', chatNoAuth.status === 401, 'status ' + chatNoAuth.status);
-
-  const chatInvalid = await fetch(`${BASE}/api/v1/chat`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${TOKEN}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ messages: [] }),
-  });
-  check('chatbot menolak riwayat kosong', chatInvalid.status === 400, 'status ' + chatInvalid.status);
-
-  const chatUnconfigured = await fetch(`${BASE}/api/v1/chat`, {
+  const legacyChat = await fetch(`${BASE}/api/v1/chat`, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${TOKEN}`,
@@ -162,7 +144,11 @@ async function main() {
     },
     body: JSON.stringify({ messages: [{ role: 'user', text: 'Halo' }] }),
   });
-  check('chatbot tanpa API key memberi 503', chatUnconfigured.status === 503, 'status ' + chatUnconfigured.status);
+  check(
+    'endpoint chat lama dinonaktifkan',
+    legacyChat.status === 404,
+    'status ' + legacyChat.status,
+  );
 
   // 1. unggah foto valid
   const p1 = await upload(RETURN_ID, BORROW_ID, ITEM_ID, 'kondisi-1.png', 'image/png', pngBuffer(1));

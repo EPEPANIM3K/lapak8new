@@ -57,10 +57,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ),
   ];
 
-  void _showQr() => showDialog(
-        context: context,
-        builder: (_) => const QrTicketModal(),
-      );
+  void _showQr() =>
+      showDialog(context: context, builder: (_) => const QrTicketModal());
 
   @override
   Widget build(BuildContext context) {
@@ -93,8 +91,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       _ => 'Pengguna',
                     };
                     final unit = user?.kelasAtauUnit?.trim();
-                    final roleLabel =
-                        unit == null || unit.isEmpty ? role : '$role • $unit';
+                    final roleLabel = unit == null || unit.isEmpty
+                        ? role
+                        : '$role • $unit';
 
                     return GreetingSection(
                       name: name == null || name.isEmpty ? 'Pengguna' : name,
@@ -163,7 +162,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             bottom: 100 + inset.bottom,
             child: FloatingActionButton(
               heroTag: 'lapak8-chat',
-              tooltip: 'Chat dengan AI LAPAK8',
+              tooltip: 'Tanya ALLOC8 AI',
               onPressed: () => context.push('/chat'),
               child: const Icon(Icons.chat_rounded),
             ),

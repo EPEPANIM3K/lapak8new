@@ -8,6 +8,6 @@ class SupabaseConfig {
   );
   static const anonKey = String.fromEnvironment(
     'SUPABASE_ANON_KEY',
-    defaultValue: 'sb_publishable_a90PmaCE207hN6U8jJetZA_t-JeQGUR',
+    defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0d2N6YW1kd2Roc2pvZ3FtcGtlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2OTEyODYsImV4cCI6MjExMTI2NzI4Nn0.Bk9svezNS0n3Wc5baVXTiIJqOLG8rDX9ULAIRLy_ba8',
   );
 }

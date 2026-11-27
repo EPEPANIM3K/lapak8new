@@ -15,7 +15,6 @@ import 'package:lapak8new/features/admin/widgets/avatar_preview_dialog.dart';
 import 'package:lapak8new/features/admin/widgets/documentation_media_previews.dart';
 import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
 import 'package:lapak8new/features/auth/providers/auth_provider.dart';
-import 'package:lapak8new/features/dashboard/widgets/bantuan_pic_modal.dart';
 import 'package:lapak8new/features/dashboard/widgets/dashboard_modals.dart';
 import 'package:lapak8new/features/profile/widgets/profile_modals.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
@@ -662,16 +661,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           ),
           _SettingRow(
             icon: Symbols.support_agent,
-            title: 'Pusat Bantuan & PIC Sarpras',
-            subtitle: 'WhatsApp admin SMKN 8',
+            title: 'Pusat Bantuan',
+            subtitle: 'Tanya ALLOC8 AI seputar peminjaman',
             trailing: const _Chevron(),
-            onTap: () {
-              showDialog(
-                context: context,
-                barrierColor: Colors.black54,
-                builder: (_) => const BantuanPicModal(),
-              );
-            },
+            onTap: () => context.push('/chat'),
           ),
         ],
       ),

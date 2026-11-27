@@ -1,10 +1,8 @@
 import '../../../core/network/lapak8_api_client.dart';
-import '../../auth/providers/auth_provider.dart';
 import '../models/borrowing.dart';
 
 class BorrowingService {
-  BorrowingService({Lapak8ApiClient? client})
-    : _client = client ?? authProvider.apiClient;
+  BorrowingService({required Lapak8ApiClient client}) : _client = client;
 
   final Lapak8ApiClient _client;
 

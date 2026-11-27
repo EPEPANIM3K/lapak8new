@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:lapak8new/core/constants/app_colors.dart';
+import 'package:lapak8new/core/constants/app_dimens.dart';
+import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 import 'package:lapak8new/features/chat/models/chat_message.dart';
 import 'package:lapak8new/features/chat/services/chat_service.dart';
 
@@ -10,18 +15,28 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  static const _quickPrompts = [
+    'Cara meminjam barang',
+    'QR tidak bisa dipakai',
+    'Peminjaman saya ditolak',
+    'Cara mengembalikan barang',
+  ];
+
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _service = ChatService();
-  final List<ChatMessage> _messages = [
-    const ChatMessage(
-      role: ChatRole.assistant,
-      text:
-          'Halo! Saya asisten AI LAPAK8. Tanyakan cara meminjam fasilitas, aturan, atau penggunaan aplikasi.',
-    ),
-  ];
+  late final List<ChatMessage> _messages = [_welcomeMessage()];
   bool _isSending = false;
   String? _errorMessage;
+  ChatFailure? _errorKind;
+  String? _retryText;
+
+  ChatMessage _welcomeMessage() => ChatMessage(
+    role: ChatRole.assistant,
+    text: authProvider.isAdminAtauStaf
+        ? 'Halo! Saya ALLOC8 AI. Saya bisa membantu panduan admin seperti menyetujui atau menolak peminjaman, memindai QR, dan mencatat pengembalian.'
+        : 'Halo! Saya ALLOC8 AI, asisten bantuan aplikasi LAPAK8. Tanyakan cara meminjam barang, status peminjaman, QR, pengembalian, atau akun.',
+  );
 
   @override
   void dispose() {
@@ -30,15 +45,28 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  Future<void> _sendMessage() async {
-    final text = _controller.text.trim();
+  Future<void> _sendMessage({String? retryText}) async {
+    final isRetry = retryText != null;
+    final text = (retryText ?? _controller.text).trim();
     if (text.isEmpty || _isSending) return;
+    if (text.length > 1000) {
+      setState(() {
+        _errorMessage = 'Pesan tidak boleh melebihi 1.000 karakter.';
+        _errorKind = null;
+        _retryText = null;
+      });
+      return;
+    }
 
-    _controller.clear();
     setState(() {
       _errorMessage = null;
+      _errorKind = null;
       _isSending = true;
-      _messages.add(ChatMessage(role: ChatRole.user, text: text));
+      if (!isRetry) {
+        _controller.clear();
+        _retryText = null;
+        _messages.add(ChatMessage(role: ChatRole.user, text: text));
+      }
     });
     _scrollToBottom();
 
@@ -47,14 +75,63 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!mounted) return;
       setState(() {
         _messages.add(ChatMessage(role: ChatRole.assistant, text: answer));
+        _retryText = null;
       });
     } on ChatException catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = error.message);
+      setState(() {
+        _errorMessage = error.message;
+        _errorKind = error.kind;
+        _retryText = text;
+      });
     } finally {
-      if (mounted) setState(() => _isSending = false);
-      _scrollToBottom();
+      if (mounted) {
+        setState(() => _isSending = false);
+        _scrollToBottom();
+      }
     }
+  }
+
+  Future<void> _retryLastMessage() async {
+    if (_errorKind == ChatFailure.unauthorized) {
+      await authProvider.signOut();
+      if (mounted) context.go('/login');
+      return;
+    }
+    final text = _retryText;
+    if (text != null) await _sendMessage(retryText: text);
+  }
+
+  Future<void> _clearConversation() async {
+    if (_isSending) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus percakapan?'),
+        content: const Text('Semua pesan di layar ini akan dihapus.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _messages
+        ..clear()
+        ..add(_welcomeMessage());
+      _errorMessage = null;
+      _errorKind = null;
+      _retryText = null;
+      _controller.clear();
+    });
+    _scrollToBottom();
   }
 
   void _scrollToBottom() {
@@ -68,56 +145,113 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _sendPrompt(String prompt) {
+    _controller.text = prompt;
+    _sendMessage();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final showPrompts = _messages.length == 1;
+    final promptIndex = _messages.length;
+    final typingIndex = _messages.length + (showPrompts ? 1 : 0);
+
     return Scaffold(
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Asisten AI LAPAK8', style: TextStyle(fontSize: 17)),
             Text(
-              'Didukung Gemini',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+              'ALLOC8 AI',
+              style: AppTextStyles.headlineSm(color: AppColors.onSurface),
+            ),
+            Text(
+              'Pusat Bantuan LAPAK8',
+              style: AppTextStyles.bodySm(color: AppColors.slate600),
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Hapus percakapan',
+            onPressed: _isSending ? null : _clearConversation,
+            icon: const Icon(Icons.delete_outline),
+          ),
+        ],
       ),
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length + (_isSending ? 1 : 0),
+              padding: const EdgeInsets.all(AppSpacing.md),
+              itemCount:
+                  _messages.length +
+                  (showPrompts ? 1 : 0) +
+                  (_isSending ? 1 : 0),
               itemBuilder: (context, index) {
-                if (_isSending && index == _messages.length) {
+                if (index < _messages.length) {
+                  return _MessageBubble(message: _messages[index]);
+                }
+                if (showPrompts && index == promptIndex) {
+                  return _QuickPromptChips(
+                    prompts: _quickPrompts,
+                    onSelected: _sendPrompt,
+                  );
+                }
+                if (_isSending && index == typingIndex) {
                   return const _TypingIndicator();
                 }
-                return _MessageBubble(message: _messages[index]);
+                return const SizedBox.shrink();
               },
             ),
           ),
           if (_errorMessage != null)
             Container(
               width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(12),
+              margin: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                0,
+                AppSpacing.md,
+                AppSpacing.xs,
               ),
-              child: Text(
-                _errorMessage!,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onErrorContainer,
-                ),
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.errorContainer,
+                borderRadius: BorderRadius.circular(AppRadius.base),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _errorMessage!,
+                      style: AppTextStyles.bodySm(color: AppColors.error),
+                    ),
+                  ),
+                  if (_retryText != null) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    TextButton(
+                      onPressed: _isSending ? null : _retryLastMessage,
+                      child: Text(
+                        _errorKind == ChatFailure.unauthorized
+                            ? 'Masuk kembali'
+                            : 'Coba lagi',
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                AppSpacing.xs,
+                AppSpacing.sm,
+                AppSpacing.sm,
+              ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -126,7 +260,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       controller: _controller,
                       minLines: 1,
                       maxLines: 4,
-                      maxLength: 1200,
+                      maxLength: 1000,
                       buildCounter:
                           (
                             context, {
@@ -135,22 +269,32 @@ class _ChatScreenState extends State<ChatScreen> {
                             maxLength,
                           }) => null,
                       textInputAction: TextInputAction.send,
+                      onChanged: (_) {
+                        if (_errorMessage != null) {
+                          setState(() {
+                            _errorMessage = null;
+                            _errorKind = null;
+                            _retryText = null;
+                          });
+                        }
+                      },
                       onSubmitted: (_) => _sendMessage(),
                       decoration: InputDecoration(
                         hintText: 'Tulis pertanyaan...',
                         filled: true,
+                        fillColor: AppColors.surfaceContainerLow,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(AppRadius.full),
                           borderSide: BorderSide.none,
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 12,
+                          horizontal: AppSpacing.lg,
+                          vertical: AppSpacing.sm,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpacing.xs),
                   IconButton.filled(
                     tooltip: 'Kirim pesan',
                     onPressed: _isSending ? null : _sendMessage,
@@ -179,21 +323,21 @@ class _MessageBubble extends StatelessWidget {
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.8,
+          maxWidth: MediaQuery.sizeOf(context).width * 0.82,
         ),
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
         decoration: BoxDecoration(
-          color: isUser
-              ? colorScheme.primary
-              : colorScheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(18),
+          color: isUser ? AppColors.primary : AppColors.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(AppRadius.base),
         ),
         child: Text(
           message.text,
-          style: TextStyle(
-            color: isUser ? colorScheme.onPrimary : colorScheme.onSurface,
-            height: 1.4,
+          style: AppTextStyles.bodyMd(
+            color: isUser ? colorScheme.onPrimary : AppColors.onSurface,
           ),
         ),
       ),
@@ -201,26 +345,46 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
+class _QuickPromptChips extends StatelessWidget {
+  const _QuickPromptChips({required this.prompts, required this.onSelected});
+
+  final List<String> prompts;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+    child: Wrap(
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xs,
+      children: [
+        for (final prompt in prompts)
+          ActionChip(label: Text(prompt), onPressed: () => onSelected(prompt)),
+      ],
+    ),
+  );
+}
+
 class _TypingIndicator extends StatelessWidget {
   const _TypingIndicator();
 
   @override
-  Widget build(BuildContext context) => const Align(
-    alignment: Alignment.centerLeft,
-    child: Padding(
-      padding: EdgeInsets.only(bottom: 12, left: 8),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          SizedBox(width: 10),
-          Text('Gemini sedang membalas...'),
-        ],
-      ),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: AppSpacing.sm, left: AppSpacing.xs),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        Text(
+          'ALLOC8 AI sedang mengetik...',
+          style: AppTextStyles.bodySm(color: AppColors.slate600),
+        ),
+      ],
     ),
   );
 }

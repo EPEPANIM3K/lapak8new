@@ -122,7 +122,7 @@ enum StatusPeminjaman {
     StatusPeminjaman.ditolak => 'Ditolak',
     StatusPeminjaman.dibatalkan => 'Dibatalkan',
     StatusPeminjaman.dipinjam => 'Sedang Dipinjam',
-    StatusPeminjaman.dikembalikan => 'Dikembalikan',
+    StatusPeminjaman.dikembalikan => 'Selesai',
     StatusPeminjaman.terlambat => 'Terlambat',
     StatusPeminjaman.tidak_dikenal => 'Tidak Dikenal',
   };
@@ -148,6 +148,8 @@ class Peminjaman {
     this.disetujuiPada,
     this.diambilPada,
     this.dikembalikanPada,
+    this.kondisiBarang,
+    this.catatanPengembalian,
     this.namaPeminjam,
     this.nomorIndukPeminjam,
     this.kelasPeminjam,
@@ -168,6 +170,8 @@ class Peminjaman {
   final DateTime? disetujuiPada;
   final DateTime? diambilPada;
   final DateTime? dikembalikanPada;
+  final String? kondisiBarang; // 'baik' | 'rusak' | 'hilang'
+  final String? catatanPengembalian;
   final DateTime dibuatPada;
 
   // Data join (opsional, dimuat bersama query)
@@ -219,6 +223,8 @@ class Peminjaman {
       disetujuiPada: tanggal('disetujui_pada'),
       diambilPada: tanggal('diambil_pada'),
       dikembalikanPada: tanggal('dikembalikan_pada'),
+      kondisiBarang: map['kondisi_barang'] as String?,
+      catatanPengembalian: map['catatan_pengembalian'] as String?,
       dibuatPada: DateTime.parse(map['dibuat_pada'] as String),
       namaPeminjam: peminjam?['nama_lengkap'] as String?,
       nomorIndukPeminjam: peminjam?['nomor_induk'] as String?,

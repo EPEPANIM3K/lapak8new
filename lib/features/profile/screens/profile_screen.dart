@@ -15,7 +15,6 @@ import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
 import 'package:lapak8new/features/admin/services/user_repository.dart';
 import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
-import 'package:lapak8new/features/dashboard/widgets/bantuan_pic_modal.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -745,22 +744,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 8),
 
-                      // 4. Pusat Bantuan & PIC
+                      // 4. Pusat Bantuan
                       _buildSettingsItem(
                         icon: Icons.support_agent,
-                        title: 'Pusat Bantuan & PIC Sarpras',
-                        subtitle: 'WhatsApp admin SMKN 8',
+                        title: 'Pusat Bantuan',
+                        subtitle: 'Tanya ALLOC8 AI seputar peminjaman',
                         trailing: const Icon(
                           Icons.chevron_right,
                           color: cOutline,
                         ),
-                        onTap: () {
-                          showDialog(
-                            context: context,
-                            barrierColor: Colors.black54,
-                            builder: (_) => const BantuanPicModal(),
-                          );
-                        },
+                        onTap: () => context.push('/chat'),
                       ),
                     ],
                   ),

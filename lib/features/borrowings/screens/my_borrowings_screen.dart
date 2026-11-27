@@ -43,6 +43,7 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
   bool _loading = true;
   String? _errorMessage;
   final Set<String> _cancellingIds = {};
+  final Set<String> _qrLoadingIds = {};
 
   @override
   void initState() {
@@ -95,19 +96,49 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
 
   void _switchTab(String t) => setState(() => _tab = t);
 
-  void _showQrModal(Peminjaman p) {
-    final facilityTitle = _facilityTitle(p);
-    showDialog<void>(
-      context: context,
-      builder: (_) => QrTicketModal(
-        bookingCode: '#${p.kodeBooking}',
-        facilityName: facilityTitle,
-        activity: p.namaKegiatan,
-        schedule:
-            '${_formatDate(p.mulaiPada)} • ${_formatTime(p.mulaiPada)} - ${_formatTime(p.estimasiKembaliPada)} WIB',
-        picName: p.namaPeminjam ?? 'Petugas Sarpras',
-      ),
-    );
+  Future<void> _showQrModal(Peminjaman p) async {
+    final isReturn = p.status != StatusPeminjaman.disetujui;
+    setState(() => _qrLoadingIds.add(p.id));
+    try {
+      final ticket = await peminjamanService.buatTiketQr(
+        peminjamanId: p.id,
+        tipe: isReturn ? 'pengembalian' : 'pengambilan',
+      );
+      final payload = ticket['kode_qr'];
+      final expiryValue = ticket['expired_at'];
+      if (payload is! String || expiryValue is! String) {
+        throw const PeminjamanException(
+          'Data tiket QR dari server tidak lengkap.',
+        );
+      }
+      final expiresAt = DateTime.tryParse(expiryValue);
+      if (expiresAt == null) {
+        throw const PeminjamanException(
+          'Masa berlaku tiket QR dari server tidak valid.',
+        );
+      }
+      if (!mounted) return;
+      final facilityTitle = _facilityTitle(p);
+      await showDialog<void>(
+        context: context,
+        builder: (_) => QrTicketModal(
+          bookingCode: '#${p.kodeBooking}',
+          facilityName: facilityTitle,
+          activity: p.namaKegiatan,
+          schedule:
+              '${_formatDate(p.mulaiPada)} • ${_formatTime(p.mulaiPada)} - ${_formatTime(p.estimasiKembaliPada)} WIB',
+          picName: 'Petugas Sarpras',
+          qrPayload: payload,
+          borrowerName: p.namaPeminjam ?? 'Peminjam LAPAK8',
+          isReturn: isReturn,
+          expiresAt: expiresAt,
+        ),
+      );
+    } on PeminjamanException catch (error) {
+      if (mounted) _snack(error.pesan, error: true);
+    } finally {
+      if (mounted) setState(() => _qrLoadingIds.remove(p.id));
+    }
   }
 
   void _openDetail(Peminjaman p) {
@@ -413,6 +444,8 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
   // ===== CARD AKTIF =====
   Widget _cardAktif(Peminjaman p) {
     final isCancelling = _cancellingIds.contains(p.id);
+    final isQrLoading = _qrLoadingIds.contains(p.id);
+    final isReturnQr = p.status != StatusPeminjaman.disetujui;
     final image = p.items.isNotEmpty ? p.items.first.fotoUrl : null;
     final statusBadge = switch (p.status) {
       StatusPeminjaman.dipinjam => _statusPill(
@@ -454,9 +487,24 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
           width: double.infinity,
           height: 44,
           child: ElevatedButton.icon(
-            onPressed: () => _showQrModal(p),
-            icon: const Icon(Icons.qr_code_scanner, size: 20),
-            label: const Text('Tampilkan QR Pass Peminjaman'),
+            onPressed: isQrLoading ? null : () => _showQrModal(p),
+            icon: isQrLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.qr_code_scanner, size: 20),
+            label: Text(
+              isQrLoading
+                  ? 'Menyiapkan QR...'
+                  : isReturnQr
+                  ? 'Tampilkan QR Pengembalian'
+                  : 'Tampilkan QR Pengambilan',
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: cPrimaryContainer,
               foregroundColor: Colors.white,

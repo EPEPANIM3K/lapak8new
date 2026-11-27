@@ -9,6 +9,7 @@ import 'package:lapak8new/features/history/screens/history_screen.dart';
 import 'package:lapak8new/features/profile/screens/profile_screen.dart';
 import 'package:lapak8new/features/qr/screens/qr_scanner_screen.dart';
 import 'package:lapak8new/features/chat/screens/chat_screen.dart';
+import 'package:lapak8new/features/notifications/screens/notifications_screen.dart';
 
 import 'package:lapak8new/features/admin/admin_shell.dart';
 import 'package:lapak8new/features/admin/screens/admin_dashboard_screen.dart';
@@ -39,6 +40,11 @@ final GoRouter appRouter = GoRouter(
     // Sudah login tapi masih di halaman login → arahkan sesuai role.
     if (isPublic) {
       return authProvider.isAdmin ? '/admin/dashboard' : '/';
+    }
+
+    // Scanner hanya tersedia untuk admin dan staf aktif.
+    if (loc == '/scan' && !authProvider.isAdminAtauStaf) {
+      return '/';
     }
 
     // Area admin hanya untuk admin/staf.
@@ -72,6 +78,8 @@ final GoRouter appRouter = GoRouter(
     GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
     GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
     GoRoute(path: '/chat', builder: (_, __) => const ChatScreen()),
+    GoRoute(path: '/notifications',builder: (context, state) => const NotificationsScreen(),
+),
 
     // ---------- UMUM ----------
     GoRoute(path: '/scan', builder: (_, __) => const QrScannerScreen()),

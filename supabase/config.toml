@@ -3,3 +3,6 @@ project_id = "htwczamdwdhsjogqmpke"
 
 [functions.manage-users]
 verify_jwt = true
+
+[functions.alloc8-ai]
+verify_jwt = true
