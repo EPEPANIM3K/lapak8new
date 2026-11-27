@@ -311,9 +311,7 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
 
   // ----- State -----
   final ScrollController _scrollController = ScrollController();
-  final TextEditingController _kegiatanController = TextEditingController(
-    text: 'Praktik Uji Coba Aplikasi Web Siswa',
-  );
+  final TextEditingController _kegiatanController = TextEditingController();
 
   late FasilitasRingkas _selectedRoom;
   bool _calendarOpen = false;
@@ -991,7 +989,7 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
             decoration: InputDecoration(
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
-              hintText: 'Misal: Praktik Pemrograman Web Siswa',
+              hintText: 'Praktik Uji Coba Aplikasi Web Siswa',
               hintStyle: const TextStyle(fontSize: 13, color: slate400),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 12,
@@ -1128,9 +1126,7 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
   static const Color slateBorder = Color(0xFFCBD5E1);
 
   final ScrollController _scrollController = ScrollController();
-  final TextEditingController _activityController = TextEditingController(
-    text: 'Praktik Uji Coba Aplikasi Web Siswa',
-  );
+  final TextEditingController _activityController = TextEditingController();
   final Map<String, int> _selectedItems = {};
 
   DateTime _selectedDate = DateUtils.dateOnly(
@@ -1343,10 +1339,7 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
                 );
               },
             ),
-            _BookingBottomBar(
-              isSubmitting: _isSubmitting,
-              onSubmit: _submit,
-            ),
+            _BookingBottomBar(isSubmitting: _isSubmitting, onSubmit: _submit),
           ],
         ),
       ),
@@ -1796,7 +1789,7 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
             decoration: InputDecoration(
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
-              hintText: 'Misal: Praktik Pemrograman Web Siswa',
+              hintText: 'Praktik Uji Coba Aplikasi Web Siswa',
               hintStyle: const TextStyle(
                 fontSize: 13,
                 color: Color(0xFF94A3B8),
@@ -1893,7 +1886,6 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
       ),
     );
   }
-
 }
 
 // =============================================================================
@@ -2268,6 +2260,7 @@ class _BookingTimeSection extends StatelessWidget {
     );
   }
 }
+
 String _formatBookingDate(DateTime date) {
   const weekdays = [
     'Senin',

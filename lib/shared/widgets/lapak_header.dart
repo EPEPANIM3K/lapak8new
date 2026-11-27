@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -10,7 +11,7 @@ import '../../core/constants/app_text_styles.dart';
 import 'ms_icon.dart';
 
 /// Header tetap di atas (logo LAPAK8 + notifikasi + avatar).
-/// Latar: surface 85% + blur 24 (backdrop-blur-xl).
+/// Latar: surface 85%; blur 24 dipakai native, web tanpa backdrop filter.
 /// Letakkan di `Positioned(top: 0, ...)` di dalam Stack.
 class LapakHeader extends StatelessWidget {
   const LapakHeader({
@@ -32,38 +33,43 @@ class LapakHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.paddingOf(context).top;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: Container(
-          color: AppColors.surface.fade(0.85),
-          padding: EdgeInsets.only(top: topInset),
-          child: SizedBox(
-            height: contentHeight,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.mobileGutter),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final headerContent = Container(
+      color: AppColors.surface.fade(0.85),
+      padding: EdgeInsets.only(top: topInset),
+      child: SizedBox(
+        height: contentHeight,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.mobileGutter,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const _Brand(),
+              Row(
                 children: [
-                  const _Brand(),
-                  Row(
-                    children: [
-                      _NotificationButton(
-                        showDot: hasUnreadNotification,
-                        onTap: onNotificationTap ??
-                            () => context.push('/notifications'),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      _Avatar(url: avatarUrl, onTap: onAvatarTap),
-                    ],
+                  _NotificationButton(
+                    showDot: hasUnreadNotification,
+                    onTap:
+                        onNotificationTap ??
+                        () => context.push('/notifications'),
                   ),
+                  const SizedBox(width: AppSpacing.xs),
+                  _Avatar(url: avatarUrl, onTap: onAvatarTap),
                 ],
               ),
-            ),
+            ],
           ),
         ),
       ),
+    );
+    return ClipRect(
+      child: kIsWeb
+          ? headerContent
+          : BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+              child: headerContent,
+            ),
     );
   }
 }
@@ -95,13 +101,16 @@ class _Brand extends StatelessWidget {
             Text(
               'LAPAK8',
               // tracking-tight = -0.025em
-              style: AppTextStyles.headlineSm(color: AppColors.primary)
-                  .copyWith(letterSpacing: -0.45),
+              style: AppTextStyles.headlineSm(
+                color: AppColors.primary,
+              ).copyWith(letterSpacing: -0.45),
             ),
             Text(
               'SMK NEGERI 8 MALANG',
               style: AppTextStyles.labelSm(
-                  weight: FontWeight.w500, color: AppColors.onSurfaceVariant),
+                weight: FontWeight.w500,
+                color: AppColors.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -130,8 +139,11 @@ class _NotificationButton extends StatelessWidget {
             alignment: Alignment.center,
             clipBehavior: Clip.none,
             children: [
-              const MsIcon(Symbols.notifications,
-                  size: 24, color: AppColors.onSurfaceVariant),
+              const MsIcon(
+                Symbols.notifications,
+                size: 24,
+                color: AppColors.onSurfaceVariant,
+              ),
               if (showDot)
                 Positioned(
                   top: 8,
@@ -185,16 +197,26 @@ class _Avatar extends StatelessWidget {
               child: url.trim().isEmpty
                   ? const ColoredBox(
                       color: AppColors.surfaceContainerHigh,
-                      child: Icon(Icons.person, size: 18, color: AppColors.primary),
+                      child: Icon(
+                        Icons.person,
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
                     )
                   : Image.network(
                       url,
                       width: 32,
                       height: 32,
+                      cacheWidth: 64,
+                      cacheHeight: 64,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const ColoredBox(
                         color: AppColors.surfaceContainerHigh,
-                        child: Icon(Icons.person, size: 18, color: AppColors.primary),
+                        child: Icon(
+                          Icons.person,
+                          size: 18,
+                          color: AppColors.primary,
+                        ),
                       ),
                     ),
             ),

@@ -111,6 +111,9 @@ CREATE TABLE IF NOT EXISTS public.peminjaman (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+ALTER TABLE public.peminjaman
+  ADD COLUMN IF NOT EXISTS alasan_penolakan TEXT;
+
 -- Table: public.item_peminjaman (borrowing items — many-to-many between borrowing & facility asset)
 CREATE TABLE IF NOT EXISTS public.item_peminjaman (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -120,6 +123,19 @@ CREATE TABLE IF NOT EXISTS public.item_peminjaman (
   nama_fasilitas_snapshot TEXT NOT NULL,  -- denormalized name for quick display
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE public.item_peminjaman
+  ADD COLUMN IF NOT EXISTS fasilitas_id UUID REFERENCES public.fasilitas(id) ON DELETE RESTRICT;
+
+UPDATE public.item_peminjaman AS item
+SET fasilitas_id = aset.fasilitas_id
+FROM public.aset_fasilitas AS aset
+WHERE item.aset_fasilitas_id = aset.id
+  AND item.fasilitas_id IS NULL
+  AND aset.fasilitas_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_item_peminjaman_fasilitas_id
+  ON public.item_peminjaman (fasilitas_id);
 
 -- Table: public.persetujuan_peminjaman (borrowing approvals — workflow step)
 CREATE TABLE IF NOT EXISTS public.persetujuan_peminjaman (
@@ -324,6 +340,378 @@ AS $$
     false
   );
 $$;
+
+CREATE OR REPLACE FUNCTION public.ajukan_peminjaman(
+  p_kategori TEXT,
+  p_nama_kegiatan TEXT,
+  p_mulai_pada TIMESTAMPTZ,
+  p_estimasi_kembali_pada TIMESTAMPTZ,
+  p_items JSONB,
+  p_catatan_tujuan TEXT DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  v_peminjam_id UUID := auth.uid();
+  v_peminjaman_id UUID;
+  v_kode_booking TEXT;
+  v_percobaan INTEGER := 0;
+  v_item JSONB;
+  v_fasilitas_id UUID;
+  v_jumlah INTEGER;
+  v_nama_fasilitas TEXT;
+  v_total_unit INTEGER;
+  v_status_fasilitas TEXT;
+  v_aktif BOOLEAN;
+  v_aktif_pengguna BOOLEAN;
+  v_fasilitas_terpilih UUID[] := ARRAY[]::UUID[];
+BEGIN
+  IF v_peminjam_id IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Silakan masuk terlebih dahulu.';
+  END IF;
+
+  SELECT pengguna.aktif
+  INTO v_aktif_pengguna
+  FROM public.pengguna AS pengguna
+  WHERE pengguna.id = v_peminjam_id;
+
+  IF NOT FOUND OR v_aktif_pengguna IS DISTINCT FROM TRUE THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Akun tidak aktif atau tidak ditemukan.';
+  END IF;
+
+  IF p_kategori IS NULL
+     OR p_kategori NOT IN ('praktik', 'ekskul', 'lainnya')
+     OR nullif(trim(p_nama_kegiatan), '') IS NULL
+     OR p_mulai_pada IS NULL
+     OR p_estimasi_kembali_pada IS NULL
+     OR p_mulai_pada <= now()
+     OR p_estimasi_kembali_pada <= p_mulai_pada THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Data peminjaman atau rentang waktunya tidak valid.';
+  END IF;
+
+  IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Daftar fasilitas tidak valid.';
+  END IF;
+
+  IF jsonb_array_length(p_items) = 0 OR jsonb_array_length(p_items) > 50 THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Daftar fasilitas tidak valid.';
+  END IF;
+
+  FOR v_item IN SELECT value FROM jsonb_array_elements(p_items)
+  LOOP
+    IF jsonb_typeof(v_item) <> 'object' THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Format fasilitas tidak valid.';
+    END IF;
+
+    BEGIN
+      v_fasilitas_id := nullif(v_item ->> 'fasilitas_id', '')::UUID;
+      v_jumlah := nullif(v_item ->> 'jumlah', '')::INTEGER;
+    EXCEPTION
+      WHEN invalid_text_representation OR numeric_value_out_of_range THEN
+        RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'ID fasilitas atau jumlah tidak valid.';
+    END;
+
+    IF v_fasilitas_id IS NULL OR v_jumlah IS NULL OR v_jumlah < 1 THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Jumlah fasilitas minimal satu unit.';
+    END IF;
+
+    IF v_fasilitas_id = ANY(v_fasilitas_terpilih) THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Fasilitas yang sama tidak boleh dicantumkan lebih dari sekali.';
+    END IF;
+    v_fasilitas_terpilih := array_append(v_fasilitas_terpilih, v_fasilitas_id);
+
+    SELECT fasilitas.nama, coalesce(fasilitas.total_unit, 0), fasilitas.status, fasilitas.aktif
+    INTO v_nama_fasilitas, v_total_unit, v_status_fasilitas, v_aktif
+    FROM public.fasilitas AS fasilitas
+    WHERE fasilitas.id = v_fasilitas_id;
+
+    IF NOT FOUND OR v_aktif IS DISTINCT FROM TRUE OR v_status_fasilitas <> 'tersedia' THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Fasilitas tidak tersedia.';
+    END IF;
+
+    IF v_jumlah > v_total_unit THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Jumlah yang diajukan melebihi stok fasilitas.';
+    END IF;
+  END LOOP;
+
+  LOOP
+    v_percobaan := v_percobaan + 1;
+    v_kode_booking := 'LPK-' || to_char(now(), 'YYYYMMDD') || '-' ||
+      upper(substr(replace(gen_random_uuid()::TEXT, '-', ''), 1, 5));
+
+    BEGIN
+      INSERT INTO public.peminjaman (
+        kode_booking, peminjam_id, kategori, nama_kegiatan, catatan_tujuan,
+        mulai_pada, estimasi_kembali_pada, status
+      )
+      VALUES (
+        v_kode_booking, v_peminjam_id, p_kategori, trim(p_nama_kegiatan),
+        nullif(trim(p_catatan_tujuan), ''), p_mulai_pada,
+        p_estimasi_kembali_pada, 'menunggu_persetujuan'
+      )
+      RETURNING id INTO v_peminjaman_id;
+      EXIT;
+    EXCEPTION
+      WHEN unique_violation THEN
+        IF v_percobaan >= 5 THEN
+          RAISE;
+        END IF;
+    END;
+  END LOOP;
+
+  FOR v_item IN SELECT value FROM jsonb_array_elements(p_items)
+  LOOP
+    v_fasilitas_id := (v_item ->> 'fasilitas_id')::UUID;
+    v_jumlah := (v_item ->> 'jumlah')::INTEGER;
+
+    INSERT INTO public.item_peminjaman (
+      peminjaman_id, fasilitas_id, jumlah, nama_fasilitas_snapshot
+    )
+    SELECT v_peminjaman_id, fasilitas.id, v_jumlah, fasilitas.nama
+    FROM public.fasilitas AS fasilitas
+    WHERE fasilitas.id = v_fasilitas_id;
+  END LOOP;
+
+  INSERT INTO public.persetujuan_peminjaman (peminjaman_id, status)
+  VALUES (v_peminjaman_id, 'menunggu');
+
+  INSERT INTO public.riwayat_kejadian (peminjaman_id, aktor_id, jenis, deskripsi)
+  VALUES (v_peminjaman_id, v_peminjam_id, 'status_change', 'Pengajuan dikirim untuk menunggu persetujuan admin.');
+
+  RETURN v_peminjaman_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.batalkan_peminjaman(p_peminjaman_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  v_peminjam_id UUID := auth.uid();
+  v_peminjaman_peminjam_id UUID;
+  v_status TEXT;
+BEGIN
+  IF v_peminjam_id IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Silakan masuk terlebih dahulu.';
+  END IF;
+
+  SELECT peminjaman.peminjam_id, peminjaman.status
+  INTO v_peminjaman_peminjam_id, v_status
+  FROM public.peminjaman AS peminjaman
+  WHERE peminjaman.id = p_peminjaman_id
+  FOR UPDATE;
+
+  IF NOT FOUND
+     OR v_peminjaman_peminjam_id <> v_peminjam_id
+     OR v_status <> 'menunggu_persetujuan' THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Peminjaman tidak dapat dibatalkan.';
+  END IF;
+
+  UPDATE public.peminjaman
+  SET status = 'dibatalkan', updated_at = now()
+  WHERE id = p_peminjaman_id;
+
+  DELETE FROM public.persetujuan_peminjaman
+  WHERE peminjaman_id = p_peminjaman_id AND status = 'menunggu';
+
+  INSERT INTO public.riwayat_kejadian (peminjaman_id, aktor_id, jenis, deskripsi)
+  VALUES (p_peminjaman_id, v_peminjam_id, 'status_change', 'Pengajuan dibatalkan oleh peminjam.');
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.proses_peminjaman_admin(
+  p_peminjaman_id UUID,
+  p_status TEXT,
+  p_alasan_penolakan TEXT DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  v_aktor_id UUID := auth.uid();
+  v_status_lama TEXT;
+  v_mulai_pada TIMESTAMPTZ;
+  v_estimasi_kembali_pada TIMESTAMPTZ;
+  v_item RECORD;
+  v_total_unit INTEGER;
+  v_status_fasilitas TEXT;
+  v_aktif BOOLEAN;
+  v_dipesan INTEGER;
+  v_alasan TEXT := nullif(trim(p_alasan_penolakan), '');
+BEGIN
+  IF v_aktor_id IS NULL OR NOT public.adalah_admin_atau_staf() THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Hanya admin atau staf aktif yang dapat memproses peminjaman.';
+  END IF;
+
+  IF p_status IS NULL
+     OR p_status NOT IN ('disetujui', 'ditolak', 'dipinjam', 'dikembalikan', 'terlambat') THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Status peminjaman tidak valid.';
+  END IF;
+
+  SELECT peminjaman.status, peminjaman.mulai_pada,
+         peminjaman.estimasi_kembali_pada
+  INTO v_status_lama, v_mulai_pada, v_estimasi_kembali_pada
+  FROM public.peminjaman AS peminjaman
+  WHERE peminjaman.id = p_peminjaman_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Peminjaman tidak ditemukan.';
+  END IF;
+
+  IF NOT (
+    (v_status_lama = 'menunggu_persetujuan' AND p_status IN ('disetujui', 'ditolak'))
+    OR (v_status_lama = 'disetujui' AND p_status = 'dipinjam')
+    OR (v_status_lama = 'dipinjam' AND p_status IN ('dikembalikan', 'terlambat'))
+    OR (v_status_lama = 'terlambat' AND p_status = 'dikembalikan')
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Perubahan status tidak sesuai alur peminjaman.';
+  END IF;
+
+  IF p_status = 'ditolak' AND v_alasan IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Alasan penolakan wajib diisi.';
+  END IF;
+
+  IF p_status = 'disetujui' THEN
+    IF EXISTS (
+      SELECT 1
+      FROM public.item_peminjaman AS item
+      WHERE item.peminjaman_id = p_peminjaman_id AND item.fasilitas_id IS NULL
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Data fasilitas peminjaman belum lengkap.';
+    END IF;
+
+    PERFORM fasilitas.id
+    FROM public.fasilitas AS fasilitas
+    JOIN (
+      SELECT DISTINCT item.fasilitas_id
+      FROM public.item_peminjaman AS item
+      WHERE item.peminjaman_id = p_peminjaman_id
+    ) AS diminta ON diminta.fasilitas_id = fasilitas.id
+    ORDER BY fasilitas.id
+    FOR UPDATE OF fasilitas;
+
+    FOR v_item IN
+      SELECT item.fasilitas_id, sum(item.jumlah)::INTEGER AS jumlah
+      FROM public.item_peminjaman AS item
+      WHERE item.peminjaman_id = p_peminjaman_id
+      GROUP BY item.fasilitas_id
+      ORDER BY item.fasilitas_id
+    LOOP
+      SELECT coalesce(fasilitas.total_unit, 0), fasilitas.status, fasilitas.aktif
+      INTO v_total_unit, v_status_fasilitas, v_aktif
+      FROM public.fasilitas AS fasilitas
+      WHERE fasilitas.id = v_item.fasilitas_id;
+
+      IF NOT FOUND OR v_aktif IS DISTINCT FROM TRUE OR v_status_fasilitas <> 'tersedia' THEN
+        RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Salah satu fasilitas sedang tidak tersedia.';
+      END IF;
+
+      WITH overlapping AS (
+        SELECT peminjaman.mulai_pada, peminjaman.estimasi_kembali_pada,
+               peminjaman.status, item.jumlah
+        FROM public.item_peminjaman AS item
+        JOIN public.peminjaman AS peminjaman ON peminjaman.id = item.peminjaman_id
+        WHERE item.fasilitas_id = v_item.fasilitas_id
+          AND peminjaman.id <> p_peminjaman_id
+          AND peminjaman.status IN ('disetujui', 'dipinjam', 'terlambat')
+          AND peminjaman.mulai_pada < v_estimasi_kembali_pada
+          AND CASE
+                WHEN peminjaman.status IN ('dipinjam', 'terlambat')
+                  THEN 'infinity'::TIMESTAMPTZ
+                ELSE peminjaman.estimasi_kembali_pada
+              END > v_mulai_pada
+      ),
+      events AS (
+        SELECT greatest(overlapping.mulai_pada, v_mulai_pada) AS waktu,
+               overlapping.jumlah::BIGINT AS perubahan
+        FROM overlapping
+        UNION ALL
+        SELECT least(
+                 CASE
+                   WHEN overlapping.status IN ('dipinjam', 'terlambat')
+                     THEN 'infinity'::TIMESTAMPTZ
+                   ELSE overlapping.estimasi_kembali_pada
+                 END,
+                 v_estimasi_kembali_pada
+               ),
+               -overlapping.jumlah::BIGINT
+        FROM overlapping
+      ),
+      grouped_events AS (
+        SELECT events.waktu, sum(events.perubahan) AS perubahan
+        FROM events
+        GROUP BY events.waktu
+      ),
+      pemakaian AS (
+        SELECT sum(grouped_events.perubahan) OVER (
+          ORDER BY grouped_events.waktu
+          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS jumlah
+        FROM grouped_events
+      )
+      SELECT kapasitas.jumlah
+      INTO v_dipesan
+      FROM (SELECT coalesce(max(pemakaian.jumlah), 0)::INTEGER AS jumlah FROM pemakaian) AS kapasitas;
+
+      IF v_dipesan + v_item.jumlah > v_total_unit THEN
+        RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Stok fasilitas tidak cukup pada waktu yang dipilih.';
+      END IF;
+    END LOOP;
+  END IF;
+
+  UPDATE public.peminjaman
+  SET status = p_status,
+      alasan_penolakan = CASE WHEN p_status = 'ditolak' THEN v_alasan ELSE NULL END,
+      disetujui_pada = CASE WHEN p_status = 'disetujui' THEN now() ELSE disetujui_pada END,
+      diambil_pada = CASE WHEN p_status = 'dipinjam' THEN now() ELSE diambil_pada END,
+      dikembalikan_pada = CASE WHEN p_status = 'dikembalikan' THEN now() ELSE dikembalikan_pada END,
+      updated_at = now()
+  WHERE id = p_peminjaman_id;
+
+  IF v_status_lama = 'menunggu_persetujuan' THEN
+    UPDATE public.persetujuan_peminjaman
+    SET evaluator_id = v_aktor_id,
+        status = CASE WHEN p_status = 'disetujui' THEN 'disetujui' ELSE 'ditolak' END,
+        alasan_penolakan = CASE WHEN p_status = 'ditolak' THEN v_alasan ELSE NULL END,
+        disetujui_pada = now()
+    WHERE peminjaman_id = p_peminjaman_id AND status = 'menunggu';
+
+    IF NOT FOUND THEN
+      INSERT INTO public.persetujuan_peminjaman (
+        peminjaman_id, evaluator_id, status, alasan_penolakan, disetujui_pada
+      )
+      VALUES (
+        p_peminjaman_id, v_aktor_id,
+        CASE WHEN p_status = 'disetujui' THEN 'disetujui' ELSE 'ditolak' END,
+        CASE WHEN p_status = 'ditolak' THEN v_alasan ELSE NULL END,
+        now()
+      );
+    END IF;
+  END IF;
+
+  INSERT INTO public.riwayat_kejadian (peminjaman_id, aktor_id, jenis, deskripsi)
+  VALUES (
+    p_peminjaman_id, v_aktor_id, 'status_change',
+    'Status peminjaman diubah dari ' || v_status_lama || ' menjadi ' || p_status ||
+      CASE WHEN p_status = 'ditolak' THEN '. Alasan: ' || v_alasan ELSE '.' END
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.ajukan_peminjaman(TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, JSONB, TEXT) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.batalkan_peminjaman(UUID) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.proses_peminjaman_admin(UUID, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.ajukan_peminjaman(TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, JSONB, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.batalkan_peminjaman(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.proses_peminjaman_admin(UUID, TEXT, TEXT) TO authenticated;
 
 -- -------------------------------------------------------------
 -- Legacy policy helper — use the canonical Supabase user table.
@@ -637,9 +1025,6 @@ CREATE POLICY peminjaman_baca_milik_atau_admin ON public.peminjaman
   USING (peminjam_id = auth.uid() OR public.adalah_admin_atau_staf());
 
 DROP POLICY IF EXISTS peminjaman_buat_sendiri ON public.peminjaman;
-CREATE POLICY peminjaman_buat_sendiri ON public.peminjaman
-  FOR INSERT TO authenticated
-  WITH CHECK (peminjam_id = auth.uid() AND status = 'menunggu_persetujuan');
 
 DROP POLICY IF EXISTS peminjaman_kelola_admin ON public.peminjaman;
 CREATE POLICY peminjaman_kelola_admin ON public.peminjaman
@@ -657,15 +1042,6 @@ CREATE POLICY item_baca_milik_atau_admin ON public.item_peminjaman
      ));
 
 DROP POLICY IF EXISTS item_buat_untuk_peminjaman_sendiri ON public.item_peminjaman;
-CREATE POLICY item_buat_untuk_peminjaman_sendiri ON public.item_peminjaman
-  FOR INSERT TO authenticated
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.peminjaman p WHERE p.id = item_peminjaman.peminjaman_id
-        AND p.peminjam_id = auth.uid()
-        AND p.status = 'menunggu_persetujuan'
-    )
-  );
 
 DROP POLICY IF EXISTS item_kelola_admin ON public.item_peminjaman;
 CREATE POLICY item_kelola_admin ON public.item_peminjaman
@@ -914,6 +1290,12 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
 TO authenticated, service_role;
 
 GRANT SELECT ON TABLE public.profiles TO authenticated, service_role;
+
+REVOKE INSERT, UPDATE, DELETE ON TABLE
+  public.peminjaman,
+  public.item_peminjaman,
+  public.persetujuan_peminjaman
+FROM authenticated;
 
 -- -------------------------------------------------------------
 -- FILE END

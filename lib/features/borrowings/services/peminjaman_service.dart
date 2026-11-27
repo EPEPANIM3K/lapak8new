@@ -1,7 +1,6 @@
 // lib/features/borrowings/services/peminjaman_service.dart
 // Semua operasi peminjaman langsung ke Supabase (skema baru).
 
-import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/peminjaman.dart';
 
@@ -176,11 +175,11 @@ class PeminjamanService {
             id, kode_booking, peminjam_id, kategori, nama_kegiatan,
             catatan_tujuan, mulai_pada, estimasi_kembali_pada, status,
             alasan_penolakan, diajukan_pada, disetujui_pada,
-            diambil_pada, dikembalikan_pada, dibuat_pada,
+            diambil_pada, dikembalikan_pada, dibuat_pada:created_at,
             item_peminjaman(id, fasilitas_id, nama_fasilitas_snapshot, jumlah, fasilitas(foto_url))
           ''')
           .eq('peminjam_id', _db.auth.currentUser!.id)
-          .order('dibuat_pada', ascending: false);
+          .order('created_at', ascending: false);
       return rows
           .map<Peminjaman>((r) => Peminjaman.fromMap(r as Map<String, dynamic>))
           .toList();
@@ -201,11 +200,11 @@ class PeminjamanService {
       var query = _db.from('peminjaman').select('''
             id, kode_booking, peminjam_id, kategori, nama_kegiatan,
             mulai_pada, estimasi_kembali_pada, status, diajukan_pada,
-            dibuat_pada:created_at,
+            alasan_penolakan, dibuat_pada:created_at,
             pengguna!peminjam_id(nama_lengkap, nomor_induk, kelas_atau_unit),
             item_peminjaman(
-              id, fasilitas_id:aset_fasilitas_id, nama_fasilitas_snapshot, jumlah,
-              fasilitas:aset_fasilitas(foto_url)
+              id, fasilitas_id, nama_fasilitas_snapshot, jumlah,
+              fasilitas(foto_url)
             )
           ''');
 
@@ -241,10 +240,11 @@ class PeminjamanService {
             id, kode_booking, peminjam_id, kategori, nama_kegiatan,
             catatan_tujuan, mulai_pada, estimasi_kembali_pada, status,
             diajukan_pada, disetujui_pada, diambil_pada, dikembalikan_pada,
+            alasan_penolakan,
             dibuat_pada:created_at,
             item_peminjaman(
-              id, fasilitas_id:aset_fasilitas_id, nama_fasilitas_snapshot, jumlah,
-              fasilitas:aset_fasilitas(foto_url)
+              id, fasilitas_id, nama_fasilitas_snapshot, jumlah,
+              fasilitas(foto_url)
             ),
             persetujuan_peminjaman(alasan_penolakan)
           ''')
@@ -279,11 +279,11 @@ class PeminjamanService {
           .select('''
             id, kode_booking, peminjam_id, kategori, nama_kegiatan,
             mulai_pada, estimasi_kembali_pada, status, diajukan_pada,
-            dikembalikan_pada, dibuat_pada:created_at,
+            dikembalikan_pada, alasan_penolakan, dibuat_pada:created_at,
             pengguna!peminjam_id(nama_lengkap, nomor_induk, kelas_atau_unit),
             item_peminjaman(
-              id, fasilitas_id:aset_fasilitas_id, nama_fasilitas_snapshot, jumlah,
-              fasilitas:aset_fasilitas(foto_url)
+              id, fasilitas_id, nama_fasilitas_snapshot, jumlah,
+              fasilitas(foto_url)
             )
           ''')
           .inFilter('status', ['dikembalikan', 'terlambat'])
@@ -319,47 +319,34 @@ class PeminjamanService {
       throw const PeminjamanException('Jumlah barang harus minimal 1 unit.');
     }
 
-    final kodeBooking = _generateKode();
-
     try {
-      // 1. Insert header peminjaman
-      final rowPeminjaman = await _db
-          .from('peminjaman')
-          .insert({
-            'kode_booking': kodeBooking,
-            'peminjam_id': uid,
-            'kategori': kategori,
-            'nama_kegiatan': namaKegiatan.trim(),
-            'catatan_tujuan': catatanTujuan?.trim(),
-            'mulai_pada': mulaiPada.toUtc().toIso8601String(),
-            'estimasi_kembali_pada': estimasiKembaliPada
-                .toUtc()
-                .toIso8601String(),
-            'status': 'menunggu_persetujuan',
-          })
-          .select()
-          .single();
+      final response = await _db.rpc(
+        'ajukan_peminjaman',
+        params: {
+          'p_kategori': kategori,
+          'p_nama_kegiatan': namaKegiatan.trim(),
+          'p_mulai_pada': mulaiPada.toUtc().toIso8601String(),
+          'p_estimasi_kembali_pada': estimasiKembaliPada
+              .toUtc()
+              .toIso8601String(),
+          'p_items': items
+              .map(
+                (item) => {
+                  'fasilitas_id': item.fasilitasId,
+                  'jumlah': item.jumlah,
+                },
+              )
+              .toList(),
+          'p_catatan_tujuan': catatanTujuan?.trim(),
+        },
+      );
+      if (response is! String || response.isEmpty) {
+        throw const PeminjamanException(
+          'Server tidak mengembalikan ID peminjaman.',
+        );
+      }
 
-      final peminjamanId = rowPeminjaman['id'] as String;
-
-      // 2. Insert item peminjaman
-      await _db
-          .from('item_peminjaman')
-          .insert(
-            items
-                .map(
-                  (item) => {
-                    'peminjaman_id': peminjamanId,
-                    'fasilitas_id': item.fasilitasId,
-                    'nama_fasilitas_snapshot': item.namaFasilitas,
-                    'jumlah': item.jumlah,
-                  },
-                )
-                .toList(),
-          );
-
-      // 3. Muat ulang dengan relasi lengkap
-      return await ambilDetailPeminjaman(peminjamanId);
+      return await ambilDetailPeminjaman(response);
     } on PostgrestException catch (e) {
       throw PeminjamanException('Gagal membuat peminjaman: ${e.message}');
     }
@@ -376,7 +363,7 @@ class PeminjamanService {
             id, kode_booking, peminjam_id, kategori, nama_kegiatan,
             catatan_tujuan, mulai_pada, estimasi_kembali_pada, status,
             alasan_penolakan, diajukan_pada, disetujui_pada,
-            diambil_pada, dikembalikan_pada, dibuat_pada,
+            diambil_pada, dikembalikan_pada, dibuat_pada:created_at,
             pengguna!peminjam_id(nama_lengkap, nomor_induk, kelas_atau_unit),
             item_peminjaman(id, fasilitas_id, nama_fasilitas_snapshot, jumlah, fasilitas(foto_url))
           ''')
@@ -393,12 +380,7 @@ class PeminjamanService {
   // -------------------------------------------------------------------------
   Future<void> batalkan(String id) async {
     try {
-      await _db
-          .from('peminjaman')
-          .update({'status': 'dibatalkan'})
-          .eq('id', id)
-          .eq('peminjam_id', _db.auth.currentUser!.id)
-          .eq('status', 'menunggu_persetujuan');
+      await _db.rpc('batalkan_peminjaman', params: {'p_peminjaman_id': id});
     } on PostgrestException catch (e) {
       throw PeminjamanException('Gagal membatalkan: ${e.message}');
     }
@@ -412,18 +394,15 @@ class PeminjamanService {
     required String status,
     String? alasanPenolakan,
   }) async {
-    final Map<String, dynamic> data = {'status': status};
-
-    if (status == 'disetujui')
-      data['disetujui_pada'] = DateTime.now().toUtc().toIso8601String();
-    if (status == 'dipinjam')
-      data['diambil_pada'] = DateTime.now().toUtc().toIso8601String();
-    if (status == 'dikembalikan')
-      data['dikembalikan_pada'] = DateTime.now().toUtc().toIso8601String();
-    if (alasanPenolakan != null) data['alasan_penolakan'] = alasanPenolakan;
-
     try {
-      await _db.from('peminjaman').update(data).eq('id', id);
+      await _db.rpc(
+        'proses_peminjaman_admin',
+        params: {
+          'p_peminjaman_id': id,
+          'p_status': status,
+          'p_alasan_penolakan': alasanPenolakan,
+        },
+      );
     } on PostgrestException catch (e) {
       throw PeminjamanException('Gagal mengubah status: ${e.message}');
     }
@@ -441,17 +420,6 @@ class PeminjamanService {
 
   Future<void> tandaiDikembalikan(String id) =>
       ubahStatus(id, status: 'dikembalikan');
-
-  // -------------------------------------------------------------------------
-  // Helper: generate kode booking unik  format: LPK-YYYYMMDD-XXXXX
-  // -------------------------------------------------------------------------
-  String _generateKode() {
-    final now = DateTime.now();
-    final tanggal =
-        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
-    final acak = (Random().nextInt(90000) + 10000).toString();
-    return 'LPK-$tanggal-$acak';
-  }
 }
 
 final peminjamanService = PeminjamanService();
