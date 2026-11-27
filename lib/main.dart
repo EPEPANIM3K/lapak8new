@@ -10,7 +10,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
     url: SupabaseConfig.url,
-    anonKey: SupabaseConfig.anonKey,
+    anonKey: SupabaseConfig.anonKey, // ignore: deprecated_member_use
   );
   await authProvider.init(); // pulihkan sesi login yang tersimpan
   runApp(const Lapak8App());

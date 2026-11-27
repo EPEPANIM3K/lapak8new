@@ -4,7 +4,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/peminjaman.dart';
-import '../services/peminjaman_service.dart';
+
 
 class BorrowingDetailSheet extends StatelessWidget {
   const BorrowingDetailSheet({super.key, required this.peminjaman});
@@ -12,7 +12,6 @@ class BorrowingDetailSheet extends StatelessWidget {
   final Peminjaman peminjaman;
 
   static const _primary          = Color(0xFF0037B0);
-  static const _primaryFixed     = Color(0xFFDCE1FF);
   static const _surfaceLow       = Color(0xFFF2F3FF);
   static const _surfaceLowest    = Color(0xFFFFFFFF);
   static const _onSurface        = Color(0xFF131B2E);

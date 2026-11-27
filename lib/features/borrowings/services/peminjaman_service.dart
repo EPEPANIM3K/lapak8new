@@ -28,7 +28,7 @@ class PeminjamanService {
           .order('nama');
       return rows
           .map<FasilitasRingkas>(
-            (r) => FasilitasRingkas.fromMap(r as Map<String, dynamic>),
+            (r) => FasilitasRingkas.fromMap(r),
           )
           .toList();
     } on PostgrestException catch (e) {
@@ -54,7 +54,7 @@ class PeminjamanService {
           .order('dibuat_pada', ascending: false);
       return rows
           .map<Peminjaman>(
-            (r) => Peminjaman.fromMap(r as Map<String, dynamic>),
+            (r) => Peminjaman.fromMap(r),
           )
           .toList();
     } on PostgrestException catch (e) {
@@ -91,7 +91,7 @@ class PeminjamanService {
 
       return rows
           .map<Peminjaman>(
-            (r) => Peminjaman.fromMap(r as Map<String, dynamic>),
+            (r) => Peminjaman.fromMap(r),
           )
           .toList();
     } on PostgrestException catch (e) {

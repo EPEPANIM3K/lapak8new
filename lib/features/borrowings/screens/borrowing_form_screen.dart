@@ -18,7 +18,6 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
   static const cSurface              = Color(0xFFFAF8FF);
   static const cSurfaceLowest        = Color(0xFFFFFFFF);
   static const cSurfaceLow           = Color(0xFFF2F3FF);
-  static const cSurfaceContainer     = Color(0xFFEAEDFF);
   static const cSurfaceHigh          = Color(0xFFE2E7FF);
   static const cOnSurface            = Color(0xFF131B2E);
   static const cOnSurfaceVariant     = Color(0xFF434655);
@@ -27,13 +26,7 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
   static const cOnPrimary            = Color(0xFFFFFFFF);
   static const cOnPrimaryContainer   = Color(0xFFCAD3FF);
   static const cTertiaryContainer    = Color(0xFF006A48);
-  static const cTertiaryFixed        = Color(0xFF6FFBBE);
-  static const cTertiaryFixedDim     = Color(0xFF4EDEA3);
-  static const cOnTertiary           = Color(0xFFFFFFFF);
   static const cError                = Color(0xFFBA1A1A);
-  static const cErrorContainer       = Color(0xFFFFDAD6);
-  static const cOnErrorContainer     = Color(0xFF93000A);
-  static const cSecondary            = Color(0xFF505F76);
   static const cOutlineVariant       = Color(0xFFC4C5D7);
 
   // ===== State =====
@@ -114,35 +107,11 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
     if (date != null) setState(() => _selectedDate = date);
   }
 
-  DateTime _dateAt(String time) {
-    final parts = time.split(':');
-    return DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-      int.parse(parts[0]),
-      int.parse(parts[1]),
-    );
-  }
-
   List<DateTime> get _dateChoices {
     final firstDate = DateUtils.dateOnly(
       DateTime.now().add(const Duration(days: 1)),
     );
     return List.generate(5, (i) => firstDate.add(Duration(days: i)));
-  }
-
-  String _formatDate(DateTime date, {bool weekday = true}) {
-    const days = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
-    const months = [
-      'Jan','Feb','Mar','Apr','Mei','Jun',
-      'Jul','Agu','Sep','Okt','Nov','Des',
-    ];
-    final d = date.weekday - 1;
-    final buf = StringBuffer();
-    if (weekday) buf.write('${days[d]}, ');
-    buf.write('${date.day} ${months[date.month - 1]}');
-    return buf.toString();
   }
 
   Future<void> _submit() async {
@@ -340,7 +309,7 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
               .map((f) => DropdownMenuItem(
                     value: f.id,
                     child: Text(
-                      '${f.nama} (${f.lokasiNama ?? '-'})',
+                      '${f.nama} (${f.lokasi})',
                       overflow: TextOverflow.ellipsis,
                     ),
                   ))

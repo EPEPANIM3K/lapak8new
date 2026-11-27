@@ -71,6 +71,7 @@ enum StatusPeminjaman {
   dipinjam,
   dikembalikan,
   terlambat,
+  // ignore: constant_identifier_names
   tidak_dikenal;
 
   static StatusPeminjaman dariString(String nilai) => switch (nilai) {

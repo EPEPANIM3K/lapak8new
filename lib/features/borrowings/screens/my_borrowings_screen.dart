@@ -18,19 +18,15 @@ class MyBorrowingsScreen extends StatefulWidget {
 class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
   // ===== Palette =====
   static const _surface             = Color(0xFFFAF8FF);
-  static const _surfaceLow          = Color(0xFFF2F3FF);
-  static const _surfaceLowest       = Color(0xFFFFFFFF);
   static const _onSurface           = Color(0xFF131B2E);
   static const _onSurfaceVariant    = Color(0xFF434655);
   static const _primary             = Color(0xFF0037B0);
-  static const _primaryFixed        = Color(0xFFDCE1FF);
-  static const _error               = Color(0xFFBA1A1A);
-  static const _errorContainer      = Color(0xFFFFDAD6);
+  static const _errorColor          = Color(0xFFBA1A1A);
   static const _outline             = Color(0xFFC4C5D7);
 
   List<Peminjaman> _list = [];
   bool _loading = true;
-  String? _error;
+  String? _errMsg;
   final Set<String> _cancellingIds = {};
 
   @override
@@ -40,14 +36,14 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() { _loading = true; _errMsg = null; });
     try {
       final data = await peminjamanService.ambilPeminjamanSaya();
       if (!mounted) return;
       setState(() { _list = data; _loading = false; });
     } on PeminjamanException catch (e) {
       if (!mounted) return;
-      setState(() { _error = e.pesan; _loading = false; });
+      setState(() { _errMsg = e.pesan; _loading = false; });
     }
   }
 
@@ -61,7 +57,7 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Tidak')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Batalkan', style: TextStyle(color: _error)),
+            child: const Text('Batalkan', style: TextStyle(color: _errorColor)),
           ),
         ],
       ),
@@ -95,7 +91,7 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         content: Text(msg),
-        backgroundColor: error ? _error : null,
+        backgroundColor: error ? _errorColor : null,
       ));
   }
 
@@ -130,7 +126,7 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _error != null
+          : _errMsg != null
               ? _buildError()
               : _list.isEmpty
                   ? _buildEmpty()
@@ -165,7 +161,7 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(_error!, style: const TextStyle(color: _error), textAlign: TextAlign.center),
+        Text(_errMsg!, style: const TextStyle(color: _errorColor), textAlign: TextAlign.center),
         const SizedBox(height: 12),
         TextButton.icon(
           onPressed: _load,
@@ -221,7 +217,6 @@ class _BorrowingCard extends StatelessWidget {
   final VoidCallback onDetail;
 
   static const _primary          = Color(0xFF0037B0);
-  static const _primaryFixed     = Color(0xFFDCE1FF);
   static const _surfaceLow       = Color(0xFFF2F3FF);
   static const _surfaceLowest    = Color(0xFFFFFFFF);
   static const _onSurface        = Color(0xFF131B2E);
