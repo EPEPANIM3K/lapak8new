@@ -5,6 +5,7 @@ import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/admin/services/media_picker_service.dart';
+import 'package:lapak8new/shared/widgets/blurred_bottom_sheet.dart';
 import 'package:lapak8new/shared/widgets/ms_icon.dart';
 
 /// Bottom sheet pemilihan sumber berkas dokumentasi (kamera atau galeri).
@@ -14,24 +15,15 @@ Future<MediaSource?> showMediaSourceSheet(
   String? title,
   String? subtitle,
 }) {
-  return showModalBottomSheet<MediaSource>(
+  return showBlurredBottomSheet<MediaSource>(
     context: context,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black54,
-    builder: (_) => _MediaSourceSheet(
-      isPhoto: isPhoto,
-      title: title,
-      subtitle: subtitle,
-    ),
+    builder: (_) =>
+        _MediaSourceSheet(isPhoto: isPhoto, title: title, subtitle: subtitle),
   );
 }
 
 class _MediaSourceSheet extends StatelessWidget {
-  const _MediaSourceSheet({
-    required this.isPhoto,
-    this.title,
-    this.subtitle,
-  });
+  const _MediaSourceSheet({required this.isPhoto, this.title, this.subtitle});
 
   final bool isPhoto;
   final String? title;
@@ -159,8 +151,11 @@ class _SourceTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const MsIcon(Symbols.chevron_right,
-                  size: 20, color: AppColors.slate500),
+              const MsIcon(
+                Symbols.chevron_right,
+                size: 20,
+                color: AppColors.slate500,
+              ),
             ],
           ),
         ),

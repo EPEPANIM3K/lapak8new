@@ -326,7 +326,7 @@ class PeraturanModal extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Peraturan Peminjaman',
+                        'Peraturan Peminjaman & Pengembalian',
                         style: TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
                       ),
                       const SizedBox(height: 2),
@@ -359,26 +359,41 @@ class PeraturanModal extends StatelessWidget {
                     _buildRuleItem(
                       icon: Icons.assignment,
                       title: '1. Pengajuan & Persetujuan',
-                      desc: 'Booking wajib diajukan minimal H-1 sebelum pemakaian dan telah disetujui PIC Sarpras.',
+                      desc: '- Item berkategori Ruangan dapat diajukan maksimal 7 hari sebelum tanggal peminjaman.\n'
+                          '- Item selain kategori Ruangan dapat diajukan maksimal 1 hari sebelum tanggal peminjaman.\n'
+                          '- Peminjaman di hari yang sama diperbolehkan selama item tersedia.\n'
+                          '- Setiap pengajuan wajib mendapatkan persetujuan admin atau petugas sebelum barang dapat diambil.',
                     ),
                     const SizedBox(height: 10),
                     _buildRuleItem(
-                      icon: Icons.badge,
-                      title: '2. Pengambilan & E-Tiket',
-                      desc: 'Tunjukkan QR Tiket dan Kartu Pelajar saat pengambilan barang di ruang teknisi.',
+                      icon: Icons.qr_code_2,
+                      title: '2. Pengambilan Barang & QR Peminjaman',
+                      desc: 'Tunjukkan QR Peminjaman kepada petugas saat pengambilan barang. Barang dinyatakan resmi dipinjam setelah QR berhasil dipindai dan dikonfirmasi oleh petugas.',
                     ),
                     const SizedBox(height: 10),
                     _buildRuleItem(
                       icon: Icons.schedule,
-                      title: '3. Ketepatan Waktu & Cek Fisik',
-                      desc: 'Pengembalian maksimal 15 menit sebelum jam operasional berakhir. Cek kondisi fisik bersama petugas.',
+                      title: '3. Ketepatan Waktu',
+                      desc: 'Barang wajib dikembalikan sesuai batas waktu yang telah ditentukan saat peminjaman. Keterlambatan pengembalian dapat dikenakan sanksi atau denda sesuai ketentuan yang berlaku.',
+                    ),
+                    const SizedBox(height: 10),
+                    _buildRuleItem(
+                      icon: Icons.assignment_return,
+                      title: '4. Prosedur Pengembalian',
+                      desc: 'Gunakan fitur Kembalikan Sekarang pada aplikasi dan tampilkan QR Pengembalian kepada petugas. Pengembalian dinyatakan selesai setelah barang diperiksa dan dikonfirmasi oleh petugas.',
                     ),
                     const SizedBox(height: 10),
                     _buildRuleItem(
                       icon: Icons.warning_amber_rounded,
-                      title: '4. Tanggung Jawab & Denda',
-                      desc: 'Kerusakan atau kehilangan sarpras menjadi tanggung jawab peminjam sesuai SOP sekolah.',
+                      title: '5. Kerusakan, Kehilangan & Denda',
+                      desc: 'Peminjam bertanggung jawab atas kerusakan atau kehilangan barang selama masa peminjaman. Petugas berhak melakukan pemeriksaan kondisi barang dan menetapkan denda sesuai tingkat kerusakan atau kehilangan berdasarkan ketentuan yang berlaku.',
                       isWarning: true,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildRuleItem(
+                      icon: Icons.person_outline,
+                      title: '6. Tanggung Jawab Peminjam',
+                      desc: 'Peminjam wajib menjaga barang, menggunakan sesuai peruntukannya, dan mengembalikan dalam kondisi baik. Apabila terdapat pelanggaran, peminjam wajib menyelesaikan kewajiban yang ditetapkan sebelum transaksi dinyatakan selesai.',
                     ),
                     const SizedBox(height: 16),
 
@@ -397,7 +412,7 @@ class PeraturanModal extends StatelessWidget {
                           const SizedBox(width: 8),
                           const Expanded(
                             child: Text(
-                              'Butuh perpanjangan waktu? Hubungi PIC Sarpras melalui fitur Chat Bantuan.',
+                              'Butuh bantuan terkait peminjaman atau pengembalian? Hubungi PIC Sarpras melalui fitur Chat Bantuan pada aplikasi.',
                               style: TextStyle(fontSize: 10, color: Color(0xFF1E3A8A), height: 1.4),
                             ),
                           ),

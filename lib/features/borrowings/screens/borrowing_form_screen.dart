@@ -6,6 +6,18 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../models/peminjaman.dart';
 import '../services/peminjaman_service.dart';
+import '../utils/booking_date_window.dart';
+
+DateTime _firstBookableRoomDate() {
+  final today = DateUtils.dateOnly(DateTime.now());
+  for (var daysAhead = 0; daysAhead <= 7; daysAhead++) {
+    final date = today.add(Duration(days: daysAhead));
+    if (date.weekday != DateTime.saturday && date.weekday != DateTime.sunday) {
+      return date;
+    }
+  }
+  return today;
+}
 
 // =============================================================================
 // Entry point — memuat fasilitas, lalu memilih UI berdasarkan kategori.
@@ -297,10 +309,7 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
   void initState() {
     super.initState();
     _selectedRoom = widget.initialFacility;
-    // Default tanggal minimum H+2
-    _selectedDate = DateUtils.dateOnly(
-      DateTime.now().add(const Duration(days: 2)),
-    );
+    _selectedDate = _firstBookableRoomDate();
   }
 
   // Conflict check: 09-11 or 13-14 already booked
@@ -357,6 +366,19 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
   }
 
   Future<void> _submitBooking() async {
+    if (!isBookingDateWithinWindow(
+          date: _selectedDate,
+          today: DateTime.now(),
+          maxDaysAhead: 7,
+        ) ||
+        _selectedDate.weekday == DateTime.saturday ||
+        _selectedDate.weekday == DateTime.sunday) {
+      _showMessage(
+        'Tanggal peminjaman ruangan harus hari ini hingga 7 hari ke depan.',
+        error: true,
+      );
+      return;
+    }
     if (_hasConflict) {
       _showMessage(
         'Jadwal bentrok dengan peminjaman lain. Silakan pilih jam lain.',
@@ -480,16 +502,7 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
               ),
             ),
             // Top App Bar
-            _BookingTopBar(
-              onBack: () => context.pop(),
-              onHome: () {
-                _scrollController.animateTo(
-                  0,
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeInOut,
-                );
-              },
-            ),
+            _BookingTopBar(onBack: () => context.pop()),
             // Bottom sticky action bar
             _BookingBottomBar(
               isSubmitting: _isSubmitting,
@@ -621,7 +634,8 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
     return _BookingDateSection(
       selectedDate: _selectedDate,
       calendarOpen: _calendarOpen,
-      minDaysAhead: 2,
+      minDaysAhead: 0,
+      maxDaysAhead: 7,
       markWeekendsFull: true,
       onToggleCalendar: () => setState(() => _calendarOpen = !_calendarOpen),
       onDateSelected: (date) {
@@ -1099,9 +1113,7 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
   final TextEditingController _activityController = TextEditingController();
   final Map<String, int> _selectedItems = {};
 
-  DateTime _selectedDate = DateUtils.dateOnly(
-    DateTime.now().add(const Duration(days: 1)),
-  );
+  DateTime _selectedDate = DateUtils.dateOnly(DateTime.now());
   bool _calendarOpen = false;
   int _jamMulai = 8;
   int _jamSelesai = 12;
@@ -1200,6 +1212,17 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
   }
 
   Future<void> _submit() async {
+    if (!isBookingDateWithinWindow(
+      date: _selectedDate,
+      today: DateTime.now(),
+      maxDaysAhead: 1,
+    )) {
+      _showMessage(
+        'Tanggal peminjaman barang hanya tersedia hari ini atau besok.',
+        error: true,
+      );
+      return;
+    }
     if (_selectedItems.isEmpty) {
       _showMessage('Pilih barang terlebih dahulu.', error: true);
       return;
@@ -1299,16 +1322,7 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
                 ),
               ),
             ),
-            _BookingTopBar(
-              onBack: () => context.pop(),
-              onHome: () {
-                _scrollController.animateTo(
-                  0,
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeInOut,
-                );
-              },
-            ),
+            _BookingTopBar(onBack: () => context.pop()),
             _BookingBottomBar(isSubmitting: _isSubmitting, onSubmit: _submit),
           ],
         ),
@@ -1696,7 +1710,8 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
     return _BookingDateSection(
       selectedDate: _selectedDate,
       calendarOpen: _calendarOpen,
-      minDaysAhead: 1,
+      minDaysAhead: 0,
+      maxDaysAhead: 1,
       markWeekendsFull: false,
       onToggleCalendar: () => setState(() => _calendarOpen = !_calendarOpen),
       onDateSelected: (date) {
@@ -1862,10 +1877,9 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
 // Shared Models & Widgets
 // =============================================================================
 class _BookingTopBar extends StatelessWidget {
-  const _BookingTopBar({required this.onBack, required this.onHome});
+  const _BookingTopBar({required this.onBack});
 
   final VoidCallback onBack;
-  final VoidCallback onHome;
 
   static const _surface = Color(0xFFF6F8FE);
   static const _onSurface = Color(0xFF131B2E);
@@ -1892,19 +1906,21 @@ class _BookingTopBar extends StatelessWidget {
               child: Row(
                 children: [
                   _iconBtn(icon: Icons.arrow_back, onTap: onBack),
+                  const SizedBox(width: 8),
                   const Expanded(
-                    child: Text(
-                      'Formulir Booking',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: _onSurface,
-                        letterSpacing: -0.3,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Formulir Booking',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: _onSurface,
+                          letterSpacing: -0.3,
+                        ),
                       ),
                     ),
                   ),
-                  _iconBtn(icon: Icons.home_outlined, onTap: onHome),
                 ],
               ),
             ),
@@ -2018,6 +2034,7 @@ class _BookingDateSection extends StatelessWidget {
     required this.selectedDate,
     required this.calendarOpen,
     required this.minDaysAhead,
+    required this.maxDaysAhead,
     required this.markWeekendsFull,
     required this.onToggleCalendar,
     required this.onDateSelected,
@@ -2026,6 +2043,7 @@ class _BookingDateSection extends StatelessWidget {
   final DateTime selectedDate;
   final bool calendarOpen;
   final int minDaysAhead;
+  final int maxDaysAhead;
   final bool markWeekendsFull;
   final VoidCallback onToggleCalendar;
   final ValueChanged<DateTime> onDateSelected;
@@ -2119,6 +2137,7 @@ class _BookingDateSection extends StatelessWidget {
               ? _BookingCalendar(
                   selectedDate: selectedDate,
                   minDaysAhead: minDaysAhead,
+                  maxDaysAhead: maxDaysAhead,
                   markWeekendsFull: markWeekendsFull,
                   onDateSelected: onDateSelected,
                 )
@@ -2262,12 +2281,14 @@ class _BookingCalendar extends StatefulWidget {
   const _BookingCalendar({
     required this.selectedDate,
     required this.minDaysAhead,
+    required this.maxDaysAhead,
     required this.onDateSelected,
     this.markWeekendsFull = false,
   });
 
   final DateTime selectedDate;
   final int minDaysAhead;
+  final int maxDaysAhead;
   final ValueChanged<DateTime> onDateSelected;
   final bool markWeekendsFull;
 
@@ -2325,6 +2346,9 @@ class _BookingCalendarState extends State<_BookingCalendar> {
     final minDate = DateUtils.dateOnly(
       DateTime.now().add(Duration(days: widget.minDaysAhead)),
     );
+    final maxDate = DateUtils.dateOnly(
+      DateTime.now().add(Duration(days: widget.maxDaysAhead)),
+    );
     final cells = <CalDay>[];
 
     for (var i = 1; i < firstOfMonth.weekday; i++) {
@@ -2338,7 +2362,7 @@ class _BookingCalendarState extends State<_BookingCalendar> {
     for (var day = 1; day <= daysInMonth; day++) {
       final date = DateTime(_visibleMonth.year, _visibleMonth.month, day);
       final isSelected = DateUtils.isSameDay(date, widget.selectedDate);
-      final isUnavailable = date.isBefore(minDate);
+      final isUnavailable = date.isBefore(minDate) || date.isAfter(maxDate);
       final isFull =
           widget.markWeekendsFull &&
           (date.weekday == DateTime.saturday ||
@@ -2445,7 +2469,7 @@ class _BookingCalendarState extends State<_BookingCalendar> {
                   borderRadius: BorderRadius.circular(50),
                 ),
                 child: Text(
-                  'Min. H+${widget.minDaysAhead}',
+                  'H+${widget.minDaysAhead} - H+${widget.maxDaysAhead}',
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
