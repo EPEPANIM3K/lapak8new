@@ -72,6 +72,11 @@ class AppColors {
   static const slateBorder = Color(0xFFE2E8F0); // #e2e8f0
   static const emerald500 = Color(0xFF10B981);
   static const white = Color(0xFFFFFFFF);
+
+  // Splash and onboarding
+  static const splashNavy = Color(0xFF0F1A2E);
+  static const splashRing = Color(0xFF2F4BFF);
+  static const welcomeIcon = Color(0xFF2563EB);
 }
 
 extension ColorFade on Color {

@@ -10,6 +10,8 @@ import 'package:lapak8new/features/profile/screens/profile_screen.dart';
 import 'package:lapak8new/features/qr/screens/qr_scanner_screen.dart';
 import 'package:lapak8new/features/chat/screens/chat_screen.dart';
 import 'package:lapak8new/features/notifications/screens/notifications_screen.dart';
+import 'package:lapak8new/features/splash/presentation/splash_screen.dart';
+import 'package:lapak8new/features/welcome/presentation/welcome_screen.dart';
 
 import 'package:lapak8new/features/admin/admin_shell.dart';
 import 'package:lapak8new/features/admin/screens/admin_dashboard_screen.dart';
@@ -20,16 +22,18 @@ import 'package:lapak8new/features/admin/screens/manage_users_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_profile_screen.dart';
 
 // Halaman yang boleh dibuka tanpa login.
-const _publicPaths = {'/login', '/password-reset-help'};
+const _publicPaths = {'/login', '/password-reset-help', '/welcome'};
 
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/login',
+  initialLocation: '/splash',
 
   // Router dievaluasi ulang setiap kali status login berubah
   refreshListenable: authProvider,
 
   redirect: (context, state) {
     final loc = state.matchedLocation;
+    if (loc == '/splash') return null;
+
     final isPublic = _publicPaths.contains(loc);
 
     // Belum login → paksa ke halaman login.
@@ -56,6 +60,9 @@ final GoRouter appRouter = GoRouter(
   },
 
   routes: [
+    GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
+    GoRoute(path: '/welcome', builder: (_, __) => const WelcomeScreen()),
+
     // ---------- AUTH ----------
     GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
     GoRoute(
