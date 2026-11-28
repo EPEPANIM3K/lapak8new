@@ -6,6 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/admin/admin_route_observer.dart';
 import 'package:lapak8new/features/admin/screens/user_form_screen.dart';
 import 'package:lapak8new/features/admin/services/user_repository.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
@@ -19,7 +20,8 @@ class ManageUsersScreen extends StatefulWidget {
   State<ManageUsersScreen> createState() => _ManageUsersScreenState();
 }
 
-class _ManageUsersScreenState extends State<ManageUsersScreen> {
+class _ManageUsersScreenState extends State<ManageUsersScreen>
+    with AdminRouteRefresh<ManageUsersScreen> {
   static const _pageSize = 10;
 
   _UserFilter _filter = _UserFilter.all;
@@ -30,8 +32,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   UserStats _stats = const UserStats(students: 0, staff: 0, suspended: 0);
   int _total = 0;
   bool _loading = true;
+  bool _hasLoaded = false;
   String? _error;
   Timer? _searchTimer;
+  Future<void>? _loadFuture;
+  bool _reloadAfterCurrent = false;
 
   int get _totalPages => _total == 0 ? 1 : (_total / _pageSize).ceil();
 
@@ -47,7 +52,30 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  @override
+  String get adminRouteLocation => '/admin/manage';
+
+  @override
+  Future<void> refreshAdminData() => _load();
+
+  Future<void> _load({bool queueIfBusy = false}) {
+    final inFlight = _loadFuture;
+    if (inFlight != null) {
+      if (queueIfBusy) _reloadAfterCurrent = true;
+      return inFlight;
+    }
+    final future = _performLoad();
+    _loadFuture = future;
+    return future.whenComplete(() {
+      if (identical(_loadFuture, future)) _loadFuture = null;
+      if (_reloadAfterCurrent && mounted) {
+        _reloadAfterCurrent = false;
+        _load();
+      }
+    });
+  }
+
+  Future<void> _performLoad() async {
     final requestId = ++_requestId;
     setState(() {
       _loading = true;
@@ -73,11 +101,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         _total = page.total;
         _stats = results[1] as UserStats;
         _loading = false;
+        _hasLoaded = true;
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted || requestId != _requestId) return;
       setState(() {
-        _error = error.toString();
+        _error = 'Gagal memuat data pengguna. Periksa koneksi, lalu coba lagi.';
         _loading = false;
       });
     }
@@ -87,7 +116,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     _searchTimer?.cancel();
     _query = value;
     _page = 1;
-    _searchTimer = Timer(const Duration(milliseconds: 350), _load);
+    _searchTimer = Timer(
+      const Duration(milliseconds: 350),
+      () => _load(queueIfBusy: true),
+    );
   }
 
   void _selectFilter(_UserFilter filter) {
@@ -95,7 +127,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       _filter = filter;
       _page = 1;
     });
-    _load();
+    _load(queueIfBusy: true);
   }
 
   Future<void> _createAccount() async {
@@ -124,9 +156,14 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       );
       if (!mounted) return;
       _showMessage('Akun berhasil dibuat.');
-      await _load();
-    } catch (error) {
-      if (mounted) _showMessage(error.toString(), isError: true);
+      await _load(queueIfBusy: true);
+    } catch (_) {
+      if (mounted) {
+        _showMessage(
+          'Gagal membuat akun. Periksa data dan koneksi, lalu coba lagi.',
+          isError: true,
+        );
+      }
     }
   }
 
@@ -188,11 +225,14 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       }
       if (!mounted) return;
       _showMessage('Perubahan akun berhasil disimpan.');
-      await _load();
-    } catch (error) {
+      await _load(queueIfBusy: true);
+    } catch (_) {
       if (!mounted) return;
-      _showMessage('Tidak semua perubahan tersimpan: $error', isError: true);
-      await _load();
+      _showMessage(
+        'Perubahan akun gagal disimpan sepenuhnya. Periksa data, lalu coba lagi.',
+        isError: true,
+      );
+      await _load(queueIfBusy: true);
     }
   }
 
@@ -255,10 +295,13 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       await userRepository.deleteUser(user.id);
       if (!mounted) return;
       _showMessage('Akun berhasil dihapus.');
-      await _load();
-    } catch (error) {
+      await _load(queueIfBusy: true);
+    } catch (_) {
       if (!mounted) return;
-      _showMessage(error.toString(), isError: true);
+      _showMessage(
+        'Gagal menghapus akun. Periksa apakah akun masih memiliki data terkait.',
+        isError: true,
+      );
     }
   }
 
@@ -267,9 +310,14 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       await userRepository.setActive(user.id, aktif);
       if (!mounted) return;
       _showMessage(aktif ? 'Akun diaktifkan kembali.' : 'Akun ditangguhkan.');
-      await _load();
-    } catch (error) {
-      if (mounted) _showMessage(error.toString(), isError: true);
+      await _load(queueIfBusy: true);
+    } catch (_) {
+      if (mounted) {
+        _showMessage(
+          'Gagal memperbarui status akun. Coba lagi.',
+          isError: true,
+        );
+      }
     }
   }
 
@@ -288,148 +336,167 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.mobileGutter,
-          AppSpacing.md,
-          AppSpacing.mobileGutter,
-          AppSpacing.md,
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.mobileGutter,
+            AppSpacing.md,
+            AppSpacing.mobileGutter,
+            AppSpacing.md,
+          ),
+          children: [
+            Row(
               children: [
-                Text(
-                  'Kelola Pengguna',
-                  style: AppTextStyles.headlineMd(color: AppColors.onSurface),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Kelola Pengguna',
+                        style: AppTextStyles.headlineMd(
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Kelola akun siswa, guru, dan staf',
+                        style: AppTextStyles.bodyMd(color: AppColors.slate600),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Kelola akun siswa, guru, dan staf',
-                  style: AppTextStyles.bodyMd(color: AppColors.slate600),
+                IconButton(
+                  tooltip: 'Muat ulang pengguna',
+                  onPressed: _loading ? null : _load,
+                  icon: const Icon(Symbols.refresh),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 52,
-            child: ElevatedButton.icon(
-              onPressed: _createAccount,
-              icon: const Icon(Symbols.add_circle, size: 22),
-              label: Text(
-                'Tambah Akun Baru',
-                style: AppTextStyles.labelLg(
-                  weight: FontWeight.w700,
-                  color: AppColors.onPrimary,
-                ),
+            if (_loading && _hasLoaded)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: LinearProgressIndicator(minHeight: 2),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.onPrimary,
-                elevation: 0,
-                shape: const StadiumBorder(),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: _createAccount,
+                icon: const Icon(Symbols.add_circle, size: 22),
+                label: Text(
+                  'Tambah Akun Baru',
+                  style: AppTextStyles.labelLg(
+                    weight: FontWeight.w700,
+                    color: AppColors.onPrimary,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.onPrimary,
+                  elevation: 0,
+                  shape: const StadiumBorder(),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _StatCard(
-                  label: 'Siswa Terdaftar',
-                  value: '${_stats.students}',
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _StatCard(
-                  label: 'Guru & Staf',
-                  value: '${_stats.staff}',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _StatCard(
-                  label: 'Akun Ditangguhkan',
-                  value: '${_stats.suspended}',
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _StatCard(
-                  label: 'Total Pengguna',
-                  value: '${_stats.students + _stats.staff}',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          _SearchField(onChanged: _search),
-          const SizedBox(height: 16),
-          _buildFilterChips(),
-          const SizedBox(height: 16),
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 48),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_error != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              child: Column(
-                children: [
-                  Text(
-                    'Gagal memuat data: $_error',
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.bodyMd(color: AppColors.error),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _StatCard(
+                    label: 'Siswa Terdaftar',
+                    value: '${_stats.students}',
                   ),
-                  const SizedBox(height: 12),
-                  TextButton.icon(
-                    onPressed: _load,
-                    icon: const Icon(Symbols.refresh),
-                    label: const Text('Coba lagi'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _StatCard(
+                    label: 'Guru & Staf',
+                    value: '${_stats.staff}',
                   ),
-                ],
-              ),
-            )
-          else if (_users.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 48),
-              child: Center(
-                child: Text(
-                  'Tidak ada data pengguna',
-                  style: AppTextStyles.bodyMd(color: AppColors.slate500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _StatCard(
+                    label: 'Akun Ditangguhkan',
+                    value: '${_stats.suspended}',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _StatCard(
+                    label: 'Total Pengguna',
+                    value: '${_stats.students + _stats.staff}',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            _SearchField(onChanged: _search),
+            const SizedBox(height: 16),
+            _buildFilterChips(),
+            const SizedBox(height: 16),
+            if (_loading && !_hasLoaded)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Column(
+                  children: [
+                    Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.bodyMd(color: AppColors.error),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      onPressed: _load,
+                      icon: const Icon(Symbols.refresh),
+                      label: const Text('Coba lagi'),
+                    ),
+                  ],
                 ),
               ),
-            )
-          else
-            for (final user in _users) ...[
-              _UserCard(
-                user: user,
-                onManage: () => _editAccount(user),
-                onReactivate: () => _reactivate(user),
-                onSuspend: () => _confirmSuspend(user),
-                onDelete: () => _confirmDelete(user),
+            if (_hasLoaded && _error == null && _users.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: Text(
+                    'Tidak ada data pengguna',
+                    style: AppTextStyles.bodyMd(color: AppColors.slate500),
+                  ),
+                ),
               ),
-              const SizedBox(height: 16),
-            ],
-          const SizedBox(height: 4),
-          _Pagination(
-            page: _page,
-            totalPages: _totalPages,
-            onChanged: (page) {
-              setState(() => _page = page);
-              _load();
-            },
-          ),
-        ],
+            if (_users.isNotEmpty)
+              for (final user in _users) ...[
+                _UserCard(
+                  user: user,
+                  onManage: () => _editAccount(user),
+                  onReactivate: () => _reactivate(user),
+                  onSuspend: () => _confirmSuspend(user),
+                  onDelete: () => _confirmDelete(user),
+                ),
+                const SizedBox(height: 16),
+              ],
+            const SizedBox(height: 4),
+            _Pagination(
+              page: _page,
+              totalPages: _totalPages,
+              onChanged: (page) {
+                setState(() => _page = page);
+                _load(queueIfBusy: true);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

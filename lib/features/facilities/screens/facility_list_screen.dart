@@ -7,6 +7,7 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../models/facility.dart';
 import '../services/facility_service.dart';
+import '../services/facility_stock_service.dart';
 
 class FacilityListScreen extends StatefulWidget {
   const FacilityListScreen({super.key});
@@ -38,7 +39,9 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
   String _query = '';
   List<Facility> _items = const [];
   bool _loading = true;
+  bool _hasLoaded = false;
   String? _error;
+  Future<void>? _loadFuture;
 
   @override
   void initState() {
@@ -52,7 +55,17 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load() {
+    final inFlight = _loadFuture;
+    if (inFlight != null) return inFlight;
+    final future = _performLoad();
+    _loadFuture = future;
+    return future.whenComplete(() {
+      if (identical(_loadFuture, future)) _loadFuture = null;
+    });
+  }
+
+  Future<void> _performLoad() async {
     setState(() {
       _loading = true;
       _error = null;
@@ -63,11 +76,18 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
       setState(() {
         _items = list;
         _loading = false;
+        _hasLoaded = true;
       });
-    } catch (e) {
+    } on FacilityStockException catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = e.message;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Gagal memuat stok fasilitas. Periksa koneksi lalu coba lagi.';
         _loading = false;
       });
     }
@@ -113,16 +133,19 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
                   children: [
                     _searchBar(),
                     _titleAndFilters(filtered.length),
-                    if (_loading)
+                    if (_loading && !_hasLoaded)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 48),
                         child: Center(child: CircularProgressIndicator()),
                       )
-                    else if (_error != null)
-                      _errorState()
-                    else if (filtered.isEmpty)
+                    else if (_error != null) ...[
+                      _errorState(),
+                    ],
+                    if (_loading && _hasLoaded)
+                      const LinearProgressIndicator(minHeight: 2),
+                    if (_hasLoaded && _error == null && filtered.isEmpty)
                       _emptyState()
-                    else
+                    else if (filtered.isNotEmpty)
                       _grid(filtered),
                   ],
                 ),
@@ -191,14 +214,21 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
       children: [
         Row(
           children: [
-            const Text(
-              'Daftar Item',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: cOnSurface,
+            const Expanded(
+              child: Text(
+                'Daftar Item',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: cOnSurface,
+                ),
               ),
+            ),
+            IconButton(
+              tooltip: 'Muat ulang stok',
+              onPressed: _loading ? null : _load,
+              icon: const Icon(Icons.refresh, color: cPrimary),
             ),
             const SizedBox(width: 8),
             Container(

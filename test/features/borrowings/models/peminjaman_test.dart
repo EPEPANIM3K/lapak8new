@@ -17,6 +17,21 @@ void main() {
     }
   });
 
+  test('maps available borrowing stock separately from physical capacity', () {
+    final facility = FasilitasRingkas.fromMap({
+      'id': 'facility-id',
+      'nama': 'Proyektor',
+      'kategori': 'Barang',
+      'total_unit': 2,
+      'unit_tersedia': 1,
+      'status': 'tersedia',
+    });
+
+    expect(facility.totalUnit, 2);
+    expect(facility.unitTersedia, 1);
+    expect(facility.tersedia, isTrue);
+  });
+
   test('maps history fields and rejection reason from approval records', () {
     final borrowing = Peminjaman.fromMap({
       'id': 'booking-id',

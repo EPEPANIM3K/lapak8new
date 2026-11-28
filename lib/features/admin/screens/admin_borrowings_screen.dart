@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/admin/admin_route_observer.dart';
 import 'package:lapak8new/core/storage/storage_config.dart';
 import 'package:lapak8new/features/borrowings/models/peminjaman.dart';
 import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
@@ -181,7 +182,8 @@ class AdminBorrowingsScreen extends StatefulWidget {
   State<AdminBorrowingsScreen> createState() => _AdminBorrowingsScreenState();
 }
 
-class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
+class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen>
+    with AdminRouteRefresh<AdminBorrowingsScreen> {
   late ActivityTab _tab = widget.initialTab; // default: Peminjaman
   _LoanStatus? _loanFilter; // null = semua
   _ReturnStatus? _returnFilter; // null = semua
@@ -193,8 +195,11 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
   List<Peminjaman> _borrowings = [];
   List<_Loan> _loans = [];
   bool _isLoadingLoans = true;
+  bool _hasLoadedLoans = false;
   String? _loansError;
   bool _initialInspectionHandled = false;
+  Future<void>? _loadFuture;
+  bool _reloadAfterCurrent = false;
 
   @override
   void initState() {
@@ -202,13 +207,34 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
     _loadLoans();
   }
 
-  Future<void> _loadLoans({bool showLoading = true}) async {
-    if (showLoading) {
-      setState(() {
-        _isLoadingLoans = true;
-        _loansError = null;
-      });
+  @override
+  String get adminRouteLocation => '/admin/borrowings';
+
+  @override
+  Future<void> refreshAdminData() => _loadLoans();
+
+  Future<void> _loadLoans({bool showLoading = true, bool queueIfBusy = false}) {
+    final inFlight = _loadFuture;
+    if (inFlight != null) {
+      if (queueIfBusy) _reloadAfterCurrent = true;
+      return inFlight;
     }
+    final future = _performLoadLoans(showLoading: showLoading);
+    _loadFuture = future;
+    return future.whenComplete(() {
+      if (identical(_loadFuture, future)) _loadFuture = null;
+      if (_reloadAfterCurrent && mounted) {
+        _reloadAfterCurrent = false;
+        _loadLoans(showLoading: false);
+      }
+    });
+  }
+
+  Future<void> _performLoadLoans({required bool showLoading}) async {
+    setState(() {
+      _isLoadingLoans = showLoading || _hasLoadedLoans;
+      _loansError = null;
+    });
     try {
       final peminjaman = await _svc.ambilSemuaPeminjaman();
       if (!mounted) return;
@@ -224,6 +250,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
             .toList();
         _isLoadingLoans = false;
         _loansError = null;
+        _hasLoadedLoans = true;
       });
       final inspectionId = widget.initialReturnInspectionId;
       final borrowingId = widget.initialReturnBorrowingId;
@@ -254,17 +281,19 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
           );
         }
       }
-    } on PeminjamanException catch (error) {
+    } on PeminjamanException {
       if (!mounted) return;
       setState(() {
         _isLoadingLoans = false;
-        _loansError = error.pesan;
+        _loansError =
+            'Gagal memuat aktivitas peminjaman. Periksa koneksi, lalu coba lagi.';
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _isLoadingLoans = false;
-        _loansError = error.toString();
+        _loansError =
+            'Gagal memuat aktivitas peminjaman. Periksa koneksi, lalu coba lagi.';
       });
     }
   }
@@ -491,7 +520,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
             ? 'Ditolak oleh petugas Sarpras.'
             : null,
       );
-      await _loadLoans(showLoading: false);
+      await _loadLoans(showLoading: false, queueIfBusy: true);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -519,7 +548,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
     try {
       await context.push<void>('/scan', extra: {'peminjamanId': id});
       if (!mounted) return;
-      await _loadLoans(showLoading: false);
+      await _loadLoans(showLoading: false, queueIfBusy: true);
     } finally {
       if (mounted) setState(() => _updatingBorrowingIds.remove(id));
     }
@@ -642,7 +671,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
         keterangan: result.description,
         bukti: evidence,
       );
-      await _loadLoans(showLoading: false);
+      await _loadLoans(showLoading: false, queueIfBusy: true);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -711,7 +740,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
     setState(() => _updatingBorrowingIds.add(r.borrowingId));
     try {
       await _svc.konfirmasiPembayaranDendaAdmin(r.borrowingId);
-      await _loadLoans(showLoading: false);
+      await _loadLoans(showLoading: false, queueIfBusy: true);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -747,119 +776,138 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
     final returns = _visibleReturns;
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.mobileGutter,
-          AppSpacing.md,
-          AppSpacing.mobileGutter,
-          AppSpacing.md,
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      body: RefreshIndicator(
+        onRefresh: _loadLoans,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.mobileGutter,
+            AppSpacing.md,
+            AppSpacing.mobileGutter,
+            AppSpacing.md,
+          ),
+          children: [
+            Row(
               children: [
-                Text(
-                  'Aktivitas',
-                  style: AppTextStyles.headlineMd(color: AppColors.onSurface),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Aktivitas',
+                        style: AppTextStyles.headlineMd(
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Kelola aktivitas peminjaman dan pengembalian barang sekolah.',
+                        style: AppTextStyles.bodyMd(color: AppColors.slate600),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Kelola aktivitas peminjaman dan pengembalian barang sekolah.',
-                  style: AppTextStyles.bodyMd(color: AppColors.slate600),
+                IconButton(
+                  tooltip: 'Muat ulang aktivitas',
+                  onPressed: _isLoadingLoans ? null : _loadLoans,
+                  icon: const Icon(Icons.refresh),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 12),
-          const _SyncRow(),
-          const SizedBox(height: 16),
-          _buildTabSwitcher(),
-          const SizedBox(height: 16),
-          _SearchField(
-            hintText: _isLoanTab
-                ? 'Cari peminjam, item, atau no. aset...'
-                : 'Cari pengembalian, item, atau no. aset...',
-            onChanged: (v) => setState(() => _query = v),
-          ),
-          const SizedBox(height: 16),
-          _isLoanTab ? _buildLoanFilterChips() : _buildReturnFilterChips(),
-          const SizedBox(height: 16),
-          if (_isLoadingLoans)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 48),
-              child: Center(child: CircularProgressIndicator()),
+            const SizedBox(height: 12),
+            const _SyncRow(),
+            if (_isLoadingLoans && _hasLoadedLoans)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
+            const SizedBox(height: 16),
+            _buildTabSwitcher(),
+            const SizedBox(height: 16),
+            _SearchField(
+              hintText: _isLoanTab
+                  ? 'Cari peminjam, item, atau no. aset...'
+                  : 'Cari pengembalian, item, atau no. aset...',
+              onChanged: (v) => setState(() => _query = v),
             ),
-          if (_loansError != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              child: Column(
-                children: [
-                  Text(
-                    _loansError!,
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.bodyMd(color: AppColors.error),
+            const SizedBox(height: 16),
+            _isLoanTab ? _buildLoanFilterChips() : _buildReturnFilterChips(),
+            const SizedBox(height: 16),
+            if (_isLoadingLoans && !_hasLoadedLoans)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (_loansError != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Column(
+                  children: [
+                    Text(
+                      _loansError!,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.bodyMd(color: AppColors.error),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _loadLoans,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Coba lagi'),
+                    ),
+                  ],
+                ),
+              ),
+            if (_isLoanTab &&
+                !_isLoadingLoans &&
+                _loansError == null &&
+                loans.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: Text(
+                    'Tidak ada data peminjaman',
+                    style: AppTextStyles.bodyMd(color: AppColors.slate500),
                   ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: _loadLoans,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Coba lagi'),
+                ),
+              ),
+            if (!_isLoanTab &&
+                !_isLoadingLoans &&
+                _loansError == null &&
+                returns.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: Text(
+                    'Tidak ada data pengembalian',
+                    style: AppTextStyles.bodyMd(color: AppColors.slate500),
                   ),
+                ),
+              ),
+            if (_isLoanTab)
+              if (_hasLoadedLoans)
+                for (final l in loans) ...[
+                  _LoanCard(
+                    loan: l,
+                    isUpdating: _updatingBorrowingIds.contains(l.borrowingId),
+                    onReject: () => _confirmReject(l),
+                    onApprove: () => _confirmApprove(l),
+                    onScanBorrowingQr: () => _scanBorrowingQr(l),
+                    onSuspend: () => _confirmSuspend(l),
+                  ),
+                  const SizedBox(height: 16),
                 ],
-              ),
-            ),
-          if (_isLoanTab &&
-              !_isLoadingLoans &&
-              _loansError == null &&
-              loans.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 48),
-              child: Center(
-                child: Text(
-                  'Tidak ada data peminjaman',
-                  style: AppTextStyles.bodyMd(color: AppColors.slate500),
-                ),
-              ),
-            ),
-          if (!_isLoanTab &&
-              !_isLoadingLoans &&
-              _loansError == null &&
-              returns.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 48),
-              child: Center(
-                child: Text(
-                  'Tidak ada data pengembalian',
-                  style: AppTextStyles.bodyMd(color: AppColors.slate500),
-                ),
-              ),
-            ),
-          if (_isLoanTab)
-            if (!_isLoadingLoans && _loansError == null)
-              for (final l in loans) ...[
-                _LoanCard(
-                  loan: l,
-                  isUpdating: _updatingBorrowingIds.contains(l.borrowingId),
-                  onReject: () => _confirmReject(l),
-                  onApprove: () => _confirmApprove(l),
-                  onScanBorrowingQr: () => _scanBorrowingQr(l),
-                  onSuspend: () => _confirmSuspend(l),
+            if (!_isLoanTab && _hasLoadedLoans)
+              for (final r in returns) ...[
+                _ReturnCard(
+                  item: r,
+                  isUpdating: _updatingBorrowingIds.contains(r.borrowingId),
+                  onCheck: () => _openInspection(r),
+                  onConfirmPayment: () => _confirmPaymentCompletion(r),
                 ),
                 const SizedBox(height: 16),
               ],
-          if (!_isLoanTab)
-            for (final r in returns) ...[
-              _ReturnCard(
-                item: r,
-                isUpdating: _updatingBorrowingIds.contains(r.borrowingId),
-                onCheck: () => _openInspection(r),
-                onConfirmPayment: () => _confirmPaymentCompletion(r),
-              ),
-              const SizedBox(height: 16),
-            ],
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -903,7 +951,11 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
     final selected = _tab == tab;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _tab = tab),
+        onTap: () {
+          if (_tab == tab) return;
+          setState(() => _tab = tab);
+          _loadLoans();
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 10),

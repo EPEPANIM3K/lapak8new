@@ -4,6 +4,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/admin/admin_route_observer.dart';
 import 'package:lapak8new/features/admin/screens/facility_form_screen.dart';
 import 'package:lapak8new/features/facilities/models/facility.dart';
 import 'package:lapak8new/features/facilities/services/facility_service.dart';
@@ -20,13 +21,17 @@ class ManageFacilitiesScreen extends StatefulWidget {
   State<ManageFacilitiesScreen> createState() => _ManageFacilitiesScreenState();
 }
 
-class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
+class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen>
+    with AdminRouteRefresh<ManageFacilitiesScreen> {
   _ItemFilter _filter = _ItemFilter.all;
   String _query = '';
   List<Facility> _items = const [];
   List<LokasiItem> _locations = const [];
   bool _loading = true;
+  bool _hasLoaded = false;
   String? _error;
+  Future<void>? _loadFuture;
+  bool _reloadAfterCurrent = false;
 
   @override
   void initState() {
@@ -34,7 +39,30 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
     _load();
   }
 
-  Future<void> _load() async {
+  @override
+  String get adminRouteLocation => '/admin/items';
+
+  @override
+  Future<void> refreshAdminData() => _load();
+
+  Future<void> _load({bool queueIfBusy = false}) {
+    final inFlight = _loadFuture;
+    if (inFlight != null) {
+      if (queueIfBusy) _reloadAfterCurrent = true;
+      return inFlight;
+    }
+    final future = _performLoad();
+    _loadFuture = future;
+    return future.whenComplete(() {
+      if (identical(_loadFuture, future)) _loadFuture = null;
+      if (_reloadAfterCurrent && mounted) {
+        _reloadAfterCurrent = false;
+        _load();
+      }
+    });
+  }
+
+  Future<void> _performLoad() async {
     setState(() {
       _loading = true;
       _error = null;
@@ -49,11 +77,12 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
         _items = results[0] as List<Facility>;
         _locations = results[1] as List<LokasiItem>;
         _loading = false;
+        _hasLoaded = true;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = 'Gagal memuat data barang. Periksa koneksi, lalu coba lagi.';
         _loading = false;
       });
     }
@@ -120,10 +149,13 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
       await facilityService.deleteFacility(item.id);
       if (!mounted) return;
       _showSnack('Item "${item.nama}" berhasil dihapus.');
-      await _load();
-    } catch (e) {
+      await _load(queueIfBusy: true);
+    } catch (_) {
       if (!mounted) return;
-      _showSnack(e.toString(), isError: true);
+      _showSnack(
+        'Gagal menghapus barang. Periksa status peminjaman, lalu coba lagi.',
+        isError: true,
+      );
     }
   }
 
@@ -174,10 +206,13 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
         if (!mounted) return;
         _showSnack('Perubahan item "${result.name}" berhasil disimpan.');
       }
-      await _load();
-    } catch (e) {
+      await _load(queueIfBusy: true);
+    } catch (_) {
       if (!mounted) return;
-      _showSnack(e.toString(), isError: true);
+      _showSnack(
+        'Gagal menyimpan perubahan barang. Periksa koneksi, lalu coba lagi.',
+        isError: true,
+      );
     }
   }
 
@@ -191,6 +226,7 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(
@@ -201,27 +237,40 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Data Barang',
-                          style: AppTextStyles.headlineMd(
-                            color: AppColors.onSurface,
-                          ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Data Barang',
+                              style: AppTextStyles.headlineMd(
+                                color: AppColors.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Kelola inventaris barang & fasilitas sekolah',
+                              style: AppTextStyles.bodyMd(
+                                color: AppColors.slate600,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Kelola inventaris barang & fasilitas sekolah',
-                          style: AppTextStyles.bodyMd(
-                            color: AppColors.slate600,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                      IconButton(
+                        tooltip: 'Muat ulang barang dan stok',
+                        onPressed: _loading ? null : _load,
+                        icon: const Icon(Symbols.refresh),
+                      ),
+                    ],
                   ),
+                  if (_loading && _hasLoaded)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: LinearProgressIndicator(minHeight: 2),
+                    ),
                   const SizedBox(height: 16),
                   _AddButton(onPressed: () => _openForm()),
                   const SizedBox(height: 16),
@@ -252,14 +301,14 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
                 ]),
               ),
             ),
-            if (_loading)
+            if (_loading && !_hasLoaded)
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 48),
                   child: Center(child: CircularProgressIndicator()),
                 ),
-              )
-            else if (_error != null)
+              ),
+            if (_error != null)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -282,8 +331,8 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
                     ],
                   ),
                 ),
-              )
-            else if (items.isEmpty)
+              ),
+            if (_hasLoaded && _error == null && items.isEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 48),
@@ -294,8 +343,8 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
                     ),
                   ),
                 ),
-              )
-            else
+              ),
+            if (items.isNotEmpty)
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: gutter),
                 sliver: SliverGrid(
@@ -571,15 +620,15 @@ class _ItemCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 5),
                         Text(
-                          inStock
-                              ? '${item.unitTersedia} Tersedia'
-                              : '${item.unitTersedia} Terisi',
+                          'Tersedia ${item.unitTersedia} dari ${item.totalUnit} unit',
                           style: AppTextStyles.labelSm(
                             weight: FontWeight.w700,
                             color: inStock
                                 ? AppColors.onTertiaryFixedVariant
                                 : AppColors.error,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),

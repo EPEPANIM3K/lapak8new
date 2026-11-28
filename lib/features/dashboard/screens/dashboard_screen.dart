@@ -275,7 +275,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       (facility) => PopularItem(
                         name: facility.nama,
                         location: facility.lokasiNama,
-                        stockLabel: '${facility.totalUnit} Unit',
+                        stockLabel: '${facility.unitTersedia} Unit',
                         imageUrl: facility.fotoUrl,
                       ),
                     )

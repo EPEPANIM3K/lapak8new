@@ -1,16 +1,11 @@
 class LokasiItem {
-  const LokasiItem({
-    required this.id,
-    required this.nama,
-  });
+  const LokasiItem({required this.id, required this.nama});
 
   final String id;
   final String nama;
 
-  factory LokasiItem.fromMap(Map<String, dynamic> map) => LokasiItem(
-        id: map['id'] as String,
-        nama: map['nama'] as String? ?? '-',
-      );
+  factory LokasiItem.fromMap(Map<String, dynamic> map) =>
+      LokasiItem(id: map['id'] as String, nama: map['nama'] as String? ?? '-');
 }
 
 class Facility {
@@ -22,6 +17,7 @@ class Facility {
     required this.lokasiNama,
     required this.totalUnit,
     required this.unitTersedia,
+    required this.unitDipakai,
     required this.status,
     required this.aktif,
     this.fotoUrl,
@@ -35,6 +31,7 @@ class Facility {
   final String lokasiNama;
   final int totalUnit;
   final int unitTersedia;
+  final int unitDipakai;
   final String status; // 'tersedia' | 'pemeliharaan' | 'tidak_aktif'
   final bool aktif;
   final String? fotoUrl;
@@ -42,7 +39,7 @@ class Facility {
 
   bool get isAvailable => aktif && status == 'tersedia' && unitTersedia > 0;
   bool get isRuangan => kategori.trim().toLowerCase() == 'ruangan';
-  int get unitDipinjam => (totalUnit - unitTersedia).clamp(0, totalUnit);
+  int get unitDipinjam => unitDipakai;
 
   factory Facility.fromMap(Map<String, dynamic> map) {
     final lokasiObj = map['lokasi'];
@@ -56,13 +53,18 @@ class Facility {
     }
 
     final total = (map['total_unit'] as num?)?.toInt() ?? 0;
-    final availableRaw = (map['unit_tersedia'] as num?)?.toInt() ??
+    final availableRaw =
+        (map['unit_tersedia'] as num?)?.toInt() ??
         (map['tersedia_unit'] as num?)?.toInt();
+    final borrowedRaw =
+        (map['unit_dipakai'] as num?)?.toInt() ??
+        (map['dipakai'] as num?)?.toInt();
     final status = (map['status'] as String?) ?? 'tersedia';
     final aktif = (map['aktif'] as bool?) ?? true;
-    final available = availableRaw ?? (status == 'tersedia' && aktif ? total : 0);
+    final available = availableRaw ?? 0;
 
-    final rawCat = (map['kategori'] as String?) ??
+    final rawCat =
+        (map['kategori'] as String?) ??
         (map['subjudul'] as String?) ??
         (map['merk'] as String?) ??
         '';
@@ -70,11 +72,14 @@ class Facility {
     return Facility(
       id: map['id'] as String,
       nama: (map['nama'] as String?) ?? 'Tanpa Nama',
-      kategori: rawCat.trim().isEmpty ? 'SARPRAS UMUM' : rawCat.trim().toUpperCase(),
+      kategori: rawCat.trim().isEmpty
+          ? 'SARPRAS UMUM'
+          : rawCat.trim().toUpperCase(),
       lokasiId: locId,
       lokasiNama: locName,
       totalUnit: total,
       unitTersedia: available,
+      unitDipakai: borrowedRaw ?? 0,
       status: status,
       aktif: aktif,
       fotoUrl: map['foto_url'] as String?,

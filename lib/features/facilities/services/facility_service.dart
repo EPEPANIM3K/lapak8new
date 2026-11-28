@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:lapak8new/core/storage/supabase_media_service.dart';
 import 'package:lapak8new/features/facilities/models/facility.dart';
+import 'package:lapak8new/features/facilities/services/facility_stock_service.dart';
 
 class FacilityException implements Exception {
   const FacilityException(this.message);
@@ -23,13 +24,12 @@ class FacilityService {
         query = query.eq('aktif', true);
       }
       final rows = await query.order('nama');
-      return rows
-          .map<Facility>(
-            (r) => Facility.fromMap(Map<String, dynamic>.from(r as Map)),
-          )
-          .toList();
-    } on PostgrestException catch (e) {
-      throw FacilityException('Gagal memuat daftar barang: ${e.message}');
+      final rowsWithStock = await facilityStockService.addStockToRows(rows);
+      return rowsWithStock.map<Facility>(Facility.fromMap).toList();
+    } on PostgrestException {
+      throw const FacilityException(
+        'Gagal memuat daftar barang. Periksa koneksi lalu coba lagi.',
+      );
     }
   }
 
@@ -44,13 +44,14 @@ class FacilityService {
           'Data item populer dari server tidak valid.',
         );
       }
-      return response
-          .map<Facility>(
-            (row) => Facility.fromMap(Map<String, dynamic>.from(row as Map)),
-          )
+      final rowsWithStock = await facilityStockService.addStockToRows(response);
+      return rowsWithStock
+          .map<Facility>(Facility.fromMap)
           .toList(growable: false);
-    } on PostgrestException catch (e) {
-      throw FacilityException('Gagal memuat item populer: ${e.message}');
+    } on PostgrestException {
+      throw const FacilityException(
+        'Gagal memuat item populer. Periksa koneksi lalu coba lagi.',
+      );
     }
   }
 
@@ -63,7 +64,9 @@ class FacilityService {
           )
           .toList();
     } on PostgrestException {
-      return const [];
+      throw const FacilityException(
+        'Gagal memuat lokasi. Periksa koneksi lalu coba lagi.',
+      );
     }
   }
 
@@ -136,8 +139,10 @@ class FacilityService {
       return Facility.fromMap(row);
     } on MediaUploadException catch (e) {
       throw FacilityException(e.message);
-    } on PostgrestException catch (e) {
-      throw FacilityException('Gagal menambah barang: ${e.message}');
+    } on PostgrestException {
+      throw const FacilityException(
+        'Gagal menambah barang. Periksa data dan koneksi, lalu coba lagi.',
+      );
     }
   }
 
@@ -184,8 +189,10 @@ class FacilityService {
       return Facility.fromMap(row);
     } on MediaUploadException catch (e) {
       throw FacilityException(e.message);
-    } on PostgrestException catch (e) {
-      throw FacilityException('Gagal memperbarui barang: ${e.message}');
+    } on PostgrestException {
+      throw const FacilityException(
+        'Gagal memperbarui barang. Periksa data dan koneksi, lalu coba lagi.',
+      );
     }
   }
 
@@ -200,7 +207,9 @@ class FacilityService {
           'Ubah jumlah unit menjadi 0 untuk menonaktifkannya.',
         );
       }
-      throw FacilityException('Gagal menghapus barang: ${e.message}');
+      throw const FacilityException(
+        'Gagal menghapus barang. Periksa data terkait, lalu coba lagi.',
+      );
     }
   }
 

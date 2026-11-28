@@ -61,6 +61,24 @@ jalankan `migrasi_dashboard_item_populer.sql` setelah `databasefix.sql` dan
 `migrasi_pengembalian_workflow.sql`. RPC hanya mengembalikan data agregat
 fasilitas dan jumlah unit yang pernah dipinjam, bukan identitas peminjam.
 
+### Stok tersedia
+
+Jalankan `migrasi_stok_tersedia.sql` setelah `databasefix.sql` melalui
+**Supabase Dashboard → SQL Editor → New query**. Migrasi menambahkan RPC
+`public.stok_fasilitas()` yang mengembalikan kapasitas fisik, unit yang sedang
+dipakai, dan unit tersedia tanpa membuka identitas peminjam.
+
+Stok dihitung konservatif: semua peminjaman berstatus `disetujui`, `dipinjam`,
+atau `terlambat` dihitung tanpa membandingkan tanggal. Status `menunggu`
+tidak mengurangi stok; status `dikembalikan` melepaskan unit. Untuk
+memverifikasi hasil agregat:
+
+```sql
+SELECT *
+FROM public.stok_fasilitas()
+ORDER BY fasilitas_id;
+```
+
 ### Alur pemakaian
 
 1. Setelah peminjaman disetujui, peminjam membuka **Pinjaman Saya** dan memilih

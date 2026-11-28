@@ -2,13 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_colors.dart';
+import 'admin_route_observer.dart';
 import '../../shared/widgets/app_bottom_nav.dart';
 import '../../shared/widgets/lapak_header.dart';
 import '../auth/providers/auth_provider.dart';
 
-class AdminShell extends StatelessWidget {
+class AdminShell extends StatefulWidget {
   const AdminShell({required this.child, required this.location, super.key});
 
+  final Widget child;
+  final String location;
+
+  @override
+  State<AdminShell> createState() => _AdminShellState();
+}
+
+class _AdminShellState extends State<AdminShell> {
   static const _mainMenuPaths = {
     '/admin/dashboard',
     '/admin/borrowings',
@@ -17,10 +26,7 @@ class AdminShell extends StatelessWidget {
     '/admin/manage',
   };
 
-  final Widget child;
-  final String location;
-
-  int get _currentIndex => switch (location) {
+  int get _currentIndex => switch (widget.location) {
     '/admin/dashboard' => 0,
     '/admin/borrowings' => 1,
     '/admin/history' => 2,
@@ -30,8 +36,16 @@ class AdminShell extends StatelessWidget {
   };
 
   @override
+  void didUpdateWidget(covariant AdminShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.location != widget.location) {
+      adminActiveLocation.value = widget.location;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (!_mainMenuPaths.contains(location)) return child;
+    if (!_mainMenuPaths.contains(widget.location)) return widget.child;
 
     final insets = MediaQuery.paddingOf(context);
 
@@ -45,7 +59,7 @@ class AdminShell extends StatelessWidget {
                 top: LapakHeader.contentHeight + insets.top,
                 bottom: AppBottomNav.totalHeight + insets.bottom,
               ),
-              child: child,
+              child: widget.child,
             ),
           ),
           Positioned(

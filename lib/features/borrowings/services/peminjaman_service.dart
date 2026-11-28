@@ -2,6 +2,8 @@
 // Semua operasi peminjaman langsung ke Supabase (skema baru).
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'package:lapak8new/features/facilities/services/facility_stock_service.dart';
 import '../models/peminjaman.dart';
 
 class PeminjamanException implements Exception {
@@ -159,9 +161,16 @@ class PeminjamanService {
           .eq('status', 'tersedia')
           .gt('total_unit', 0)
           .order('nama');
-      return rows.map<FasilitasRingkas>(FasilitasRingkas.fromMap).toList();
-    } on PostgrestException catch (e) {
-      throw PeminjamanException('Gagal memuat fasilitas: ${e.message}');
+      final rowsWithStock = await facilityStockService.addStockToRows(rows);
+      return rowsWithStock
+          .map<FasilitasRingkas>(FasilitasRingkas.fromMap)
+          .toList();
+    } on PostgrestException {
+      throw const PeminjamanException(
+        'Gagal memuat fasilitas. Periksa koneksi lalu coba lagi.',
+      );
+    } on FacilityStockException catch (e) {
+      throw PeminjamanException(e.message);
     }
   }
 
@@ -180,9 +189,14 @@ class PeminjamanService {
           .eq('aktif', true)
           .maybeSingle();
       if (row == null) return null;
-      return FasilitasRingkas.fromMap(Map<String, dynamic>.from(row));
-    } on PostgrestException catch (e) {
-      throw PeminjamanException('Gagal memuat fasilitas: ${e.message}');
+      final rowsWithStock = await facilityStockService.addStockToRows([row]);
+      return FasilitasRingkas.fromMap(rowsWithStock.single);
+    } on PostgrestException {
+      throw const PeminjamanException(
+        'Gagal memuat fasilitas. Periksa koneksi lalu coba lagi.',
+      );
+    } on FacilityStockException catch (e) {
+      throw PeminjamanException(e.message);
     }
   }
 
@@ -440,7 +454,15 @@ class PeminjamanService {
 
       return await ambilDetailPeminjaman(response);
     } on PostgrestException catch (e) {
-      throw PeminjamanException('Gagal membuat peminjaman: ${e.message}');
+      final message = e.message.toLowerCase();
+      if (message.contains('stok') || message.contains('stock')) {
+        throw const PeminjamanException(
+          'Stok berubah atau tidak mencukupi. Muat ulang form, lalu coba lagi.',
+        );
+      }
+      throw const PeminjamanException(
+        'Gagal mengirim pengajuan. Periksa data dan koneksi, lalu coba lagi.',
+      );
     }
   }
 
@@ -502,7 +524,19 @@ class PeminjamanService {
         },
       );
     } on PostgrestException catch (e) {
-      throw PeminjamanException('Gagal mengubah status: ${e.message}');
+      final message = e.message.toLowerCase();
+      if (status == 'disetujui' &&
+          (message.contains('stok') ||
+              message.contains('tidak tersedia') ||
+              message.contains('fasilitas sedang'))) {
+        throw const PeminjamanException(
+          'Stok fasilitas tidak mencukupi untuk jadwal ini. Muat ulang data, '
+          'lalu coba lagi.',
+        );
+      }
+      throw const PeminjamanException(
+        'Gagal mengubah status peminjaman. Periksa data dan koneksi, lalu coba lagi.',
+      );
     }
   }
 

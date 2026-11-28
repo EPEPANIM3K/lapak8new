@@ -4,6 +4,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/admin/admin_route_observer.dart';
 import 'package:lapak8new/features/borrowings/models/peminjaman.dart';
 import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
 import 'package:lapak8new/features/admin/services/admin_report_pdf_service.dart';
@@ -18,7 +19,8 @@ class AdminHistoryScreen extends StatefulWidget {
   State<AdminHistoryScreen> createState() => _AdminHistoryScreenState();
 }
 
-class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
+class _AdminHistoryScreenState extends State<AdminHistoryScreen>
+    with AdminRouteRefresh<AdminHistoryScreen> {
   static const _months = [
     'Jan',
     'Feb',
@@ -38,7 +40,9 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
   String _query = '';
   List<Peminjaman> _histories = const [];
   bool _loading = true;
+  bool _hasLoaded = false;
   String? _error;
+  Future<void>? _loadFuture;
 
   @override
   void initState() {
@@ -46,7 +50,23 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
     _load();
   }
 
-  Future<void> _load() async {
+  @override
+  String get adminRouteLocation => '/admin/history';
+
+  @override
+  Future<void> refreshAdminData() => _load();
+
+  Future<void> _load() {
+    final inFlight = _loadFuture;
+    if (inFlight != null) return inFlight;
+    final future = _performLoad();
+    _loadFuture = future;
+    return future.whenComplete(() {
+      if (identical(_loadFuture, future)) _loadFuture = null;
+    });
+  }
+
+  Future<void> _performLoad() async {
     setState(() {
       _loading = true;
       _error = null;
@@ -57,11 +77,12 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
       setState(() {
         _histories = list;
         _loading = false;
+        _hasLoaded = true;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = 'Gagal memuat riwayat. Periksa koneksi, lalu coba lagi.';
         _loading = false;
       });
     }
@@ -175,21 +196,38 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Text(
-                    'Riwayat Peminjaman',
-                    style: AppTextStyles.headlineMd(color: AppColors.onSurface),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Riwayat Peminjaman',
+                          style: AppTextStyles.headlineMd(
+                            color: AppColors.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Arsip data peminjaman yang sudah selesai',
+                          style: AppTextStyles.bodyMd(
+                            color: AppColors.slate600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Arsip data peminjaman yang sudah selesai',
-                    style: AppTextStyles.bodyMd(color: AppColors.slate600),
+                  IconButton(
+                    tooltip: 'Muat ulang riwayat',
+                    onPressed: _loading ? null : _load,
+                    icon: const Icon(Symbols.refresh),
                   ),
                 ],
               ),
             ),
+            if (_loading && _hasLoaded)
+              const LinearProgressIndicator(minHeight: 2),
             const SizedBox(height: 12),
             _SyncRow(isLoading: _loading, hasError: _error != null),
             const SizedBox(height: 16),
@@ -197,12 +235,12 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
             const SizedBox(height: 16),
             _buildFilterChips(),
             const SizedBox(height: 16),
-            if (_loading)
+            if (_loading && !_hasLoaded)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 48),
                 child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_error != null)
+              ),
+            if (_error != null)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
                 child: Column(
@@ -220,8 +258,8 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
                     ),
                   ],
                 ),
-              )
-            else if (_histories.isEmpty)
+              ),
+            if (_hasLoaded && _error == null && _histories.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 48),
                 child: Center(
@@ -240,8 +278,8 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
                     ],
                   ),
                 ),
-              )
-            else if (histories.isEmpty)
+              ),
+            if (_hasLoaded && _error == null && histories.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 48),
                 child: Center(
@@ -251,8 +289,8 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
                     style: AppTextStyles.bodyMd(color: AppColors.slate500),
                   ),
                 ),
-              )
-            else
+              ),
+            if (histories.isNotEmpty)
               for (final h in histories) ...[
                 _HistoryCard(
                   history: h,

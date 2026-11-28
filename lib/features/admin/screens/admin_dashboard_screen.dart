@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/features/admin/admin_route_observer.dart';
 import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 import 'package:lapak8new/features/dashboard/widgets/summary_card.dart';
 import 'package:lapak8new/features/facilities/models/facility.dart';
@@ -20,7 +21,8 @@ class AdminDashboardScreen extends StatefulWidget {
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
-class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+class _AdminDashboardScreenState extends State<AdminDashboardScreen>
+    with AdminRouteRefresh<AdminDashboardScreen> {
   int _totalItems = 0;
   int _availableItems = 0;
   int _activeBorrowings = 0;
@@ -30,6 +32,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _isLoading = true;
   bool _hasLoaded = false;
   String? _error;
+  Future<void>? _loadFuture;
+  bool _reloadAfterCurrent = false;
 
   @override
   void initState() {
@@ -37,7 +41,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _loadDashboardData();
   }
 
-  Future<void> _loadDashboardData() async {
+  @override
+  String get adminRouteLocation => '/admin/dashboard';
+
+  @override
+  Future<void> refreshAdminData() => _loadDashboardData();
+
+  Future<void> _loadDashboardData({bool queueIfBusy = false}) {
+    final inFlight = _loadFuture;
+    if (inFlight != null) {
+      if (queueIfBusy) _reloadAfterCurrent = true;
+      return inFlight;
+    }
+    final future = _performLoadDashboardData();
+    _loadFuture = future;
+    return future.whenComplete(() {
+      if (identical(_loadFuture, future)) _loadFuture = null;
+      if (_reloadAfterCurrent && mounted) {
+        _reloadAfterCurrent = false;
+        _loadDashboardData();
+      }
+    });
+  }
+
+  Future<void> _performLoadDashboardData() async {
     setState(() {
       _isLoading = true;
       _error = null;
@@ -77,10 +104,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _hasLoaded = true;
         _isLoading = false;
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = error.toString();
+        _error = 'Gagal memuat dashboard. Periksa koneksi, lalu coba lagi.';
         _isLoading = false;
       });
     }
@@ -126,7 +153,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (result['tipe_tiket'] == 'pengembalian') {
       context.go('/admin/borrowings', extra: result);
     } else {
-      await _loadDashboardData();
+      await _loadDashboardData(queueIfBusy: true);
     }
   }
 
@@ -148,11 +175,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Text(
-                'Dashboard',
-                style: AppTextStyles.headlineMd(color: AppColors.onSurface),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Dashboard',
+                      style: AppTextStyles.headlineMd(
+                        color: AppColors.onSurface,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Muat ulang dashboard',
+                    onPressed: _isLoading ? null : _loadDashboardData,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
               ),
             ),
+            if (_isLoading && _hasLoaded)
+              const LinearProgressIndicator(minHeight: 2),
             const SizedBox(height: 12),
             const _WelcomeCard(),
             const SizedBox(height: 16),
@@ -194,7 +236,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   String _statValue(int value) {
-    if (_isLoading) return '...';
+    if (_isLoading && !_hasLoaded) return '...';
     if (!_hasLoaded) return '—';
     return value.toString();
   }

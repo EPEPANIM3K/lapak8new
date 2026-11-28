@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lapak8new/features/facilities/services/facility_stock_service.dart';
 
 import '../models/peminjaman.dart';
 import '../services/peminjaman_service.dart';
@@ -60,13 +61,14 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
       FasilitasRingkas? initial;
       if (widget.initialFacilityId != null) {
         for (final f in list) {
-          if (f.id == widget.initialFacilityId) {
+          if (f.id == widget.initialFacilityId && f.tersedia) {
             initial = f;
             break;
           }
         }
       }
-      initial ??= list.isNotEmpty ? list.first : null;
+      final available = list.where((f) => f.tersedia);
+      initial ??= available.isEmpty ? null : available.first;
       setState(() {
         _fasilitas = list;
         _initialFacility = initial;
@@ -78,17 +80,23 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
         _isLoading = false;
         _error = e.pesan;
       });
-    } on FormatException catch (e) {
+    } on FacilityStockException catch (e) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _error = 'Gagal memuat fasilitas: $e';
+        _error = e.message;
       });
-    } on TypeError catch (e) {
+    } on FormatException {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _error = 'Data fasilitas tidak valid: $e';
+        _error = 'Format data fasilitas tidak valid. Coba muat ulang halaman.';
+      });
+    } on TypeError {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Data fasilitas tidak valid. Coba muat ulang halaman.';
       });
     } on TimeoutException {
       if (!mounted) return;
@@ -96,11 +104,12 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
         _isLoading = false;
         _error = 'Pemuatan terlalu lama. Periksa koneksi lalu coba lagi.';
       });
-    } on Exception catch (e) {
+    } on Exception {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _error = 'Gagal memuat daftar barang dan ruangan: $e';
+        _error =
+            'Gagal memuat daftar barang dan ruangan. Periksa koneksi, lalu coba lagi.';
       });
     }
   }
@@ -192,6 +201,38 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
                 const SizedBox(height: 10),
                 const Text(
                   'Belum ada barang atau ruangan yang tersedia.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Muat ulang'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (!_fasilitas.any((facility) => facility.tersedia)) {
+      return _stateScaffold(
+        content: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.inventory_2_outlined,
+                  color: Color(0xFF64748B),
+                  size: 40,
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Stok habis. Belum ada barang atau ruangan yang tersedia.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
@@ -347,8 +388,12 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
   }
 
   void _stepItem(int delta) {
+    if (_selectedRoom.unitTersedia <= 0) return;
     setState(() {
-      _units = (_units + delta).clamp(1, _selectedRoom.totalUnit.clamp(1, 99));
+      _units = (_units + delta).clamp(
+        1,
+        _selectedRoom.unitTersedia.clamp(1, 99),
+      );
     });
   }
 
@@ -382,6 +427,14 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
     if (_hasConflict) {
       _showMessage(
         'Jadwal bentrok dengan peminjaman lain. Silakan pilih jam lain.',
+        error: true,
+      );
+      return;
+    }
+    if (_selectedRoom.unitTersedia <= 0 ||
+        _units > _selectedRoom.unitTersedia) {
+      _showMessage(
+        'Stok ruangan tidak mencukupi. Muat ulang form dan pilih jumlah lain.',
         error: true,
       );
       return;
@@ -599,7 +652,9 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
                   const SizedBox(height: 2),
                   _iconTextRow(
                     Icons.info_outline,
-                    'Tersedia ${room.totalUnit} unit',
+                    room.unitTersedia > 0
+                        ? 'Tersedia ${room.unitTersedia} unit'
+                        : 'Stok habis',
                   ),
                 ],
               ),
@@ -830,7 +885,9 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
         : 'Waktu yang Anda pilih tersedia.';
     final desc = conflict
         ? 'Silakan pilih rentang jam yang bebas dari tanda terpesan.'
-        : 'Stok tersisa: ${_selectedRoom.totalUnit} unit';
+        : _selectedRoom.unitTersedia > 0
+        ? 'Stok tersisa: ${_selectedRoom.unitTersedia} unit'
+        : 'Stok habis';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -910,7 +967,7 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Maks. ${_selectedRoom.totalUnit} Unit',
+                    'Maks. ${_selectedRoom.unitTersedia} Unit',
                     style: const TextStyle(fontSize: 12, color: slate500),
                   ),
                 ],
@@ -1156,8 +1213,16 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
   @override
   void initState() {
     super.initState();
-    if (!widget.initialFacility.isRuangan) {
-      _selectedItems[widget.initialFacility.id] = 1;
+    final availableFacilities = widget.fasilitas.where(
+      (facility) => facility.tersedia,
+    );
+    final initial = widget.initialFacility.tersedia
+        ? widget.initialFacility
+        : availableFacilities.isEmpty
+        ? null
+        : availableFacilities.first;
+    if (initial != null && !initial.isRuangan) {
+      _selectedItems[initial.id] = 1;
     }
   }
 
@@ -1178,7 +1243,8 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
     }
     if (facility == null) return;
     final current = _selectedItems[id] ?? 1;
-    final next = (current + delta).clamp(1, facility.totalUnit).toInt();
+    if (facility.unitTersedia <= 0) return;
+    final next = (current + delta).clamp(1, facility.unitTersedia).toInt();
     setState(() => _selectedItems[id] = next);
   }
 
@@ -1225,6 +1291,15 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
     }
     if (_selectedItems.isEmpty) {
       _showMessage('Pilih barang terlebih dahulu.', error: true);
+      return;
+    }
+    if (_cartEntries.any(
+      (entry) => entry.quantity > entry.facility.unitTersedia,
+    )) {
+      _showMessage(
+        'Stok salah satu barang berubah atau tidak mencukupi. Muat ulang form.',
+        error: true,
+      );
       return;
     }
     if (_activityController.text.trim().isEmpty) {
@@ -1621,7 +1696,9 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'Tersedia ${facility.totalUnit} unit',
+                      facility.unitTersedia > 0
+                          ? 'Tersedia ${facility.unitTersedia} unit'
+                          : 'Stok habis',
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
@@ -1662,7 +1739,7 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
                 fg: Colors.white,
                 icon: Icons.add,
                 onTap: () {
-                  if (item.quantity < facility.totalUnit) {
+                  if (item.quantity < facility.unitTersedia) {
                     _changeQty(facility.id, 1);
                   }
                 },
@@ -2790,8 +2867,8 @@ class _FacilityPickerSheet extends StatelessWidget {
                       ),
                       trailing: Text(
                         facility.tersedia
-                            ? '${facility.totalUnit} unit'
-                            : 'Habis',
+                            ? '${facility.unitTersedia} tersedia'
+                            : 'Stok habis',
                         style: TextStyle(
                           color: facility.tersedia
                               ? const Color(0xFF059669)

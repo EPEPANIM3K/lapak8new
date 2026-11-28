@@ -12,6 +12,7 @@ class FasilitasRingkas {
     required this.lokasi,
     required this.totalUnit,
     required this.status,
+    this.unitTersedia = 0,
     this.fotoUrl,
   });
 
@@ -20,10 +21,11 @@ class FasilitasRingkas {
   final String kategori;
   final String lokasi; // nama lokasi (join dari tabel lokasi)
   final int totalUnit;
+  final int unitTersedia;
   final String status; // 'tersedia' | 'pemeliharaan' | 'tidak_aktif'
   final String? fotoUrl;
 
-  bool get tersedia => status == 'tersedia' && totalUnit > 0;
+  bool get tersedia => status == 'tersedia' && unitTersedia > 0;
   bool get isRuangan => kategori.trim().toLowerCase() == 'ruangan';
 
   factory FasilitasRingkas.fromMap(Map<String, dynamic> map) {
@@ -34,6 +36,7 @@ class FasilitasRingkas {
       kategori: map['kategori'] as String? ?? '',
       lokasi: lokasi?['nama'] as String? ?? '-',
       totalUnit: (map['total_unit'] as num).toInt(),
+      unitTersedia: (map['unit_tersedia'] as num?)?.toInt() ?? 0,
       status: map['status'] as String,
       fotoUrl: map['foto_url'] as String?,
     );
