@@ -17,7 +17,7 @@ import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
 import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 import 'package:lapak8new/features/dashboard/widgets/dashboard_modals.dart';
 import 'package:lapak8new/features/profile/widgets/profile_modals.dart';
-import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
+import 'package:lapak8new/shared/widgets/logout_confirmation_sheet.dart';
 
 // Simpan di: lib/features/admin/screens/admin_profile_screen.dart
 //
@@ -140,23 +140,19 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   }
 
   void _logout() {
-    showDialog(
+    showLogoutConfirmationSheet(
       context: context,
-      barrierColor: Colors.black54,
-      builder: (_) => ConfirmDialog(
-        icon: Symbols.block,
-        title: 'Keluar Dari Akun\nAnda?',
-        message: 'Anda dapat Masuk lagi kapan saja.',
-        confirmText: 'Ya',
-        confirmIcon: null,
-        confirmColor: AppColors.error,
-        iconColor: AppColors.error,
-        iconBackground: AppColors.errorContainer,
-        onConfirm: () async {
-          await authProvider.signOut();
-          if (mounted) context.go('/login');
-        },
-      ),
+      onConfirm: () async {
+        await authProvider.signOut();
+        if (!mounted) return;
+        context.go('/login');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Berhasil keluar dari akun LAPAK8.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
     );
   }
 
@@ -241,7 +237,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surfaceContainerLow,
+      backgroundColor: AppColors.surface,
       body: Column(
         children: [
           Expanded(
@@ -312,10 +308,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.primaryFixed,
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.surfaceContainerLow,
-                      width: 4,
-                    ),
+                    border: Border.all(color: AppColors.surface, width: 4),
                   ),
                   child: (_avatarBytes != null || _avatarPath.isNotEmpty)
                       ? LocalImagePreview(

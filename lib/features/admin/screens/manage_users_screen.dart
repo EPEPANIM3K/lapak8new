@@ -287,7 +287,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surfaceContainerLow,
+      backgroundColor: AppColors.surface,
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.mobileGutter,

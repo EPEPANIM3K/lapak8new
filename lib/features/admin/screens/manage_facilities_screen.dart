@@ -187,7 +187,7 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
     const gutter = AppSpacing.mobileGutter;
 
     return Scaffold(
-      backgroundColor: AppColors.surfaceContainerLow,
+      backgroundColor: AppColors.surface,
       body: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(

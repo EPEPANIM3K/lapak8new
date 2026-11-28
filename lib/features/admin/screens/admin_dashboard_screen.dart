@@ -133,8 +133,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Desain memakai latar lavender (surfaceContainerLow), bukan background.
-      backgroundColor: AppColors.surfaceContainerLow,
+      // Latar netral yang sama dengan halaman User (AppColors.surface).
+      backgroundColor: AppColors.surface,
       body: RefreshIndicator(
         onRefresh: _loadDashboardData,
         child: ListView(

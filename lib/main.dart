@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/supabase_config.dart';
+import 'core/constants/app_colors.dart';
 import 'core/router/app_router.dart';
 import 'features/auth/providers/auth_provider.dart';
 
@@ -27,10 +28,8 @@ class Lapak8App extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         fontFamily: 'Outfit',
-        scaffoldBackgroundColor: const Color(0xFFF7F9FC),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2563EB),
-        ),
+        scaffoldBackgroundColor: AppColors.surface,
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB)),
       ),
       builder: (context, child) => AdaptiveToolbarHost(child: child!),
       routerConfig: appRouter,

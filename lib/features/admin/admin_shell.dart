@@ -36,7 +36,7 @@ class AdminShell extends StatelessWidget {
     final insets = MediaQuery.paddingOf(context);
 
     return Scaffold(
-      backgroundColor: AppColors.surfaceContainerLow,
+      backgroundColor: AppColors.surface,
       body: Stack(
         children: [
           Positioned.fill(

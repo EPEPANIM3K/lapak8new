@@ -746,7 +746,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
     final loans = _visibleLoans;
     final returns = _visibleReturns;
     return Scaffold(
-      backgroundColor: AppColors.surfaceContainerLow,
+      backgroundColor: AppColors.surface,
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.mobileGutter,

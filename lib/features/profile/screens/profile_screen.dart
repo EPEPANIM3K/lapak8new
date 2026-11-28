@@ -14,7 +14,7 @@ import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
 import 'package:lapak8new/features/admin/services/user_repository.dart';
 import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
-import 'package:lapak8new/shared/widgets/blurred_bottom_sheet.dart';
+import 'package:lapak8new/shared/widgets/logout_confirmation_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -201,7 +201,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const cSurfaceContainerLow = Color(0xFFF2F3FF);
   static const cSurfaceContainer = Color(0xFFEAEDFF);
   static const cSurfaceContainerHigh = Color(0xFFE2E7FF);
-  static const cSurfaceContainerHighest = Color(0xFFDAE2FD);
   static const cPrimary = Color(0xFF0037B0);
   static const cTertiary = Color(0xFF004F35);
   static const cError = Color(0xFFBA1A1A);
@@ -220,126 +219,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showLogoutModal() {
-    showBlurredBottomSheet<void>(
+    showLogoutConfirmationSheet(
       context: context,
-      backgroundColor: cSurfaceLowest,
-      builder: (modalContext) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: cSurfaceLowest,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Drag Handle
-                Container(
-                  width: 48,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: cSurfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Icon Warning
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: const BoxDecoration(
-                    color: cErrorContainer,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.warning_amber_rounded,
-                    size: 32,
-                    color: cError,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Text
-                const Text(
-                  'Yakin Ingin Keluar?',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: cOnSurface,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Anda harus memasukkan kembali NISN dan kata sandi untuk mengajukan atau memeriksa peminjaman sarana.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: cSecondary,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // Buttons
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      Navigator.pop(modalContext); // Tutup modal
-                      await authProvider.signOut();
-                      if (!mounted) return;
-                      context.go('/login');
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Berhasil keluar dari akun LAPAK8.'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.logout, size: 18),
-                    label: const Text(
-                      'Ya, Keluar',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: cError,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(modalContext),
-                    style: TextButton.styleFrom(
-                      backgroundColor: cSurfaceContainerHigh,
-                      foregroundColor: cOnSurface,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                    child: const Text(
-                      'Batal',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+      onConfirm: () async {
+        await authProvider.signOut();
+        if (!mounted) return;
+        context.go('/login');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Berhasil keluar dari akun LAPAK8.'),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       },

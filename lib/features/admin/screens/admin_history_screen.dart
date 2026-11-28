@@ -161,7 +161,7 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
   Widget build(BuildContext context) {
     final histories = _visible;
     return Scaffold(
-      backgroundColor: AppColors.surfaceContainerLow,
+      backgroundColor: AppColors.surface,
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
