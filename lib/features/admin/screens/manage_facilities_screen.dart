@@ -7,7 +7,6 @@ import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/admin/screens/facility_form_screen.dart';
 import 'package:lapak8new/features/facilities/models/facility.dart';
 import 'package:lapak8new/features/facilities/services/facility_service.dart';
-import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 // Simpan di: lib/features/admin/screens/manage_facilities_screen.dart
@@ -189,14 +188,17 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLow,
-      bottomNavigationBar: const AdminBottomNav(currentIndex: 3),
       body: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(
-                  gutter, AppSpacing.md, gutter, 0),
+                gutter,
+                AppSpacing.md,
+                gutter,
+                0,
+              ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   Padding(
@@ -204,14 +206,18 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Data Barang',
-                            style: AppTextStyles.headlineMd(
-                                color: AppColors.onSurface)),
+                        Text(
+                          'Data Barang',
+                          style: AppTextStyles.headlineMd(
+                            color: AppColors.onSurface,
+                          ),
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           'Kelola inventaris barang & fasilitas sekolah',
                           style: AppTextStyles.bodyMd(
-                              color: AppColors.slate600),
+                            color: AppColors.slate600,
+                          ),
                         ),
                       ],
                     ),
@@ -219,9 +225,7 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
                   const SizedBox(height: 16),
                   _AddButton(onPressed: () => _openForm()),
                   const SizedBox(height: 16),
-                  _SearchField(
-                    onChanged: (v) => setState(() => _query = v),
-                  ),
+                  _SearchField(onChanged: (v) => setState(() => _query = v)),
                   const SizedBox(height: 16),
                   _buildFilters(),
                   const SizedBox(height: 16),
@@ -259,7 +263,9 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: gutter, vertical: 32),
+                    horizontal: gutter,
+                    vertical: 32,
+                  ),
                   child: Column(
                     children: [
                       Text(
@@ -293,8 +299,7 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: gutter),
                 sliver: SliverGrid(
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
@@ -316,8 +321,11 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Symbols.verified,
-                        size: 16, color: AppColors.slate500),
+                    const Icon(
+                      Symbols.verified,
+                      size: 16,
+                      color: AppColors.slate500,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       'Sinkronisasi Realtime SIM-Sarpras',
@@ -360,8 +368,7 @@ class _ManageFacilitiesScreenState extends State<ManageFacilitiesScreen> {
                         ? AppColors.primary
                         : AppColors.surfaceContainerLowest,
                     borderRadius: BorderRadius.circular(AppRadius.full),
-                    boxShadow:
-                        _filter == entries[i].$2 ? null : AppShadows.sm,
+                    boxShadow: _filter == entries[i].$2 ? null : AppShadows.sm,
                   ),
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
@@ -489,8 +496,9 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             '$value',
-            style: AppTextStyles.headlineMd(color: color)
-                .copyWith(fontWeight: FontWeight.w800),
+            style: AppTextStyles.headlineMd(
+              color: color,
+            ).copyWith(fontWeight: FontWeight.w800),
           ),
         ],
       ),
@@ -538,8 +546,10 @@ class _ItemCard extends StatelessWidget {
                   top: 8,
                   left: 8,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: inStock
                           ? AppColors.tertiaryFixed
@@ -608,8 +618,11 @@ class _ItemCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Symbols.location_on,
-                          size: 14, color: AppColors.primary),
+                      const Icon(
+                        Symbols.location_on,
+                        size: 14,
+                        color: AppColors.primary,
+                      ),
                       const SizedBox(width: 3),
                       Expanded(
                         child: Text(
@@ -660,8 +673,11 @@ class _ItemCard extends StatelessWidget {
                           child: const SizedBox(
                             width: 36,
                             height: 36,
-                            child: Icon(Symbols.delete,
-                                size: 18, color: AppColors.slate600),
+                            child: Icon(
+                              Symbols.delete,
+                              size: 18,
+                              color: AppColors.slate600,
+                            ),
                           ),
                         ),
                       ),
@@ -680,7 +696,11 @@ class _ItemCard extends StatelessWidget {
     final placeholder = Container(
       color: AppColors.primaryFixed.fade(0.6),
       alignment: Alignment.center,
-      child: const Icon(Symbols.inventory_2, size: 48, color: AppColors.primary),
+      child: const Icon(
+        Symbols.inventory_2,
+        size: 48,
+        color: AppColors.primary,
+      ),
     );
 
     if (item.fotoUrl == null || item.fotoUrl!.isEmpty) return placeholder;

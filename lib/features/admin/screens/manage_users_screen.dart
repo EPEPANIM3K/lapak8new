@@ -8,7 +8,6 @@ import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/admin/screens/user_form_screen.dart';
 import 'package:lapak8new/features/admin/services/user_repository.dart';
-import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 enum _UserFilter { all, student, teacher, suspended }
@@ -108,19 +107,19 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       final peranBaru = switch (data.role) {
         'student' => 'siswa',
         'teacher' => 'guru',
-        'staff'   => 'staf',
-        _         => data.role,
+        'staff' => 'staf',
+        _ => data.role,
       };
       await userRepository.createAccount(
-        nama:          data.name,
-        email:         data.email,
-        password:      data.password,
-        peran:         peranBaru,
-        kelas:         data.roleClass,
-        nomorInduk:    data.idNumber,
-        nomorTelepon:  data.phone,
-        aktif:         data.active,
-        photoBytes:    data.photo,
+        nama: data.name,
+        email: data.email,
+        password: data.password,
+        peran: peranBaru,
+        kelas: data.roleClass,
+        nomorInduk: data.idNumber,
+        nomorTelepon: data.phone,
+        aktif: data.active,
+        photoBytes: data.photo,
         photoFileName: data.photoFileName,
       );
       if (!mounted) return;
@@ -135,27 +134,27 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     // Konversi balik peran skema baru → nilai UserFormData (lama) agar form berjalan
     final roleForm = switch (user.peran) {
       'siswa' => 'student',
-      'guru'  => 'teacher',
-      'staf'  => 'staff',
-      _       => user.peran,
+      'guru' => 'teacher',
+      'staf' => 'staff',
+      _ => user.peran,
     };
     final data = await UserFormScreen.show(
       context,
       isAdmin: true,
       initial: UserFormData(
-        name:            user.nama,
-        password:        '',
-        email:           user.email,
-        idNumber:        user.nomorInduk ?? '',
-        roleClass:       user.kelas,
-        role:            roleForm,
-        active:          user.aktif,
-        phone:           user.nomorTelepon ?? '',
-        photoUrl:        user.fotoUrl,
+        name: user.nama,
+        password: '',
+        email: user.email,
+        idNumber: user.nomorInduk ?? '',
+        roleClass: user.kelas,
+        role: roleForm,
+        active: user.aktif,
+        phone: user.nomorTelepon ?? '',
+        photoUrl: user.fotoUrl,
         userSubcategory: switch (user.peran) {
-          'guru'  => 'guru',
+          'guru' => 'guru',
           'siswa' => 'siswa',
-          _       => null,
+          _ => null,
         },
       ),
     );
@@ -164,22 +163,22 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     final peranBaru = switch (data.role) {
       'student' => 'siswa',
       'teacher' => 'guru',
-      'staff'   => 'staf',
-      _         => data.role,
+      'staff' => 'staf',
+      _ => data.role,
     };
 
     try {
       await userRepository.updateUser(
         user.id,
-        nama:       data.name,
-        phone:      data.phone,
-        kelas:      data.roleClass,
+        nama: data.name,
+        phone: data.phone,
+        kelas: data.roleClass,
         nomorInduk: data.idNumber,
-        peran:         peranBaru,
-        aktif:         data.active,
-        photoBytes:    data.photo,
+        peran: peranBaru,
+        aktif: data.active,
+        photoBytes: data.photo,
         photoFileName: data.photoFileName,
-        removePhoto:   data.removePhoto,
+        removePhoto: data.removePhoto,
       );
       if (data.email != user.email) {
         await userRepository.updateEmail(user.id, data.email);
@@ -219,7 +218,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       builder: (_) => ConfirmDialog(
         icon: Symbols.lock,
         title: 'Tangguhkan Akun?',
-        message: 'Akun ${user.nama} tidak dapat digunakan sampai diaktifkan '
+        message:
+            'Akun ${user.nama} tidak dapat digunakan sampai diaktifkan '
             'kembali oleh admin.',
         confirmText: 'Tangguhkan',
         confirmIcon: Symbols.lock,
@@ -288,7 +288,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLow,
-      bottomNavigationBar: const AdminBottomNav(currentIndex: 4),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.mobileGutter,
@@ -511,8 +510,9 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             value,
-            style: AppTextStyles.headlineMd(color: AppColors.onSurface)
-                .copyWith(fontWeight: FontWeight.w800),
+            style: AppTextStyles.headlineMd(
+              color: AppColors.onSurface,
+            ).copyWith(fontWeight: FontWeight.w800),
           ),
         ],
       ),
@@ -673,18 +673,12 @@ class _UserCard extends StatelessWidget {
                 IconButton(
                   tooltip: 'Tangguhkan akun',
                   onPressed: onSuspend,
-                  icon: const Icon(
-                    Symbols.lock,
-                    color: AppColors.error,
-                  ),
+                  icon: const Icon(Symbols.lock, color: AppColors.error),
                 ),
               IconButton(
                 tooltip: 'Hapus akun',
                 onPressed: onDelete,
-                icon: const Icon(
-                  Symbols.delete,
-                  color: AppColors.error,
-                ),
+                icon: const Icon(Symbols.delete, color: AppColors.error),
               ),
             ],
           ),
@@ -777,29 +771,27 @@ class _Pagination extends StatelessWidget {
     );
 
     Widget pageButton(int value) => GestureDetector(
-          onTap: value == page ? null : () => onChanged(value),
-          child: Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: value == page
-                  ? AppColors.primary
-                  : AppColors.surfaceContainerLowest,
-              shape: BoxShape.circle,
-              boxShadow: value == page ? null : AppShadows.sm,
-            ),
-            child: Text(
-              '$value',
-              style: AppTextStyles.labelMd(
-                weight: FontWeight.w700,
-                color: value == page
-                    ? AppColors.onPrimary
-                    : AppColors.onSurface,
-              ),
-            ),
+      onTap: value == page ? null : () => onChanged(value),
+      child: Container(
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: value == page
+              ? AppColors.primary
+              : AppColors.surfaceContainerLowest,
+          shape: BoxShape.circle,
+          boxShadow: value == page ? null : AppShadows.sm,
+        ),
+        child: Text(
+          '$value',
+          style: AppTextStyles.labelMd(
+            weight: FontWeight.w700,
+            color: value == page ? AppColors.onPrimary : AppColors.onSurface,
           ),
-        );
+        ),
+      ),
+    );
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,

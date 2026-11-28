@@ -163,7 +163,17 @@ class _QrScannerScreenState extends State<QrScannerScreen>
         context.pop(result);
         return;
       } else if (expectedBorrowingId == null) {
-        result = await peminjamanService.prosesQrAdmin(code);
+        final qrParts = code.split(':');
+        if (qrParts.length == 4 &&
+            qrParts[0] == 'LAPAK8' &&
+            qrParts[2] == 'pengembalian') {
+          result = await peminjamanService.prosesQrPengembalianAdmin(
+            kodeQr: code,
+            peminjamanId: qrParts[1],
+          );
+        } else {
+          result = await peminjamanService.prosesQrAdmin(code);
+        }
       } else {
         final validation = await peminjamanService.validasiQrPeminjamanAdmin(
           kodeQr: code,
@@ -227,6 +237,21 @@ class _QrScannerScreenState extends State<QrScannerScreen>
           if (expectedBorrowingId != null && mounted && context.canPop()) {
             shouldPopAfterSuccess = true;
             context.pop();
+          }
+          break;
+        case 'pengembalian':
+          await _showResult(
+            success: true,
+            title: 'QR Pengembalian Dipindai',
+            message:
+                'Pengembalian ${result['kode_booking'] ?? ''} siap diperiksa.',
+          );
+          if (expectedBorrowingId == null &&
+              expectedReturnBorrowingId == null &&
+              mounted &&
+              context.canPop()) {
+            shouldPopAfterSuccess = true;
+            context.pop(result);
           }
           break;
         default:

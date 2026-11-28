@@ -5,9 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../shared/widgets/app_bottom_nav.dart';
-import '../../../shared/widgets/lapak_header.dart';
-import '../../auth/providers/auth_provider.dart';
 import '../models/facility.dart';
 import '../services/facility_service.dart';
 
@@ -81,11 +78,13 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
 
   List<Facility> get _filtered => _items.where((item) {
     final q = _query.toLowerCase();
-    final okQ = q.isEmpty ||
+    final okQ =
+        q.isEmpty ||
         item.nama.toLowerCase().contains(q) ||
         item.lokasiNama.toLowerCase().contains(q) ||
         item.kategori.toLowerCase().contains(q);
-    final okF = _filter == 'all' ||
+    final okF =
+        _filter == 'all' ||
         (_filter == 'available' && item.isAvailable) ||
         (_filter == 'unavailable' && !item.isAvailable);
     return okQ && okF;
@@ -104,10 +103,6 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
       backgroundColor: AppColors.surface,
       body: Column(
         children: [
-          LapakHeader(
-            avatarUrl: authProvider.user?.fotoUrl ?? '',
-            onAvatarTap: () => context.push('/profile'),
-          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
@@ -137,11 +132,6 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
               ),
             ),
           ),
-          AppBottomNav(
-            items: AppBottomNav.userItems,
-            currentIndex: 1,
-            onTap: (_) {},
-          ),
         ],
       ),
     );
@@ -152,57 +142,128 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
     child: Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(color: cSurfaceLowest, borderRadius: BorderRadius.circular(999), boxShadow: const [
-        BoxShadow(color: Color(0x0D000000), blurRadius: 4, offset: Offset(0, 2)),
-      ]),
-      child: Row(children: [
-        const Icon(Icons.search, size: 20, color: cOutline),
-        const SizedBox(width: 8),
-        Expanded(child: TextField(
-          controller: _searchCtrl,
-          onChanged: (v) => setState(() => _query = v.trim()),
-          style: const TextStyle(fontFamily: 'Plus Jakarta Sans', fontSize: 12, color: cOnSurface),
-          decoration: const InputDecoration(
-            isDense: true, border: InputBorder.none, contentPadding: EdgeInsets.zero,
-            hintText: 'Cari item atau barang...',
-            hintStyle: TextStyle(fontSize: 12, color: cOnSurfaceVariant),
+      decoration: BoxDecoration(
+        color: cSurfaceLowest,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0D000000),
+            blurRadius: 4,
+            offset: Offset(0, 2),
           ),
-        )),
-        if (_query.isNotEmpty) IconButton(
-          onPressed: _clearSearch, icon: const Icon(Icons.close, size: 18, color: cOutline),
-          padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-        ),
-      ]),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search, size: 20, color: cOutline),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (v) => setState(() => _query = v.trim()),
+              style: const TextStyle(
+                fontFamily: 'Plus Jakarta Sans',
+                fontSize: 12,
+                color: cOnSurface,
+              ),
+              decoration: const InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+                hintText: 'Cari item atau barang...',
+                hintStyle: TextStyle(fontSize: 12, color: cOnSurfaceVariant),
+              ),
+            ),
+          ),
+          if (_query.isNotEmpty)
+            IconButton(
+              onPressed: _clearSearch,
+              icon: const Icon(Icons.close, size: 18, color: cOutline),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+        ],
+      ),
     ),
   );
 
   Widget _titleAndFilters(int count) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        const Text('Daftar Item', style: TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.w600, color: cOnSurface)),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(color: cSurfaceContainer, borderRadius: BorderRadius.circular(999)),
-          child: Text('$count Item', style: const TextStyle(fontFamily: 'Plus Jakarta Sans', fontSize: 11, fontWeight: FontWeight.w700, color: cPrimary, letterSpacing: 0.4)),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Daftar Item',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: cOnSurface,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: cSurfaceContainer,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '$count Item',
+                style: const TextStyle(
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: cPrimary,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+          ],
         ),
-      ]),
-      const SizedBox(height: 10),
-      SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(children: [
-          _filterChip('Semua', 'all', color: cPrimaryContainer, textColor: Colors.white),
-          const SizedBox(width: 8),
-          _filterChip('Tersedia', 'available', color: cSurfaceLowest, textColor: cTertiary, dot: cTertiaryContainer),
-          const SizedBox(width: 8),
-          _filterChip('Tidak tersedia', 'unavailable', color: cSurfaceLowest, textColor: cError, dot: cError),
-        ]),
-      ),
-    ]),
+        const SizedBox(height: 10),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _filterChip(
+                'Semua',
+                'all',
+                color: cPrimaryContainer,
+                textColor: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              _filterChip(
+                'Tersedia',
+                'available',
+                color: cSurfaceLowest,
+                textColor: cTertiary,
+                dot: cTertiaryContainer,
+              ),
+              const SizedBox(width: 8),
+              _filterChip(
+                'Tidak tersedia',
+                'unavailable',
+                color: cSurfaceLowest,
+                textColor: cError,
+                dot: cError,
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
   );
 
-  Widget _filterChip(String label, String value, {required Color color, required Color textColor, Color? dot}) {
+  Widget _filterChip(
+    String label,
+    String value, {
+    required Color color,
+    required Color textColor,
+    Color? dot,
+  }) {
     final selected = _filter == value;
     return GestureDetector(
       onTap: () => setState(() => _filter = value),
@@ -211,20 +272,39 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
         decoration: BoxDecoration(
           color: selected ? cPrimaryContainer : color,
           borderRadius: BorderRadius.circular(8),
-          border: selected ? null : Border.all(color: cOutlineVariant.withValues(alpha: 0.6)),
-          boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 2, offset: Offset(0, 1))],
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          if (dot != null) ...[
-            Container(width: 8, height: 8, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
-            const SizedBox(width: 6),
+          border: selected
+              ? null
+              : Border.all(color: cOutlineVariant.withValues(alpha: 0.6)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x08000000),
+              blurRadius: 2,
+              offset: Offset(0, 1),
+            ),
           ],
-          Text(label, style: TextStyle(
-            fontFamily: 'Plus Jakarta Sans', fontSize: 11,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-            color: selected ? Colors.white : textColor,
-          )),
-        ]),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (dot != null) ...[
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Plus Jakarta Sans',
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                color: selected ? Colors.white : textColor,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -242,9 +322,7 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
             Expanded(child: _itemCard(left)),
             const SizedBox(width: 12),
             Expanded(
-              child: right == null
-                  ? const SizedBox.shrink()
-                  : _itemCard(right),
+              child: right == null ? const SizedBox.shrink() : _itemCard(right),
             ),
           ],
         ),
@@ -283,8 +361,11 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
                 const ColoredBox(
                   color: AppColors.slate100,
                   child: Center(
-                    child: Icon(Icons.inventory_2_outlined,
-                        size: 36, color: AppColors.slate400),
+                    child: Icon(
+                      Icons.inventory_2_outlined,
+                      size: 36,
+                      color: AppColors.slate400,
+                    ),
                   ),
                 ),
                 if (imgUrl != null && imgUrl.isNotEmpty)
@@ -294,8 +375,11 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
                     errorBuilder: (_, __, ___) => const ColoredBox(
                       color: AppColors.slate100,
                       child: Center(
-                        child: Icon(Icons.inventory_2_outlined,
-                            size: 36, color: AppColors.slate400),
+                        child: Icon(
+                          Icons.inventory_2_outlined,
+                          size: 36,
+                          color: AppColors.slate400,
+                        ),
                       ),
                     ),
                   ),
@@ -335,10 +419,11 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.outfit(
-                          size: 14,
-                          lineHeight: 20,
-                          weight: FontWeight.w700,
-                          color: AppColors.slate900),
+                        size: 14,
+                        lineHeight: 20,
+                        weight: FontWeight.w700,
+                        color: AppColors.slate900,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Row(
@@ -351,9 +436,10 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTextStyles.jakarta(
-                                size: 12,
-                                lineHeight: 16,
-                                color: AppColors.slate500),
+                              size: 12,
+                              lineHeight: 16,
+                              color: AppColors.slate500,
+                            ),
                           ),
                         ),
                       ],
@@ -377,36 +463,54 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
 
   Widget _errorState() => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
-    child: Column(children: [
-      Text(
-        _error!,
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 13, color: cError),
-      ),
-      const SizedBox(height: 12),
-      TextButton.icon(
-        onPressed: _load,
-        icon: const Icon(Icons.refresh),
-        label: const Text('Coba lagi'),
-      ),
-    ]),
+    child: Column(
+      children: [
+        Text(
+          _error!,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 13, color: cError),
+        ),
+        const SizedBox(height: 12),
+        TextButton.icon(
+          onPressed: _load,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Coba lagi'),
+        ),
+      ],
+    ),
   );
 
   Widget _emptyState() => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
-    child: Column(children: [
-      Container(
-        width: 64, height: 64,
-        decoration: const BoxDecoration(color: Color(0xFFE2E7FF), shape: BoxShape.circle),
-        child: const Icon(Icons.search_off, size: 36, color: cPrimary),
-      ),
-      const SizedBox(height: 12),
-      const Text('Item Tidak Ditemukan', style: TextStyle(
-        fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.w600, color: cOnSurface)),
-      const SizedBox(height: 4),
-      const Text('Coba gunakan kata kunci lain seperti "proyektor", "kamera", atau "mic".',
-        textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: cOnSurfaceVariant)),
-    ]),
+    child: Column(
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          decoration: const BoxDecoration(
+            color: Color(0xFFE2E7FF),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.search_off, size: 36, color: cPrimary),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Item Tidak Ditemukan',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: cOnSurface,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Coba gunakan kata kunci lain seperti "proyektor", "kamera", atau "mic".',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: cOnSurfaceVariant),
+        ),
+      ],
+    ),
   );
 }
 
@@ -420,7 +524,7 @@ class _StockBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(AppRadius.full);
     final dotColor = available ? AppColors.emerald500 : const Color(0xFFF43F5E);
-    
+
     return Container(
       decoration: BoxDecoration(borderRadius: radius, boxShadow: AppShadows.sm),
       child: ClipRRect(
@@ -441,16 +545,19 @@ class _StockBadge extends StatelessWidget {
                   width: 6,
                   height: 6,
                   decoration: BoxDecoration(
-                      color: dotColor, shape: BoxShape.circle),
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 const SizedBox(width: 6),
                 Text(
                   '$label Unit',
                   style: AppTextStyles.jakarta(
-                      size: 10,
-                      lineHeight: 22,
-                      weight: FontWeight.w700,
-                      color: AppColors.slate700),
+                    size: 10,
+                    lineHeight: 22,
+                    weight: FontWeight.w700,
+                    color: AppColors.slate700,
+                  ),
                 ),
               ],
             ),
@@ -486,10 +593,11 @@ class _BorrowButton extends StatelessWidget {
               child: Text(
                 'Pinjam',
                 style: AppTextStyles.jakarta(
-                    size: 12,
-                    lineHeight: 16,
-                    weight: FontWeight.w500,
-                    color: available ? AppColors.white : AppColors.slate600),
+                  size: 12,
+                  lineHeight: 16,
+                  weight: FontWeight.w500,
+                  color: available ? AppColors.white : AppColors.slate600,
+                ),
               ),
             ),
           ),

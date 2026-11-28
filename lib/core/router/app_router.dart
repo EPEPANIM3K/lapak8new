@@ -20,6 +20,7 @@ import 'package:lapak8new/features/admin/screens/admin_history_screen.dart';
 import 'package:lapak8new/features/admin/screens/manage_facilities_screen.dart';
 import 'package:lapak8new/features/admin/screens/manage_users_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_profile_screen.dart';
+import 'package:lapak8new/shared/widgets/user_app_shell.dart';
 
 // Halaman yang boleh dibuka tanpa login.
 const _publicPaths = {'/login', '/password-reset-help', '/welcome'};
@@ -71,29 +72,36 @@ final GoRouter appRouter = GoRouter(
     ),
 
     // ---------- USER ----------
-    GoRoute(path: '/', builder: (_, __) => const DashboardScreen()),
-    GoRoute(
-      path: '/facilities',
-      builder: (_, __) => const FacilityListScreen(),
+    ShellRoute(
+      builder: (context, state, child) =>
+          UserAppShell(location: state.uri.path, child: child),
+      routes: [
+        GoRoute(path: '/', builder: (_, __) => const DashboardScreen()),
+        GoRoute(
+          path: '/facilities',
+          builder: (_, __) => const FacilityListScreen(),
+        ),
+        GoRoute(
+          path: '/borrowings',
+          builder: (_, __) => const MyBorrowingsScreen(),
+        ),
+        GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
+        GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+        GoRoute(path: '/chat', builder: (_, __) => const ChatScreen()),
+        GoRoute(
+          path: '/borrowing-form',
+          builder: (_, state) => BorrowingFormScreen(
+            initialFacilityId: state.extra is String
+                ? state.extra as String
+                : null,
+          ),
+        ),
+        GoRoute(
+          path: '/notifications',
+          builder: (_, __) => const NotificationsScreen(),
+        ),
+      ],
     ),
-    GoRoute(
-      path: '/borrowings',
-      builder: (_, __) => const MyBorrowingsScreen(),
-    ),
-    GoRoute(
-      path: '/borrowing-form',
-      builder: (_, state) => BorrowingFormScreen(
-        initialFacilityId: state.extra is String ? state.extra as String : null,
-      ),
-    ),
-    GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
-    GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
-    GoRoute(path: '/chat', builder: (_, __) => const ChatScreen()),
-    GoRoute(
-      path: '/notifications',
-      builder: (context, state) => const NotificationsScreen(),
-    ),
-
     // ---------- UMUM ----------
     GoRoute(
       path: '/scan',
@@ -114,7 +122,8 @@ final GoRouter appRouter = GoRouter(
 
     // ---------- ADMIN ----------
     ShellRoute(
-      builder: (_, __, child) => AdminShell(child: child),
+      builder: (context, state, child) =>
+          AdminShell(location: state.uri.path, child: child),
       routes: [
         GoRoute(
           path: '/admin/dashboard',
@@ -122,7 +131,21 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: '/admin/borrowings',
-          builder: (_, __) => const AdminBorrowingsScreen(),
+          builder: (_, state) {
+            final extra = state.extra;
+            final inspectionId = extra is Map
+                ? extra['return_inspection_id']
+                : null;
+            final borrowingId = extra is Map ? extra['peminjaman_id'] : null;
+            return AdminBorrowingsScreen(
+              initialReturnInspectionId: inspectionId is String
+                  ? inspectionId
+                  : null,
+              initialReturnBorrowingId: borrowingId is String
+                  ? borrowingId
+                  : null,
+            );
+          },
         ),
         GoRoute(
           path: '/admin/history',
@@ -136,11 +159,12 @@ final GoRouter appRouter = GoRouter(
           path: '/admin/manage',
           builder: (_, __) => const ManageUsersScreen(),
         ),
+        GoRoute(
+          path: '/admin/profile',
+          builder: (_, __) => const AdminProfileScreen(),
+        ),
+        GoRoute(path: '/admin/chat', builder: (_, __) => const ChatScreen()),
       ],
-    ),
-    GoRoute(
-      path: '/admin/profile',
-      builder: (_, __) => const AdminProfileScreen(),
     ),
   ],
 );

@@ -38,39 +38,38 @@ class QuickActionsSection extends StatelessWidget {
     VoidCallback? onSchedule,
     VoidCallback? onRules,
     VoidCallback? onHelp,
-  }) =>
-      [
-        QuickActionItem(
-          label: 'Pinjam Cepat',
-          icon: Symbols.add_box,
-          background: AppColors.primaryContainer,
-          foreground: AppColors.onPrimary,
-          strongShadow: true,
-          onTap: onQuickBorrow,
-        ),
-        QuickActionItem(
-          label: 'Jadwal Aula',
-          icon: Symbols.calendar_month,
-          background: AppColors.secondaryContainer,
-          foreground: AppColors.onSecondaryContainer,
-          onTap: onSchedule,
-        ),
-        QuickActionItem(
-          label: 'Peraturan',
-          icon: Symbols.gavel,
-          background: AppColors.surfaceContainerHigh,
-          foreground: AppColors.onSurface,
-          onTap: onRules,
-        ),
-        QuickActionItem(
-          label: 'Bantuan PIC',
-          icon: Symbols.contact_support,
-          background: AppColors.primaryContainer,
-          foreground: AppColors.onPrimary,
-          strongShadow: true,
-          onTap: onHelp,
-        ),
-      ];
+  }) => [
+    QuickActionItem(
+      label: 'Pinjam Cepat',
+      icon: Symbols.add_box,
+      background: AppColors.primaryContainer,
+      foreground: AppColors.onPrimary,
+      strongShadow: true,
+      onTap: onQuickBorrow,
+    ),
+    QuickActionItem(
+      label: 'Jadwal Aula',
+      icon: Symbols.calendar_month,
+      background: AppColors.secondaryContainer,
+      foreground: AppColors.onSecondaryContainer,
+      onTap: onSchedule,
+    ),
+    QuickActionItem(
+      label: 'Peraturan',
+      icon: Symbols.gavel,
+      background: AppColors.surfaceContainerHigh,
+      foreground: AppColors.onSurface,
+      onTap: onRules,
+    ),
+    QuickActionItem(
+      label: 'ALLOC8 AI',
+      icon: Icons.smart_toy_outlined,
+      background: AppColors.primaryContainer,
+      foreground: AppColors.onPrimary,
+      strongShadow: true,
+      onTap: onHelp,
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -87,11 +86,14 @@ class QuickActionsSection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Aksi Cepat',
-                  style: AppTextStyles.headlineSm(color: AppColors.onSurface)),
-              Text('Shortcut Edukasi',
-                  style: AppTextStyles.labelSm(
-                      color: AppColors.onSurfaceVariant)),
+              Text(
+                'Aksi Cepat',
+                style: AppTextStyles.headlineSm(color: AppColors.onSurface),
+              ),
+              Text(
+                'Shortcut Edukasi',
+                style: AppTextStyles.labelSm(color: AppColors.onSurfaceVariant),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -134,8 +136,7 @@ class _QuickAction extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: item.background,
                   shape: BoxShape.circle,
-                  boxShadow:
-                      item.strongShadow ? AppShadows.md : AppShadows.sm,
+                  boxShadow: item.strongShadow ? AppShadows.md : AppShadows.sm,
                 ),
                 child: MsIcon(item.icon, size: 22, color: item.foreground),
               ),
@@ -145,8 +146,9 @@ class _QuickAction extends StatelessWidget {
                 textAlign: TextAlign.center,
                 // font-medium + leading-tight (1.25)
                 style: AppTextStyles.labelSm(
-                        weight: FontWeight.w500, color: AppColors.onSurface)
-                    .copyWith(height: 1.25),
+                  weight: FontWeight.w500,
+                  color: AppColors.onSurface,
+                ).copyWith(height: 1.25),
               ),
             ],
           ),

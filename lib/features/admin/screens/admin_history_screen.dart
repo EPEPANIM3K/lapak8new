@@ -6,7 +6,7 @@ import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/borrowings/models/peminjaman.dart';
 import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
-import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
+import 'package:lapak8new/features/admin/services/admin_report_pdf_service.dart';
 import 'package:lapak8new/shared/widgets/user_avatar.dart';
 
 enum _HistoryFilter { all, onTime, lateReturned }
@@ -106,6 +106,55 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
     return '${local.day} ${_months[local.month - 1]} ${local.year} • $hh:$mm WIB';
+  }
+
+  Future<void> _exportReport() async {
+    final rows = _visible
+        .map(
+          (history) => [
+            history.kodeBooking,
+            history.namaPeminjam ?? '—',
+            history.nomorIndukPeminjam ?? '—',
+            history.items
+                .map(
+                  (item) =>
+                      '${item.namaFasilitasSnapshot} (${item.jumlah} unit)',
+                )
+                .join(', '),
+            history.labelKategori,
+            history.status.label,
+            _formatDateTime(history.mulaiPada),
+            _formatDateTime(
+              history.dikembalikanPada ?? history.estimasiKembaliPada,
+            ),
+            _isOnTime(history) ? 'Tepat Waktu' : 'Terlambat',
+          ],
+        )
+        .toList();
+
+    try {
+      await AdminReportPdfService.export(
+        title: 'Rekap Riwayat Peminjaman',
+        filename: 'rekap-riwayat-peminjaman.pdf',
+        headers: const [
+          'Kode',
+          'Peminjam',
+          'Nomor Induk',
+          'Barang',
+          'Kategori',
+          'Status',
+          'Mulai',
+          'Kembali',
+          'Keterangan',
+        ],
+        rows: rows,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membuat rekap PDF: $error')),
+      );
+    }
   }
 
   @override
@@ -217,31 +266,14 @@ class _AdminHistoryScreenState extends State<AdminHistoryScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.mobileGutter,
-              AppSpacing.md,
-              AppSpacing.mobileGutter,
-              AppSpacing.md,
-            ),
-            child: _SummaryBar(
-              total: _histories.length,
-              onExport: () {
-                ScaffoldMessenger.of(context)
-                  ..hideCurrentSnackBar()
-                  ..showSnackBar(
-                    const SnackBar(
-                      content: Text('Fitur ekspor XLS akan segera hadir.'),
-                    ),
-                  );
-              },
-            ),
-          ),
-          const AdminBottomNav(currentIndex: 2),
-        ],
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.mobileGutter,
+          AppSpacing.md,
+          AppSpacing.mobileGutter,
+          AppSpacing.md,
+        ),
+        child: _SummaryBar(total: _histories.length, onExport: _exportReport),
       ),
     );
   }
@@ -747,7 +779,7 @@ class _SummaryBar extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Rekap\nXLS',
+                        'Rekap\nPDF',
                         style: AppTextStyles.labelSm(
                           weight: FontWeight.w700,
                           color: AppColors.primary,

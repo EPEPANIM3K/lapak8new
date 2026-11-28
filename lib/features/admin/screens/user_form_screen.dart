@@ -10,6 +10,7 @@ import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/admin/services/media_picker_service.dart';
 import 'package:lapak8new/features/admin/widgets/avatar_preview_dialog.dart';
 import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
+import 'package:lapak8new/shared/widgets/blurred_bottom_sheet.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 // Simpan di: lib/features/admin/screens/user_form_screen.dart
@@ -49,6 +50,7 @@ class UserFormData {
   final String? photoFileName;
   final String? photoUrl;
   final bool removePhoto;
+
   /// Sub-kategori untuk role 'user': 'siswa' atau 'guru'.
   /// Null jika role 'petugas'.
   final String? userSubcategory;
@@ -71,10 +73,11 @@ class UserFormScreen extends StatefulWidget {
     UserFormData? initial,
     bool isAdmin = false,
   }) {
-    return showDialog<UserFormData>(
+    return showBlurredBottomSheet<UserFormData>(
       context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black54,
+      heightFactor: 0.9,
+      maxWidth: 480,
+      showDragHandle: true,
       builder: (_) => UserFormScreen(initial: initial, isAdmin: isAdmin),
     );
   }
@@ -104,6 +107,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
   ];
 
   String? _kelas;
+
   /// 'petugas' | 'siswa' | 'guru'
   String _role = 'siswa';
   bool _active = true;
@@ -114,7 +118,8 @@ class _UserFormScreenState extends State<UserFormScreen> {
   bool _removePhoto = false;
 
   bool get _isEdit => widget.initial != null;
-  bool get _hasPhoto => _photo != null || (_photoUrl != null && _photoUrl!.isNotEmpty);
+  bool get _hasPhoto =>
+      _photo != null || (_photoUrl != null && _photoUrl!.isNotEmpty);
   bool get _isPetugas => _role == 'petugas';
 
   List<String> get _kelasChoices {
@@ -198,7 +203,9 @@ class _UserFormScreenState extends State<UserFormScreen> {
     );
     if (use != true || !mounted) return;
 
-    Uint8List? bytes = file.bytes == null ? null : Uint8List.fromList(file.bytes!);
+    Uint8List? bytes = file.bytes == null
+        ? null
+        : Uint8List.fromList(file.bytes!);
     if (bytes == null && !kIsWeb && file.localPath.isNotEmpty) {
       bytes = await File(file.localPath).readAsBytes();
     }
@@ -211,11 +218,11 @@ class _UserFormScreenState extends State<UserFormScreen> {
   }
 
   void _removePhotoAction() => setState(() {
-        _photo = null;
-        _photoFileName = null;
-        _photoUrl = null;
-        _removePhoto = true;
-      });
+    _photo = null;
+    _photoFileName = null;
+    _photoUrl = null;
+    _removePhoto = true;
+  });
 
   void _showSnack(String message) {
     ScaffoldMessenger.of(context)
@@ -255,7 +262,8 @@ class _UserFormScreenState extends State<UserFormScreen> {
       builder: (_) => ConfirmDialog(
         icon: Symbols.save,
         title: 'Simpan Perubahan?',
-        message: 'Apakah Anda yakin ingin menyimpan seluruh perubahan data '
+        message:
+            'Apakah Anda yakin ingin menyimpan seluruh perubahan data '
             'item sarpras atau akun ini ke dalam sistem?',
         confirmText: 'Ya, Simpan',
         onConfirm: () {
@@ -285,152 +293,140 @@ class _UserFormScreenState extends State<UserFormScreen> {
   // -------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.9;
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      backgroundColor: AppColors.surfaceContainerLowest,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 480, maxHeight: maxHeight),
-        child: Column(
-          children: [
-            _buildHeader(),
-            const Divider(height: 1, color: AppColors.primaryFixed),
-            Expanded(
-              child: SingleChildScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.mobileGutter,
-                  16,
-                  AppSpacing.mobileGutter,
-                  24,
-                ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const _FieldLabel('Foto Pengguna'),
-                      _buildPhoto(),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Format yang didukung: Semua format gambar (maks. 10MB)',
-                        style: AppTextStyles.labelSm(
-                          weight: FontWeight.w500,
-                          color: AppColors.slate600,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const _FieldLabel('Nama Lengkap', required: true),
-                      _textField(
-                        controller: _nameCtrl,
-                        hint: 'Masukkan nama lengkap',
-                        icon: Symbols.person,
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Nama wajib diisi'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      _FieldLabel('Password', required: !_isEdit),
-                      _textField(
-                        controller: _passCtrl,
-                        hint: 'Masukkan Password',
-                        icon: Symbols.key,
-                        obscure: _hidePass,
-                        suffix: IconButton(
-                          onPressed: () =>
-                              setState(() => _hidePass = !_hidePass),
-                          icon: Icon(
-                            _hidePass
-                                ? Symbols.visibility
-                                : Symbols.visibility_off,
-                            size: 20,
-                            color: AppColors.slate500,
-                          ),
-                        ),
-                        validator: (v) {
-                          // Mode edit: kosong = password tidak diubah.
-                          if (_isEdit && (v == null || v.isEmpty)) return null;
-                          if (v == null || v.length < 6) {
-                            return 'Password minimal 6 karakter';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      const _FieldLabel('Email Akun Belajar / Sekolah',
-                          required: true),
-                      _textField(
-                        controller: _emailCtrl,
-                        hint: 'Masukkan email sekolah',
-                        icon: Symbols.mail,
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (v) {
-                          final t = v?.trim() ?? '';
-                          if (t.isEmpty) return 'Email wajib diisi';
-                          if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                              .hasMatch(t)) {
-                            return 'Format email tidak valid';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      const _FieldLabel('No telepon', required: true),
-                      _textField(
-                        controller: _phoneCtrl,
-                        hint: 'Masukkan no telepon',
-                        icon: Symbols.call,
-                        keyboardType: TextInputType.phone,
-                        validator: (v) {
-                          final t = v?.trim() ?? '';
-                          if (t.isEmpty) return 'No telepon wajib diisi';
-                          if (t.replaceAll(RegExp(r'\D'), '').length < 8) {
-                            return 'No telepon tidak valid';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      const _FieldLabel('Nomor Induk Siswa (NISN / NIP)',
-                          required: true),
-                      _textField(
-                        controller: _idCtrl,
-                        hint: 'Masukkan NISN / NIP',
-                        icon: Symbols.badge,
-                        keyboardType: TextInputType.number,
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Nomor induk wajib diisi'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      _FieldLabel('Kelas', required: !_isPetugas),
-                      _buildKelasDropdown(),
-                      const SizedBox(height: 16),
-                      const _FieldLabel('Role', required: true),
-                      _buildRoleDropdown(),
-                      const SizedBox(height: 16),
-                      const _FieldLabel('Status Akun'),
-                      _buildStatusToggle(),
-                    ],
+    return Column(
+      children: [
+        _buildHeader(),
+        const Divider(height: 1, color: AppColors.primaryFixed),
+        Expanded(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.mobileGutter,
+              16,
+              AppSpacing.mobileGutter,
+              24,
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _FieldLabel('Foto Pengguna'),
+                  _buildPhoto(),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Format yang didukung: Semua format gambar (maks. 10MB)',
+                    style: AppTextStyles.labelSm(
+                      weight: FontWeight.w500,
+                      color: AppColors.slate600,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  const _FieldLabel('Nama Lengkap', required: true),
+                  _textField(
+                    controller: _nameCtrl,
+                    hint: 'Masukkan nama lengkap',
+                    icon: Symbols.person,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Nama wajib diisi'
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                  _FieldLabel('Password', required: !_isEdit),
+                  _textField(
+                    controller: _passCtrl,
+                    hint: 'Masukkan Password',
+                    icon: Symbols.key,
+                    obscure: _hidePass,
+                    suffix: IconButton(
+                      onPressed: () => setState(() => _hidePass = !_hidePass),
+                      icon: Icon(
+                        _hidePass ? Symbols.visibility : Symbols.visibility_off,
+                        size: 20,
+                        color: AppColors.slate500,
+                      ),
+                    ),
+                    validator: (v) {
+                      // Mode edit: kosong = password tidak diubah.
+                      if (_isEdit && (v == null || v.isEmpty)) return null;
+                      if (v == null || v.length < 6) {
+                        return 'Password minimal 6 karakter';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const _FieldLabel(
+                    'Email Akun Belajar / Sekolah',
+                    required: true,
+                  ),
+                  _textField(
+                    controller: _emailCtrl,
+                    hint: 'Masukkan email sekolah',
+                    icon: Symbols.mail,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) {
+                      final t = v?.trim() ?? '';
+                      if (t.isEmpty) return 'Email wajib diisi';
+                      if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(t)) {
+                        return 'Format email tidak valid';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const _FieldLabel('No telepon', required: true),
+                  _textField(
+                    controller: _phoneCtrl,
+                    hint: 'Masukkan no telepon',
+                    icon: Symbols.call,
+                    keyboardType: TextInputType.phone,
+                    validator: (v) {
+                      final t = v?.trim() ?? '';
+                      if (t.isEmpty) return 'No telepon wajib diisi';
+                      if (t.replaceAll(RegExp(r'\D'), '').length < 8) {
+                        return 'No telepon tidak valid';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const _FieldLabel(
+                    'Nomor Induk Siswa (NISN / NIP)',
+                    required: true,
+                  ),
+                  _textField(
+                    controller: _idCtrl,
+                    hint: 'Masukkan NISN / NIP',
+                    icon: Symbols.badge,
+                    keyboardType: TextInputType.number,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Nomor induk wajib diisi'
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                  _FieldLabel('Kelas', required: !_isPetugas),
+                  _buildKelasDropdown(),
+                  const SizedBox(height: 16),
+                  const _FieldLabel('Role', required: true),
+                  _buildRoleDropdown(),
+                  const SizedBox(height: 16),
+                  const _FieldLabel('Status Akun'),
+                  _buildStatusToggle(),
+                ],
               ),
             ),
-            _buildFooter(),
-          ],
+          ),
         ),
-      ),
+        _buildFooter(),
+      ],
     );
   }
 
   // ---- Header -------------------------------------------------------------
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.mobileGutter, 16, 12, 14),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.mobileGutter, 16, 16, 14),
       child: Row(
         children: [
           Expanded(
@@ -441,17 +437,18 @@ class _UserFormScreenState extends State<UserFormScreen> {
                   widget.isAdmin
                       ? (_isEdit ? 'Kelola Akun Admin' : 'Tambah Akun Pengguna')
                       : (_isEdit
-                          ? 'Kelola Akun Pengguna'
-                          : 'Tambah Akun Pengguna'),
-                  style: AppTextStyles.headlineMd(color: AppColors.onSurface)
-                      .copyWith(fontWeight: FontWeight.w800),
+                            ? 'Kelola Akun Pengguna'
+                            : 'Tambah Akun Pengguna'),
+                  style: AppTextStyles.headlineMd(
+                    color: AppColors.onSurface,
+                  ).copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   _isEdit
                       ? (widget.isAdmin
-                          ? 'Perbarui detail informasi akun admin'
-                          : 'Perbarui detail informasi akun pengguna')
+                            ? 'Perbarui detail informasi akun admin'
+                            : 'Perbarui detail informasi akun pengguna')
                       : 'Buat akun pengguna',
                   style: AppTextStyles.bodySm(
                     weight: FontWeight.w500,
@@ -459,19 +456,6 @@ class _UserFormScreenState extends State<UserFormScreen> {
                   ),
                 ),
               ],
-            ),
-          ),
-          Material(
-            color: AppColors.primaryFixed,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () => Navigator.of(context).pop(),
-              child: const SizedBox(
-                width: 40,
-                height: 40,
-                child: Icon(Symbols.close, color: AppColors.onSurface),
-              ),
             ),
           ),
         ],
@@ -503,25 +487,34 @@ class _UserFormScreenState extends State<UserFormScreen> {
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => const ColoredBox(
                           color: AppColors.surfaceContainerLowest,
-                          child: Icon(Symbols.person,
-                              color: AppColors.primary, size: 36),
+                          child: Icon(
+                            Symbols.person,
+                            color: AppColors.primary,
+                            size: 36,
+                          ),
                         ),
                       )
                     : (_photoUrl != null && _photoUrl!.isNotEmpty)
-                        ? Image.network(
-                            _photoUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const ColoredBox(
-                              color: AppColors.surfaceContainerLowest,
-                              child: Icon(Symbols.person,
-                                  color: AppColors.primary, size: 36),
-                            ),
-                          )
-                        : const ColoredBox(
-                            color: AppColors.surfaceContainerLowest,
-                            child: Icon(Symbols.person,
-                                color: AppColors.primary, size: 36),
+                    ? Image.network(
+                        _photoUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const ColoredBox(
+                          color: AppColors.surfaceContainerLowest,
+                          child: Icon(
+                            Symbols.person,
+                            color: AppColors.primary,
+                            size: 36,
                           ),
+                        ),
+                      )
+                    : const ColoredBox(
+                        color: AppColors.surfaceContainerLowest,
+                        child: Icon(
+                          Symbols.person,
+                          color: AppColors.primary,
+                          size: 36,
+                        ),
+                      ),
               ),
             ),
             const SizedBox(width: 12),
@@ -581,9 +574,9 @@ class _UserFormScreenState extends State<UserFormScreen> {
     Widget? suffixIcon,
   }) {
     OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: c, width: w),
-        );
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(color: c, width: w),
+    );
     return InputDecoration(
       hintText: hint,
       hintStyle: AppTextStyles.bodyMd(color: AppColors.slate500),
@@ -614,11 +607,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
       keyboardType: keyboardType,
       validator: validator,
       style: AppTextStyles.bodyMd(color: AppColors.onSurface),
-      decoration: _decoration(
-        hint: hint,
-        icon: icon,
-        suffixIcon: suffix,
-      ),
+      decoration: _decoration(hint: hint, icon: icon, suffixIcon: suffix),
     );
   }
 
@@ -735,8 +724,10 @@ class _UserFormScreenState extends State<UserFormScreen> {
             Container(
               width: 8,
               height: 8,
-              decoration:
-                  BoxDecoration(color: dotColor, shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: dotColor,
+                shape: BoxShape.circle,
+              ),
             ),
             const SizedBox(width: 8),
             Text(
@@ -762,7 +753,11 @@ class _UserFormScreenState extends State<UserFormScreen> {
   Widget _buildFooter() {
     return Container(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.mobileGutter, 12, AppSpacing.mobileGutter, 12),
+        AppSpacing.mobileGutter,
+        12,
+        AppSpacing.mobileGutter,
+        12,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.surfaceContainerLowest,
         border: Border(top: BorderSide(color: AppColors.primaryFixed)),
@@ -974,7 +969,8 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>>
   }
 
   Widget _buildOverlay(BuildContext context) {
-    final renderBox = _fieldKey.currentContext?.findRenderObject() as RenderBox?;
+    final renderBox =
+        _fieldKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) return const SizedBox.shrink();
     final size = renderBox.size;
     final offset = renderBox.localToGlobal(Offset.zero);
@@ -1019,7 +1015,9 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>>
                   onTap: () => _select(item),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     color: selected
                         ? AppColors.primaryFixed.fade(0.45)
                         : Colors.transparent,
@@ -1039,8 +1037,9 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>>
                           child: Text(
                             item.label,
                             style: AppTextStyles.bodyMd(
-                              weight:
-                                  selected ? FontWeight.w700 : FontWeight.w500,
+                              weight: selected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
                               color: selected
                                   ? AppColors.primary
                                   : AppColors.onSurface,
@@ -1049,8 +1048,11 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>>
                           ),
                         ),
                         if (selected)
-                          const Icon(Symbols.check_rounded,
-                              size: 18, color: AppColors.primary),
+                          const Icon(
+                            Symbols.check_rounded,
+                            size: 18,
+                            color: AppColors.primary,
+                          ),
                       ],
                     ),
                   ),
@@ -1113,10 +1115,10 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>>
         final borderColor = !enabled
             ? AppColors.primaryFixed.fade(0.7)
             : hasError
-                ? AppColors.error
-                : _open
-                    ? AppColors.primary
-                    : AppColors.primaryFixed;
+            ? AppColors.error
+            : _open
+            ? AppColors.primary
+            : AppColors.primaryFixed;
         final bgColor = enabled
             ? AppColors.primaryFixed.fade(0.35)
             : AppColors.surfaceContainerLow;
@@ -1129,15 +1131,11 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>>
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 160),
               curve: Curves.easeOut,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
                 color: bgColor,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: borderColor,
-                  width: _open ? 1.5 : 1,
-                ),
+                border: Border.all(color: borderColor, width: _open ? 1.5 : 1),
               ),
               child: Row(
                 children: [
@@ -1219,8 +1217,11 @@ class _PhotoButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Symbols.photo_camera,
-                  size: 16, color: AppColors.onPrimary),
+              const Icon(
+                Symbols.photo_camera,
+                size: 16,
+                color: AppColors.onPrimary,
+              ),
               const SizedBox(width: 6),
               Text(
                 label,
@@ -1250,10 +1251,9 @@ class _DashedRRectPainter extends CustomPainter {
       ..strokeWidth = 2;
 
     final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-        Offset.zero & size,
-        const Radius.circular(24),
-      ));
+      ..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(24)),
+      );
 
     const dash = 7.0;
     const gap = 5.0;

@@ -10,7 +10,6 @@ import 'package:lapak8new/features/facilities/models/facility.dart';
 import 'package:lapak8new/features/facilities/services/facility_service.dart';
 import 'package:lapak8new/features/borrowings/models/peminjaman.dart';
 import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
-import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key, this.onReviewTap});
@@ -120,12 +119,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     });
   }
 
+  Future<void> _scanAccessTicket() async {
+    final result = await context.push<Map<String, dynamic>>('/scan');
+    if (!mounted || result == null) return;
+
+    if (result['tipe_tiket'] == 'pengembalian') {
+      context.go('/admin/borrowings', extra: result);
+    } else {
+      await _loadDashboardData();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       // Desain memakai latar lavender (surfaceContainerLow), bukan background.
       backgroundColor: AppColors.surfaceContainerLow,
-      bottomNavigationBar: const AdminBottomNav(currentIndex: 0),
       body: RefreshIndicator(
         onRefresh: _loadDashboardData,
         child: ListView(
@@ -147,7 +156,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const SizedBox(height: 12),
             const _WelcomeCard(),
             const SizedBox(height: 16),
-            _ScanButton(onPressed: () => context.push('/scan')),
+            _ScanButton(onPressed: _scanAccessTicket),
             if (_error != null) ...[
               const SizedBox(height: 12),
               _ErrorCard(message: _error!, onRetry: _loadDashboardData),

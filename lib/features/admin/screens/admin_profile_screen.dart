@@ -131,6 +131,14 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     super.dispose();
   }
 
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go('/admin/dashboard');
+  }
+
   void _logout() {
     showDialog(
       context: context,
@@ -236,7 +244,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       backgroundColor: AppColors.surfaceContainerLow,
       body: Column(
         children: [
-          _buildTopBar(),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(
@@ -246,6 +253,28 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 24,
               ),
               children: [
+                Transform.translate(
+                  offset: const Offset(-8, -12),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Kembali',
+                        onPressed: _goBack,
+                        icon: const Icon(Icons.arrow_back),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Pengaturan Profil',
+                          style: AppTextStyles.headlineSm(
+                            color: AppColors.onSurface,
+                          ).copyWith(fontWeight: FontWeight.w700, fontSize: 18),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
                 _buildProfileCard(),
                 const SizedBox(height: 16),
                 _buildPersonalData(),
@@ -259,43 +288,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // ---- Top bar --------------------------------------------------------------
-  Widget _buildTopBar() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        boxShadow: AppShadows.sm,
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: SizedBox(
-          height: 56,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  icon: const Icon(
-                    Symbols.arrow_back,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-              ),
-              Text(
-                'Pengaturan Profil',
-                style: AppTextStyles.headlineSm(
-                  color: AppColors.onSurface,
-                ).copyWith(fontWeight: FontWeight.w700, fontSize: 18),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -664,7 +656,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             title: 'Pusat Bantuan',
             subtitle: 'Tanya ALLOC8 AI seputar peminjaman',
             trailing: const _Chevron(),
-            onTap: () => context.push('/chat'),
+            onTap: () => context.push('/admin/chat'),
           ),
         ],
       ),

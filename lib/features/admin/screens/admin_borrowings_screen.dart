@@ -12,12 +12,13 @@ import 'package:lapak8new/core/storage/storage_config.dart';
 import 'package:lapak8new/features/borrowings/models/peminjaman.dart';
 import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
 import 'package:lapak8new/features/admin/models/return_documentation.dart';
+import 'package:lapak8new/features/admin/services/admin_report_pdf_service.dart';
 import 'package:lapak8new/features/admin/services/media_picker_service.dart';
 import 'package:lapak8new/features/admin/services/documentation_repository.dart';
 import 'package:lapak8new/features/admin/widgets/documentation_section.dart';
 import 'package:lapak8new/features/admin/widgets/documentation_media_previews.dart';
-import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
+import 'package:lapak8new/shared/widgets/blurred_bottom_sheet.dart';
 import 'package:lapak8new/shared/widgets/ms_icon.dart';
 import 'package:lapak8new/shared/widgets/user_avatar.dart';
 
@@ -166,11 +167,15 @@ class AdminBorrowingsScreen extends StatefulWidget {
   const AdminBorrowingsScreen({
     super.key,
     this.initialTab = ActivityTab.peminjaman,
+    this.initialReturnInspectionId,
+    this.initialReturnBorrowingId,
   });
 
   /// Tab yang terbuka saat halaman pertama kali tampil.
   /// Default: Peminjaman (sesuai menu "Aktivitas").
   final ActivityTab initialTab;
+  final String? initialReturnInspectionId;
+  final String? initialReturnBorrowingId;
 
   @override
   State<AdminBorrowingsScreen> createState() => _AdminBorrowingsScreenState();
@@ -189,6 +194,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
   List<_Loan> _loans = [];
   bool _isLoadingLoans = true;
   String? _loansError;
+  bool _initialInspectionHandled = false;
 
   @override
   void initState() {
@@ -219,6 +225,35 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
         _isLoadingLoans = false;
         _loansError = null;
       });
+      final inspectionId = widget.initialReturnInspectionId;
+      final borrowingId = widget.initialReturnBorrowingId;
+      if (inspectionId != null &&
+          borrowingId != null &&
+          !_initialInspectionHandled) {
+        _initialInspectionHandled = true;
+        _Return? selectedReturn;
+        for (final item in _returns) {
+          if (item.borrowingId == borrowingId) {
+            selectedReturn = item;
+            break;
+          }
+        }
+        final returnToInspect = selectedReturn;
+        if (returnToInspect != null) {
+          setState(() => _tab = ActivityTab.pengembalian);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _openInspection(returnToInspect, inspectionId: inspectionId);
+            }
+          });
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Transaksi pengembalian tidak ditemukan.'),
+            ),
+          );
+        }
+      }
     } on PeminjamanException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -519,28 +554,38 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
   // -------------------------------------------------------------------------
   // Aksi pengembalian — alur verifikasi "Cek Kondisi"
   // -------------------------------------------------------------------------
-  Future<void> _openInspection(_Return r) async {
+  Future<void> _openInspection(_Return r, {String? inspectionId}) async {
     setState(() => _updatingBorrowingIds.add(r.borrowingId));
     try {
-      final scanResult = await context.push<Map<String, dynamic>>(
-        '/scan',
-        extra: {'returnPeminjamanId': r.borrowingId},
-      );
-      if (!mounted || scanResult == null) return;
-      final inspectionId = scanResult['return_inspection_id'];
-      if (inspectionId is! String || inspectionId.isEmpty) {
+      var selectedInspectionId = inspectionId;
+      if (selectedInspectionId == null) {
+        final scanResult = await context.push<Map<String, dynamic>>(
+          '/scan',
+          extra: {'returnPeminjamanId': r.borrowingId},
+        );
+        if (!mounted || scanResult == null) return;
+        final scannedId = scanResult['return_inspection_id'];
+        if (scannedId is! String || scannedId.isEmpty) {
+          throw const PeminjamanException(
+            'Data pemeriksaan dari hasil scan QR tidak valid.',
+          );
+        }
+        selectedInspectionId = scannedId;
+      }
+      if (selectedInspectionId.isEmpty) {
         throw const PeminjamanException(
           'Data pemeriksaan dari hasil scan QR tidak valid.',
         );
       }
+      final resolvedInspectionId = selectedInspectionId;
 
-      final result = await showModalBottomSheet<InspectionResult>(
+      final result = await showBlurredBottomSheet<InspectionResult>(
         context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        barrierColor: Colors.black54,
-        builder: (_) =>
-            _ConditionInspectionSheet(item: r, inspectionId: inspectionId),
+        heightFactor: 0.92,
+        builder: (_) => _ConditionInspectionSheet(
+          item: r,
+          inspectionId: resolvedInspectionId,
+        ),
       );
       if (result == null || !mounted) return;
 
@@ -557,7 +602,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
           );
         }
         final uploads = await _documentationRepository.uploadAll(
-          returnId: inspectionId,
+          returnId: resolvedInspectionId,
           borrowingId: r.borrowingId,
           itemId: itemId,
           photos: result.documentationPhotos,
@@ -591,7 +636,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
 
       await _svc.selesaikanPemeriksaanPengembalian(
         peminjamanId: r.borrowingId,
-        pemeriksaanId: inspectionId,
+        pemeriksaanId: resolvedInspectionId,
         kondisiBarang: result.condition,
         denda: result.fine,
         keterangan: result.description,
@@ -816,25 +861,14 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
             ],
         ],
       ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.mobileGutter,
-              AppSpacing.md,
-              AppSpacing.mobileGutter,
-              AppSpacing.md,
-            ),
-            child: _SummaryBar(
-              total: _activeTotal,
-              onExport: () {
-                // TODO: export rekap ke XLS (sesuai tab aktif).
-              },
-            ),
-          ),
-          const AdminBottomNav(currentIndex: 1),
-        ],
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.mobileGutter,
+          AppSpacing.md,
+          AppSpacing.mobileGutter,
+          AppSpacing.md,
+        ),
+        child: _SummaryBar(total: _activeTotal, onExport: _exportReport),
       ),
     );
   }
@@ -975,6 +1009,80 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
 
   int _returnCount(_ReturnStatus? s) =>
       s == null ? _returns.length : _returns.where((r) => r.status == s).length;
+
+  Future<void> _exportReport() async {
+    final isLoanReport = _isLoanTab;
+    final rows = isLoanReport
+        ? _visibleLoans
+              .map(
+                (loan) => [
+                  loan.code,
+                  loan.name,
+                  loan.subtitle,
+                  loan.itemName,
+                  loan.serial,
+                  _loanStatusLabel(loan.status),
+                  loan.detail,
+                ],
+              )
+              .toList()
+        : _visibleReturns
+              .map(
+                (item) => [
+                  item.code,
+                  item.name,
+                  item.subtitle,
+                  item.itemName,
+                  item.serial,
+                  _returnStatusLabel(item.status),
+                  '${item.detail}${item.highlight ?? ''}',
+                ],
+              )
+              .toList();
+
+    try {
+      await AdminReportPdfService.export(
+        title: isLoanReport ? 'Rekap Peminjaman' : 'Rekap Pengembalian',
+        filename: isLoanReport
+            ? 'rekap-peminjaman.pdf'
+            : 'rekap-pengembalian.pdf',
+        headers: const [
+          'Kode',
+          'Peminjam',
+          'Identitas',
+          'Barang',
+          'Jumlah/Kategori',
+          'Status',
+          'Jadwal',
+        ],
+        rows: rows,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membuat rekap PDF: $error')),
+      );
+    }
+  }
+
+  String _loanStatusLabel(_LoanStatus status) => switch (status) {
+    _LoanStatus.waiting => 'Menunggu',
+    _LoanStatus.borrowed => 'Dipinjam',
+    _LoanStatus.approved => 'Disetujui',
+    _LoanStatus.late => 'Terlambat',
+    _LoanStatus.done => 'Selesai',
+    _LoanStatus.rejected => 'Ditolak',
+    _LoanStatus.cancelled => 'Dibatalkan',
+  };
+
+  String _returnStatusLabel(_ReturnStatus status) => switch (status) {
+    _ReturnStatus.pending => 'Menunggu',
+    _ReturnStatus.waitingPayment => 'Menunggu Pembayaran',
+    _ReturnStatus.waitingAdminConfirmation => 'Menunggu Konfirmasi Admin',
+    _ReturnStatus.returned => 'Selesai',
+    _ReturnStatus.late => 'Terlambat',
+    _ReturnStatus.damaged => 'Rusak / Hilang',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -2230,21 +2338,6 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
             ],
           ),
         ),
-        GestureDetector(
-          onTap: () => Navigator.of(context).pop(),
-          child: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: const BoxDecoration(
-              color: AppColors.primaryFixed,
-              shape: BoxShape.circle,
-            ),
-            child: const MsIcon(
-              Symbols.close,
-              size: 18,
-              color: AppColors.slate600,
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -2678,7 +2771,7 @@ class _LoanStatusInfo extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Bar ringkasan di atas bottom nav: total, rekap XLS
+// Bar ringkasan untuk total dan ekspor rekap PDF
 // ---------------------------------------------------------------------------
 class _SummaryBar extends StatelessWidget {
   const _SummaryBar({required this.total, required this.onExport});
@@ -2724,7 +2817,7 @@ class _SummaryBar extends StatelessWidget {
             ),
             _PillButton(
               icon: Symbols.download,
-              label: 'Rekap\nXLS',
+              label: 'Rekap\nPDF',
               background: AppColors.primaryFixed,
               foreground: AppColors.primary,
               onPressed: onExport,

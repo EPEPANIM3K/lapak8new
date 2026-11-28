@@ -7,14 +7,11 @@ import '../../borrowings/models/peminjaman.dart';
 import '../../borrowings/services/peminjaman_service.dart';
 import '../../facilities/models/facility.dart';
 import '../../facilities/services/facility_service.dart';
-import '../../../shared/widgets/app_bottom_nav.dart';
-import '../../../shared/widgets/lapak_header.dart';
 import '../widgets/greeting_section.dart';
 import '../widgets/popular_items_section.dart';
 import '../widgets/quick_actions_section.dart';
 import '../widgets/summary_grid.dart';
 import '../widgets/upcoming_borrowing_section.dart';
-import '../widgets/bantuan_pic_modal.dart';
 import '../widgets/dashboard_modals.dart';
 import '../widgets/qr_ticket_modal.dart';
 
@@ -27,7 +24,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int _navIndex = 0;
   List<Peminjaman> _borrowings = const [];
   List<Facility> _popularFacilities = const [];
   bool _isLoading = true;
@@ -179,173 +175,122 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final inset = MediaQuery.paddingOf(context);
-
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: Stack(
-        children: [
-          // main: pt-16 (di bawah header) dan pb 96 (di atas nav)
-          RefreshIndicator(
-            onRefresh: _loadDashboardData,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.only(
-                top: LapakHeader.contentHeight + inset.top,
-                bottom: 96 + inset.bottom,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AnimatedBuilder(
-                    animation: authProvider,
-                    builder: (context, _) {
-                      final user = authProvider.user;
-                      final name = user?.namaLengkap.trim();
-                      final role = switch (user?.peran) {
-                        'siswa' => 'Siswa',
-                        'guru' => 'Guru',
-                        'staf' => 'Staf',
-                        'admin' => 'Admin',
-                        _ => 'Pengguna',
-                      };
-                      final unit = user?.kelasAtauUnit?.trim();
-                      final roleLabel = unit == null || unit.isEmpty
-                          ? role
-                          : '$role • $unit';
+      body: RefreshIndicator(
+        onRefresh: _loadDashboardData,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AnimatedBuilder(
+                animation: authProvider,
+                builder: (context, _) {
+                  final user = authProvider.user;
+                  final name = user?.namaLengkap.trim();
+                  final role = switch (user?.peran) {
+                    'siswa' => 'Siswa',
+                    'guru' => 'Guru',
+                    'staf' => 'Staf',
+                    'admin' => 'Admin',
+                    _ => 'Pengguna',
+                  };
+                  final unit = user?.kelasAtauUnit?.trim();
+                  final roleLabel = unit == null || unit.isEmpty
+                      ? role
+                      : '$role • $unit';
 
-                      return GreetingSection(
-                        name: name == null || name.isEmpty ? 'Pengguna' : name,
-                        roleLabel: roleLabel,
-                        nis: user?.nomorInduk ?? '',
-                        nisLabel: user?.peran == 'siswa' ? 'NIS' : 'NIP',
-                      );
-                    },
-                  ),
-                  SummaryGrid(
-                    activeCount: _hasLoaded ? _activeCount : null,
-                    pendingCount: _hasLoaded ? _pendingCount : null,
-                    isLoading: _isLoading,
-                  ),
-                  if (_errorMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Text(
-                        'Data dashboard gagal dimuat: $_errorMessage',
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  UpcomingBorrowingSection(
-                    title: _isLoading && !_hasLoaded
-                        ? 'Memuat pinjaman...'
-                        : _upcomingBorrowing == null
-                        ? 'Belum ada pinjaman mendatang'
-                        : _facilityTitle(_upcomingBorrowing!),
-                    subtitle: _isLoading && !_hasLoaded
-                        ? 'Memuat jadwal peminjaman...'
-                        : _upcomingBorrowing?.namaKegiatan ??
-                              'Peminjaman yang disetujui akan muncul di sini.',
-                    statusLabel: _isLoading && !_hasLoaded
-                        ? '…'
-                        : _upcomingBorrowing?.status.label ?? '—',
-                    scheduleLabel: _isLoading && !_hasLoaded
-                        ? 'Memuat jadwal...'
-                        : _upcomingBorrowing == null
-                        ? 'Tidak ada jadwal mendatang'
-                        : _scheduleLabel(_upcomingBorrowing!),
-                    approvalLabel:
-                        _isLoading && !_hasLoaded || _upcomingBorrowing == null
-                        ? null
-                        : _upcomingBorrowing!.disetujuiPada == null
-                        ? 'Peminjaman disetujui'
-                        : 'Disetujui pada ${_formatDate(_upcomingBorrowing!.disetujuiPada!)}',
-                    onDetailTap: () => context.push('/borrowings'),
-                    onShowQrTap: _upcomingBorrowing == null
-                        ? null
-                        : () => _showQr(_upcomingBorrowing!),
-                    isQrLoading: _isQrLoading,
-                  ),
-                  QuickActionsSection(
-                    items: QuickActionsSection.defaults(
-                      onQuickBorrow: () => context.push('/borrowing-form'),
-                      onSchedule: () => showDialog(
-                        context: context,
-                        builder: (_) => const AulaScheduleModal(),
-                      ),
-                      onRules: () => showDialog(
-                        context: context,
-                        builder: (_) => const PeraturanModal(),
-                      ),
-                      onHelp: () => showDialog(
-                        context: context,
-                        builder: (_) => const BantuanPicModal(),
-                      ),
-                    ),
-                  ),
-                  PopularItemsSection(
-                    items: _popularFacilities
-                        .map(
-                          (facility) => PopularItem(
-                            name: facility.nama,
-                            location: facility.lokasiNama,
-                            stockLabel: '${facility.totalUnit} Unit',
-                            imageUrl: facility.fotoUrl,
-                          ),
-                        )
-                        .toList(growable: false),
-                    emptyMessage: _isLoading
-                        ? 'Memuat item populer...'
-                        : _errorMessage != null
-                        ? 'Item populer tidak dapat dimuat.'
-                        : 'Belum ada item populer.',
-                    onBorrowTap: (_) => context.push('/borrowing-form'),
-                    onSeeAllTap: () => context.push('/facilities'),
-                  ),
-                ],
+                  return GreetingSection(
+                    name: name == null || name.isEmpty ? 'Pengguna' : name,
+                    roleLabel: roleLabel,
+                    nis: user?.nomorInduk ?? '',
+                    nisLabel: user?.peran == 'siswa' ? 'NIS' : 'NIP',
+                  );
+                },
               ),
-            ),
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: LapakHeader(
-              avatarUrl: authProvider.user?.fotoUrl ?? '',
-              onAvatarTap: () => context.push('/profile'),
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: AppBottomNav(
-              items: AppBottomNav.userItems,
-              currentIndex: _navIndex,
-              onTap: (i) => setState(() => _navIndex = i),
-            ),
-          ),
-          Positioned(
-            right: 16,
-            bottom: 100 + inset.bottom,
-            child: FloatingActionButton(
-              heroTag: 'lapak8-chat',
-              tooltip: 'Tanya ALLOC8 AI',
-              onPressed: () => context.push('/chat'),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: ClipOval(
-                  child: Image.asset(
-                    'Gemini_Generated_Image_nrvldpnrvldpnrvl.png',
-                    fit: BoxFit.cover,
+              SummaryGrid(
+                activeCount: _hasLoaded ? _activeCount : null,
+                pendingCount: _hasLoaded ? _pendingCount : null,
+                isLoading: _isLoading,
+              ),
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Text(
+                    'Data dashboard gagal dimuat: $_errorMessage',
+                    style: const TextStyle(color: Colors.red),
                   ),
                 ),
+              UpcomingBorrowingSection(
+                title: _isLoading && !_hasLoaded
+                    ? 'Memuat pinjaman...'
+                    : _upcomingBorrowing == null
+                    ? 'Belum ada pinjaman mendatang'
+                    : _facilityTitle(_upcomingBorrowing!),
+                subtitle: _isLoading && !_hasLoaded
+                    ? 'Memuat jadwal peminjaman...'
+                    : _upcomingBorrowing?.namaKegiatan ??
+                          'Peminjaman yang disetujui akan muncul di sini.',
+                statusLabel: _isLoading && !_hasLoaded
+                    ? '…'
+                    : _upcomingBorrowing?.status.label ?? '—',
+                scheduleLabel: _isLoading && !_hasLoaded
+                    ? 'Memuat jadwal...'
+                    : _upcomingBorrowing == null
+                    ? 'Tidak ada jadwal mendatang'
+                    : _scheduleLabel(_upcomingBorrowing!),
+                approvalLabel:
+                    _isLoading && !_hasLoaded || _upcomingBorrowing == null
+                    ? null
+                    : _upcomingBorrowing!.disetujuiPada == null
+                    ? 'Peminjaman disetujui'
+                    : 'Disetujui pada ${_formatDate(_upcomingBorrowing!.disetujuiPada!)}',
+                onDetailTap: () => context.push('/borrowings'),
+                onShowQrTap: _upcomingBorrowing == null
+                    ? null
+                    : () => _showQr(_upcomingBorrowing!),
+                isQrLoading: _isQrLoading,
               ),
-            ),
+              QuickActionsSection(
+                items: QuickActionsSection.defaults(
+                  onQuickBorrow: () => context.push('/borrowing-form'),
+                  onSchedule: () => showDialog(
+                    context: context,
+                    builder: (_) => const AulaScheduleModal(),
+                  ),
+                  onRules: () => showDialog(
+                    context: context,
+                    builder: (_) => const PeraturanModal(),
+                  ),
+                  onHelp: () => context.push('/chat'),
+                ),
+              ),
+              PopularItemsSection(
+                items: _popularFacilities
+                    .map(
+                      (facility) => PopularItem(
+                        name: facility.nama,
+                        location: facility.lokasiNama,
+                        stockLabel: '${facility.totalUnit} Unit',
+                        imageUrl: facility.fotoUrl,
+                      ),
+                    )
+                    .toList(growable: false),
+                emptyMessage: _isLoading
+                    ? 'Memuat item populer...'
+                    : _errorMessage != null
+                    ? 'Item populer tidak dapat dimuat.'
+                    : 'Belum ada item populer.',
+                onBorrowTap: (_) => context.push('/borrowing-form'),
+                onSeeAllTap: () => context.push('/facilities'),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

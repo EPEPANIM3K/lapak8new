@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
-import '../../../shared/widgets/lapak_header.dart';
-import '../../auth/providers/auth_provider.dart';
 import '../../dashboard/widgets/qr_ticket_modal.dart';
 import '../models/peminjaman.dart';
 import '../services/peminjaman_service.dart';
@@ -469,88 +466,55 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final inset = MediaQuery.paddingOf(context);
     final activeItems = _activeList;
     final pendingItems = _pendingList;
     final historyItems = _historyList;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: RefreshIndicator(
-              edgeOffset: LapakHeader.contentHeight + inset.top,
-              onRefresh: _load,
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: ClampingScrollPhysics(),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: ClampingScrollPhysics(),
+          ),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _tabBtn(
+                        'aktif',
+                        'Peminjaman Aktif',
+                        count: activeItems.length,
+                      ),
+                      const SizedBox(width: 8),
+                      _tabBtn(
+                        'menunggu',
+                        'Menunggu Persetujuan',
+                        count: pendingItems.length,
+                      ),
+                      const SizedBox(width: 8),
+                      _tabBtn(
+                        'riwayat',
+                        'Selesai & Ditolak',
+                        count: historyItems.length,
+                      ),
+                    ],
+                  ),
                 ),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        16,
-                        LapakHeader.contentHeight + inset.top + 12,
-                        16,
-                        12,
-                      ),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            _tabBtn(
-                              'aktif',
-                              'Peminjaman Aktif',
-                              count: activeItems.length,
-                            ),
-                            const SizedBox(width: 8),
-                            _tabBtn(
-                              'menunggu',
-                              'Menunggu Persetujuan',
-                              count: pendingItems.length,
-                            ),
-                            const SizedBox(width: 8),
-                            _tabBtn(
-                              'riwayat',
-                              'Selesai & Ditolak',
-                              count: historyItems.length,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  _buildBody(
-                    activeItems: activeItems,
-                    pendingItems: pendingItems,
-                    historyItems: historyItems,
-                    bottomInset: inset.bottom,
-                  ),
-                ],
               ),
             ),
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: LapakHeader(
-              avatarUrl: authProvider.user?.fotoUrl ?? '',
-              onAvatarTap: () => context.push('/profile'),
+            _buildBody(
+              activeItems: activeItems,
+              pendingItems: pendingItems,
+              historyItems: historyItems,
             ),
-          ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: AppBottomNav(
-              items: AppBottomNav.userItems,
-              currentIndex: 2,
-              onTap: (_) {},
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -559,9 +523,8 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
     required List<Peminjaman> activeItems,
     required List<Peminjaman> pendingItems,
     required List<Peminjaman> historyItems,
-    required double bottomInset,
   }) {
-    final bottomPadding = AppBottomNav.totalHeight + bottomInset + 16;
+    const bottomPadding = 16.0;
     if (_loading) {
       return SliverPadding(
         padding: EdgeInsets.fromLTRB(16, 4, 16, bottomPadding),

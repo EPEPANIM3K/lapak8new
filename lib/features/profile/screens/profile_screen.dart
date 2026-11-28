@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../widgets/profile_modals.dart';
 
 import 'package:lapak8new/core/constants/app_colors.dart';
-import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/admin/models/return_documentation.dart';
 import 'package:lapak8new/features/admin/services/media_picker_service.dart';
@@ -15,6 +14,7 @@ import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
 import 'package:lapak8new/features/admin/services/user_repository.dart';
 import 'package:lapak8new/features/auth/providers/auth_provider.dart';
 import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
+import 'package:lapak8new/shared/widgets/blurred_bottom_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -211,11 +211,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const cSecondary = Color(0xFF505F76);
   static const cOutline = Color(0xFF747686);
 
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go('/');
+  }
+
   void _showLogoutModal() {
-    showModalBottomSheet(
+    showBlurredBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: cSurfaceLowest,
       builder: (modalContext) {
         return Container(
           decoration: const BoxDecoration(
@@ -339,54 +346,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ---- Top bar (sama dengan Pengaturan Profil Admin) ------------------------
-  Widget _buildTopBar() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        boxShadow: AppShadows.sm,
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: SizedBox(
-          height: 56,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  onPressed: () => Navigator.maybePop(context),
-                  icon: const Icon(
-                    Icons.arrow_back,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-              ),
-              Text(
-                'Pengaturan Profil',
-                style: AppTextStyles.headlineSm(
-                  color: AppColors.onSurface,
-                ).copyWith(fontWeight: FontWeight.w700, fontSize: 18),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: cSurface,
       body: Column(
         children: [
-          _buildTopBar(),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
               children: [
+                Transform.translate(
+                  offset: const Offset(-8, -12),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Kembali',
+                        onPressed: _goBack,
+                        icon: const Icon(Icons.arrow_back),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Pengaturan Profil',
+                          style: AppTextStyles.headlineSm(
+                            color: AppColors.onSurface,
+                          ).copyWith(fontWeight: FontWeight.w700, fontSize: 18),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
                 // ================= PROFILE HEADER CARD =================
                 Container(
                   padding: const EdgeInsets.all(20),

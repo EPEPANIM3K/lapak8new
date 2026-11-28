@@ -8,6 +8,7 @@ import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/admin/services/media_picker_service.dart';
 import 'package:lapak8new/features/admin/widgets/media_source_sheet.dart';
 import 'package:lapak8new/features/facilities/models/facility.dart';
+import 'package:lapak8new/shared/widgets/blurred_bottom_sheet.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 // Simpan di: lib/features/admin/screens/facility_form_screen.dart
@@ -54,14 +55,13 @@ class FacilityFormScreen extends StatefulWidget {
     FacilityFormData? initial,
     List<LokasiItem> locations = const [],
   }) {
-    return showDialog<FacilityFormData>(
+    return showBlurredBottomSheet<FacilityFormData>(
       context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black54,
-      builder: (_) => FacilityFormScreen(
-        initial: initial,
-        locations: locations,
-      ),
+      heightFactor: 0.9,
+      maxWidth: 480,
+      showDragHandle: true,
+      builder: (_) =>
+          FacilityFormScreen(initial: initial, locations: locations),
     );
   }
 
@@ -233,112 +233,102 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
   // -------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.9;
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      backgroundColor: AppColors.surfaceContainerLowest,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 480, maxHeight: maxHeight),
-        child: Column(
-          children: [
-            _buildHeader(context),
-            const Divider(height: 1, color: AppColors.primaryFixed),
-            Expanded(
-              child: SingleChildScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.mobileGutter,
-                  16,
-                  AppSpacing.mobileGutter,
-                  24,
-                ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const _FieldLabel('Foto Item Inventaris'),
-                      _buildPhoto(),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Format yang didukung: Semua format gambar (maks. 10MB)',
-                        style: AppTextStyles.labelSm(
-                          weight: FontWeight.w500,
-                          color: AppColors.slate600,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const _FieldLabel('Judul Item / Nama Barang',
-                          required: true),
-                      TextFormField(
-                        controller: _nameCtrl,
-                        textCapitalization: TextCapitalization.words,
-                        textInputAction: TextInputAction.next,
-                        decoration: _decoration(
-                          hint: 'Masukkan nama barang',
-                          icon: Symbols.inventory_2,
-                        ),
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Nama barang wajib diisi'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      const _FieldLabel('Kategori'),
-                      TextFormField(
-                        controller: _categoryCtrl,
-                        textInputAction: TextInputAction.next,
-                        decoration: _decoration(
-                          hint: 'Masukkan subjudul, kategori, atau merk',
-                          icon: Symbols.sell,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const _FieldLabel('Lokasi Penyimpanan / Peminjaman',
-                          required: true),
-                      DropdownButtonFormField<String>(
-                        initialValue: _location,
-                        isExpanded: true,
-                        icon: const Icon(Symbols.keyboard_arrow_down,
-                            color: AppColors.slate600),
-                        decoration: _decoration(
-                          hint: 'Pilih lokasi',
-                          icon: Symbols.location_on,
-                        ),
-                        style: AppTextStyles.bodyMd(color: AppColors.onSurface),
-                        borderRadius: BorderRadius.circular(16),
-                        items: [
-                          for (final l in _locationNames)
-                            DropdownMenuItem(value: l, child: Text(l)),
-                        ],
-                        onChanged: (v) => setState(() => _location = v),
-                        validator: (v) =>
-                            v == null ? 'Lokasi wajib dipilih' : null,
-                      ),
-                      const SizedBox(height: 16),
-                      const _FieldLabel('Jumlah Unit Item', required: true),
-                      _UnitStepper(
-                        value: _units,
-                        onChanged: (v) => setState(() => _units = v),
-                      ),
-                    ],
+    return Column(
+      children: [
+        _buildHeader(),
+        const Divider(height: 1, color: AppColors.primaryFixed),
+        Expanded(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.mobileGutter,
+              16,
+              AppSpacing.mobileGutter,
+              24,
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _FieldLabel('Foto Item Inventaris'),
+                  _buildPhoto(),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Format yang didukung: Semua format gambar (maks. 10MB)',
+                    style: AppTextStyles.labelSm(
+                      weight: FontWeight.w500,
+                      color: AppColors.slate600,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  const _FieldLabel('Judul Item / Nama Barang', required: true),
+                  TextFormField(
+                    controller: _nameCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    textInputAction: TextInputAction.next,
+                    decoration: _decoration(
+                      hint: 'Masukkan nama barang',
+                      icon: Symbols.inventory_2,
+                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Nama barang wajib diisi'
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                  const _FieldLabel('Kategori'),
+                  TextFormField(
+                    controller: _categoryCtrl,
+                    textInputAction: TextInputAction.next,
+                    decoration: _decoration(
+                      hint: 'Masukkan subjudul, kategori, atau merk',
+                      icon: Symbols.sell,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const _FieldLabel(
+                    'Lokasi Penyimpanan / Peminjaman',
+                    required: true,
+                  ),
+                  DropdownButtonFormField<String>(
+                    initialValue: _location,
+                    isExpanded: true,
+                    icon: const Icon(
+                      Symbols.keyboard_arrow_down,
+                      color: AppColors.slate600,
+                    ),
+                    decoration: _decoration(
+                      hint: 'Pilih lokasi',
+                      icon: Symbols.location_on,
+                    ),
+                    style: AppTextStyles.bodyMd(color: AppColors.onSurface),
+                    borderRadius: BorderRadius.circular(16),
+                    items: [
+                      for (final l in _locationNames)
+                        DropdownMenuItem(value: l, child: Text(l)),
+                    ],
+                    onChanged: (v) => setState(() => _location = v),
+                    validator: (v) => v == null ? 'Lokasi wajib dipilih' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  const _FieldLabel('Jumlah Unit Item', required: true),
+                  _UnitStepper(
+                    value: _units,
+                    onChanged: (v) => setState(() => _units = v),
+                  ),
+                ],
               ),
             ),
-            _buildFooter(context),
-          ],
+          ),
         ),
-      ),
+        _buildFooter(context),
+      ],
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.mobileGutter, 16, 12, 14),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.mobileGutter, 16, 16, 14),
       child: Row(
         children: [
           Expanded(
@@ -347,8 +337,9 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
               children: [
                 Text(
                   _isEdit ? 'Edit Item' : 'Tambah Item',
-                  style: AppTextStyles.headlineMd(color: AppColors.onSurface)
-                      .copyWith(fontWeight: FontWeight.w800),
+                  style: AppTextStyles.headlineMd(
+                    color: AppColors.onSurface,
+                  ).copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -363,19 +354,6 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
               ],
             ),
           ),
-          Material(
-            color: AppColors.primaryFixed,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () => Navigator.of(context).pop(),
-              child: const SizedBox(
-                width: 40,
-                height: 40,
-                child: Icon(Symbols.close, color: AppColors.onSurface),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -384,7 +362,11 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
   Widget _buildFooter(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.mobileGutter, 12, AppSpacing.mobileGutter, 12),
+        AppSpacing.mobileGutter,
+        12,
+        AppSpacing.mobileGutter,
+        12,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.surfaceContainerLowest,
         border: Border(top: BorderSide(color: AppColors.primaryFixed)),
@@ -441,8 +423,8 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
   }
 
   Widget _buildPhoto() {
-    final hasImage = _imageBytes != null ||
-        (_imageUrl != null && _imageUrl!.isNotEmpty);
+    final hasImage =
+        _imageBytes != null || (_imageUrl != null && _imageUrl!.isNotEmpty);
 
     if (!hasImage) {
       return CustomPaint(
@@ -464,8 +446,11 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
                   color: AppColors.surfaceContainerLowest,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Symbols.add_a_photo,
-                    color: AppColors.primary, size: 24),
+                child: const Icon(
+                  Symbols.add_a_photo,
+                  color: AppColors.primary,
+                  size: 24,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -524,7 +509,9 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
                       onTap: _clearPhoto,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         child: Text(
                           'Hapus',
                           style: AppTextStyles.labelMd(
@@ -548,9 +535,9 @@ class _FacilityFormScreenState extends State<FacilityFormScreen> {
 
   InputDecoration _decoration({required String hint, required IconData icon}) {
     OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: c, width: w),
-        );
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(color: c, width: w),
+    );
     return InputDecoration(
       hintText: hint,
       hintStyle: AppTextStyles.bodyMd(color: AppColors.slate500),
@@ -616,8 +603,11 @@ class _PhotoButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Symbols.photo_camera,
-                  size: 16, color: AppColors.onPrimary),
+              const Icon(
+                Symbols.photo_camera,
+                size: 16,
+                color: AppColors.onPrimary,
+              ),
               const SizedBox(width: 6),
               Text(
                 label,
@@ -675,8 +665,9 @@ class _UnitStepper extends StatelessWidget {
             child: Text(
               '$value',
               textAlign: TextAlign.center,
-              style: AppTextStyles.headlineSm(color: AppColors.primary)
-                  .copyWith(fontWeight: FontWeight.w800),
+              style: AppTextStyles.headlineSm(
+                color: AppColors.primary,
+              ).copyWith(fontWeight: FontWeight.w800),
             ),
           ),
           _RoundStepButton(
@@ -731,10 +722,9 @@ class _DashedRRectPainter extends CustomPainter {
       ..strokeWidth = 2;
 
     final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-        Offset.zero & size,
-        const Radius.circular(24),
-      ));
+      ..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(24)),
+      );
 
     const dash = 7.0;
     const gap = 5.0;

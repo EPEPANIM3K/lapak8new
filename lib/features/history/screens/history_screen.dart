@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../shared/widgets/app_bottom_nav.dart';
-import '../../../shared/widgets/lapak_header.dart';
-import '../../auth/providers/auth_provider.dart';
 import '../../borrowings/models/peminjaman.dart';
 import '../../borrowings/services/peminjaman_service.dart';
 
@@ -153,10 +150,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       backgroundColor: AppColors.surface,
       body: Column(
         children: [
-          LapakHeader(
-            avatarUrl: authProvider.user?.fotoUrl ?? '',
-            onAvatarTap: () => context.push('/profile'),
-          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
@@ -203,11 +196,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
             ),
-          ),
-          AppBottomNav(
-            items: AppBottomNav.userItems,
-            currentIndex: 3,
-            onTap: (_) {},
           ),
         ],
       ),

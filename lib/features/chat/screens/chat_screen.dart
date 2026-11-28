@@ -170,6 +170,68 @@ class _ChatScreenState extends State<ChatScreen> {
     _sendMessage();
   }
 
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(authProvider.isAdminAtauStaf ? '/admin/dashboard' : '/');
+  }
+
+  Widget _buildChatTitle() => Row(
+    children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.asset(
+          'Gemini_Generated_Image_nrvldpnrvldpnrvl.png',
+          width: 38,
+          height: 38,
+          fit: BoxFit.cover,
+        ),
+      ),
+      const SizedBox(width: AppSpacing.xs),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'ALLOC8 AI',
+              style: AppTextStyles.headlineSm(color: AppColors.onSurface),
+            ),
+            Text(
+              'Pusat Bantuan LAPAK8',
+              style: AppTextStyles.bodySm(color: AppColors.slate600),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  Widget _buildChatHeader() => Padding(
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.md,
+      AppSpacing.xs,
+      AppSpacing.xs,
+      AppSpacing.xs,
+    ),
+    child: Row(
+      children: [
+        IconButton(
+          tooltip: 'Kembali',
+          onPressed: _goBack,
+          icon: const Icon(Icons.arrow_back),
+        ),
+        Expanded(child: _buildChatTitle()),
+        IconButton(
+          tooltip: 'Hapus percakapan',
+          onPressed: _isSending ? null : _clearConversation,
+          icon: const Icon(Icons.delete_outline),
+        ),
+      ],
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final showPrompts = _messages.length == 1;
@@ -178,49 +240,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                'Gemini_Generated_Image_nrvldpnrvldpnrvl.png',
-                width: 38,
-                height: 38,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.xs),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ALLOC8 AI',
-                    style: AppTextStyles.headlineSm(color: AppColors.onSurface),
-                  ),
-                  Text(
-                    'Pusat Bantuan LAPAK8',
-                    style: AppTextStyles.bodySm(color: AppColors.slate600),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: widget.passwordResetHelp
-            ? null
-            : [
-                IconButton(
-                  tooltip: 'Hapus percakapan',
-                  onPressed: _isSending ? null : _clearConversation,
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ],
-      ),
+      appBar: widget.passwordResetHelp
+          ? AppBar(titleSpacing: 0, title: _buildChatTitle())
+          : null,
       body: Column(
         children: [
+          if (!widget.passwordResetHelp) _buildChatHeader(),
           Expanded(
             child: ListView.builder(
               controller: _scrollController,

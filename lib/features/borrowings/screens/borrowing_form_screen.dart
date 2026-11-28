@@ -93,36 +93,70 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
     }
   }
 
+  Widget _stateScaffold({required Widget content}) => Theme(
+    data: ThemeData(
+      fontFamily: GoogleFonts.outfit().fontFamily,
+      useMaterial3: true,
+    ),
+    child: Scaffold(
+      backgroundColor: _background,
+      body: Column(
+        children: [
+          SizedBox(
+            height: 56,
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => context.pop(),
+                ),
+                const Text(
+                  'Formulir Booking',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                ),
+              ],
+            ),
+          ),
+          Expanded(child: content),
+        ],
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Theme(
-        data: ThemeData(
-          fontFamily: GoogleFonts.outfit().fontFamily,
-          useMaterial3: true,
-        ),
-        child: Scaffold(
-          backgroundColor: _background,
-          appBar: AppBar(
-            backgroundColor: _background,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.pop(),
-            ),
-            title: const Text(
-              'Formulir Booking',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-            ),
+      return _stateScaffold(
+        content: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 12),
+              Text('Memuat daftar barang dan ruangan...'),
+            ],
           ),
-          body: const Center(
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return _stateScaffold(
+        content: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 12),
-                Text('Memuat daftar barang dan ruangan...'),
+                const Icon(Icons.error_outline, color: _red, size: 36),
+                const SizedBox(height: 8),
+                Text(_error!, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Coba lagi'),
+                ),
               ],
             ),
           ),
@@ -130,96 +164,32 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
       );
     }
 
-    if (_error != null) {
-      return Theme(
-        data: ThemeData(
-          fontFamily: GoogleFonts.outfit().fontFamily,
-          useMaterial3: true,
-        ),
-        child: Scaffold(
-          backgroundColor: _background,
-          appBar: AppBar(
-            backgroundColor: _background,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.pop(),
-            ),
-            title: const Text(
-              'Formulir Booking',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-            ),
-          ),
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline, color: _red, size: 36),
-                  const SizedBox(height: 8),
-                  Text(_error!, textAlign: TextAlign.center),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: _load,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Coba lagi'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     if (_fasilitas.isEmpty) {
-      return Theme(
-        data: ThemeData(
-          fontFamily: GoogleFonts.outfit().fontFamily,
-          useMaterial3: true,
-        ),
-        child: Scaffold(
-          backgroundColor: _background,
-          appBar: AppBar(
-            backgroundColor: _background,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.pop(),
-            ),
-            title: const Text(
-              'Formulir Booking',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-            ),
-          ),
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.inventory_2_outlined,
-                    color: Color(0xFF64748B),
-                    size: 40,
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Belum ada barang atau ruangan yang tersedia.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 14),
-                  OutlinedButton.icon(
-                    onPressed: _load,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Muat ulang'),
-                  ),
-                ],
-              ),
+      return _stateScaffold(
+        content: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.inventory_2_outlined,
+                  color: Color(0xFF64748B),
+                  size: 40,
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Belum ada barang atau ruangan yang tersedia.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Muat ulang'),
+                ),
+              ],
             ),
           ),
         ),
