@@ -6,6 +6,7 @@ import 'core/config/supabase_config.dart';
 import 'core/constants/app_colors.dart';
 import 'core/router/app_router.dart';
 import 'features/auth/providers/auth_provider.dart';
+import 'features/notifications/controllers/notification_badge_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +15,18 @@ Future<void> main() async {
     anonKey: SupabaseConfig.anonKey, // ignore: deprecated_member_use
   );
   await authProvider.init(); // pulihkan sesi login yang tersimpan
+
+  String? boundNotificationUserId;
+  void syncNotificationBinding() {
+    final userId = authProvider.user?.id;
+    if (userId == boundNotificationUserId) return;
+    boundNotificationUserId = userId;
+    notificationBadgeController.bind(userId);
+  }
+
+  authProvider.addListener(syncNotificationBinding);
+  syncNotificationBinding();
+
   runApp(const Lapak8App());
 }
 

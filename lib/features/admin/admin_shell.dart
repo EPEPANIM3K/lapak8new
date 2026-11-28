@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../features/notifications/controllers/notification_badge_controller.dart';
 import 'admin_route_observer.dart';
 import '../../shared/widgets/app_bottom_nav.dart';
 import '../../shared/widgets/lapak_header.dart';
@@ -78,7 +79,15 @@ class _AdminShellState extends State<AdminShell> {
             bottom: 0,
             left: 0,
             right: 0,
-            child: AdminBottomNav(currentIndex: _currentIndex),
+            child: AnimatedBuilder(
+              animation: notificationBadgeController,
+              builder: (context, _) => AdminBottomNav(
+                currentIndex: _currentIndex,
+                aktivitasBadgeCount:
+                    notificationBadgeController.unreadCount,
+                onTap: (_) {},
+              ),
+            ),
           ),
         ],
       ),

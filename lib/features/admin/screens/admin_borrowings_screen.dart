@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +14,7 @@ import 'package:lapak8new/features/admin/admin_route_observer.dart';
 import 'package:lapak8new/core/storage/storage_config.dart';
 import 'package:lapak8new/features/borrowings/models/peminjaman.dart';
 import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
+import 'package:lapak8new/features/notifications/controllers/notification_badge_controller.dart';
 import 'package:lapak8new/features/admin/models/return_documentation.dart';
 import 'package:lapak8new/features/admin/services/admin_report_pdf_service.dart';
 import 'package:lapak8new/features/admin/services/media_picker_service.dart';
@@ -200,11 +203,19 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen>
   bool _initialInspectionHandled = false;
   Future<void>? _loadFuture;
   bool _reloadAfterCurrent = false;
+  final Set<String> _highlightedBorrowingIds = {};
+  Timer? _highlightTimer;
 
   @override
   void initState() {
     super.initState();
     _loadLoans();
+  }
+
+  @override
+  void dispose() {
+    _highlightTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -252,6 +263,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen>
         _loansError = null;
         _hasLoadedLoans = true;
       });
+      _scheduleUnreadConsume();
       final inspectionId = widget.initialReturnInspectionId;
       final borrowingId = widget.initialReturnBorrowingId;
       if (inspectionId != null &&
@@ -296,6 +308,49 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen>
             'Gagal memuat aktivitas peminjaman. Periksa koneksi, lalu coba lagi.';
       });
     }
+  }
+
+  void _scheduleUnreadConsume() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_consumeVisibleUnreadNotifications());
+    });
+  }
+
+  Future<void> _consumeVisibleUnreadNotifications() async {
+    if (!mounted || _isLoadingLoans || _loansError != null) return;
+
+    final entity = _isLoanTab
+        ? 'pengajuan_peminjaman'
+        : 'pengajuan_pengembalian';
+    final visibleIds = _isLoanTab
+        ? _visibleLoans.map((l) => l.borrowingId).whereType<String>().toSet()
+        : _visibleReturns.map((r) => r.borrowingId).whereType<String>().toSet();
+    final transactionIds = notificationBadgeController
+        .unreadRelatedIds(entity)
+        .where(visibleIds.contains)
+        .toList();
+    if (transactionIds.isEmpty) return;
+
+    final notificationIds = notificationBadgeController.notificationIdsFor(
+      entity,
+      transactionIds,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _highlightedBorrowingIds
+        ..clear()
+        ..addAll(transactionIds);
+    });
+    _highlightTimer?.cancel();
+    _highlightTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      setState(_highlightedBorrowingIds.clear);
+    });
+
+    await notificationBadgeController.markRead(notificationIds);
   }
 
   _Loan _toLoan(Peminjaman p) {
@@ -828,7 +883,10 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen>
               hintText: _isLoanTab
                   ? 'Cari peminjam, item, atau no. aset...'
                   : 'Cari pengembalian, item, atau no. aset...',
-              onChanged: (v) => setState(() => _query = v),
+              onChanged: (v) {
+                setState(() => _query = v);
+                _scheduleUnreadConsume();
+              },
             ),
             const SizedBox(height: 16),
             _isLoanTab ? _buildLoanFilterChips() : _buildReturnFilterChips(),
@@ -893,6 +951,9 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen>
                     onApprove: () => _confirmApprove(l),
                     onScanBorrowingQr: () => _scanBorrowingQr(l),
                     onSuspend: () => _confirmSuspend(l),
+                    highlight: _highlightedBorrowingIds.contains(
+                      l.borrowingId,
+                    ),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -903,6 +964,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen>
                   isUpdating: _updatingBorrowingIds.contains(r.borrowingId),
                   onCheck: () => _openInspection(r),
                   onConfirmPayment: () => _confirmPaymentCompletion(r),
+                  highlight: _highlightedBorrowingIds.contains(r.borrowingId),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -954,6 +1016,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen>
         onTap: () {
           if (_tab == tab) return;
           setState(() => _tab = tab);
+          _scheduleUnreadConsume();
           _loadLoans();
         },
         child: AnimatedContainer(
@@ -999,7 +1062,10 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen>
             label: label,
             count: _loanCount(status),
             selected: _loanFilter == status,
-            onTap: () => setState(() => _loanFilter = status),
+            onTap: () {
+              setState(() => _loanFilter = status);
+              _scheduleUnreadConsume();
+            },
           );
         },
       ),
@@ -1019,7 +1085,10 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen>
             label: label,
             count: _returnCount(status),
             selected: _returnFilter == status,
-            onTap: () => setState(() => _returnFilter = status),
+            onTap: () {
+              setState(() => _returnFilter = status);
+              _scheduleUnreadConsume();
+            },
           );
         },
       ),
@@ -1384,6 +1453,7 @@ class _LoanCard extends StatelessWidget {
     required this.onScanBorrowingQr,
     required this.onSuspend,
     required this.isUpdating,
+    required this.highlight,
   });
 
   final _Loan loan;
@@ -1392,14 +1462,18 @@ class _LoanCard extends StatelessWidget {
   final VoidCallback onScanBorrowingQr;
   final VoidCallback onSuspend;
   final bool isUpdating;
+  final bool highlight;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
+        color: highlight
+            ? AppColors.primaryFixed
+            : AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(24),
         boxShadow: AppShadows.sm,
       ),
@@ -1684,20 +1758,25 @@ class _ReturnCard extends StatelessWidget {
     required this.isUpdating,
     required this.onCheck,
     required this.onConfirmPayment,
+    required this.highlight,
   });
 
   final _Return item;
   final bool isUpdating;
   final VoidCallback onCheck;
   final VoidCallback onConfirmPayment;
+  final bool highlight;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
+        color: highlight
+            ? AppColors.primaryFixed
+            : AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(24),
         boxShadow: AppShadows.sm,
       ),

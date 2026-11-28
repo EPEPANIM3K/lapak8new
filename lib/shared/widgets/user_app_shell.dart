@@ -57,8 +57,7 @@ class UserAppShell extends StatelessWidget {
             bottom: 0,
             left: 0,
             right: 0,
-            child: AppBottomNav(
-              items: AppBottomNav.userItems,
+            child: UserBottomNav(
               currentIndex: _currentIndex,
               onTap: (_) {},
             ),

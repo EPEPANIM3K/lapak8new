@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../features/notifications/controllers/notification_badge_controller.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../dashboard/widgets/qr_ticket_modal.dart';
 import '../models/peminjaman.dart';
@@ -41,11 +44,19 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
   String? _errorMessage;
   final Set<String> _cancellingIds = {};
   final Set<String> _qrLoadingIds = {};
+  final Set<String> _highlightedBorrowingIds = {};
+  Timer? _highlightTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _highlightTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -60,6 +71,7 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
         _list = data;
         _loading = false;
       });
+      _scheduleUnreadConsume();
     } on PeminjamanException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -67,6 +79,47 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
         _loading = false;
       });
     }
+  }
+
+  void _scheduleUnreadConsume() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_consumeVisibleUnreadNotifications());
+    });
+  }
+
+  Future<void> _consumeVisibleUnreadNotifications() async {
+    if (!mounted || _tab != 'aktif' || _loading || _errorMessage != null) {
+      return;
+    }
+
+    final visibleIds = _activeList.map((p) => p.id).toSet();
+    const entity = 'persetujuan_peminjaman';
+    final transactionIds = notificationBadgeController
+        .unreadRelatedIds(entity)
+        .where(visibleIds.contains)
+        .toList();
+    if (transactionIds.isEmpty) return;
+
+    final notificationIds = notificationBadgeController.notificationIdsFor(
+      entity,
+      transactionIds,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _highlightedBorrowingIds
+        ..clear()
+        ..addAll(transactionIds);
+    });
+    _highlightTimer?.cancel();
+    _highlightTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      setState(_highlightedBorrowingIds.clear);
+    });
+
+    await notificationBadgeController.markRead(notificationIds);
   }
 
   List<Peminjaman> get _activeList => _list
@@ -93,7 +146,10 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
       )
       .toList();
 
-  void _switchTab(String t) => setState(() => _tab = t);
+  void _switchTab(String t) {
+    setState(() => _tab = t);
+    _scheduleUnreadConsume();
+  }
 
   Future<void> _showQrModal(Peminjaman p) async {
     final isReturn = p.status != StatusPeminjaman.disetujui;
@@ -696,6 +752,7 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
     };
 
     return _cardWrapper(
+      highlight: _highlightedBorrowingIds.contains(p.id),
       children: [
         _rowTop(p.kodeBooking, statusBadge),
         const SizedBox(height: 12),
@@ -1247,10 +1304,14 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
   );
 
   // ---------- helpers ----------
-  Widget _cardWrapper({required List<Widget> children}) => Container(
+  Widget _cardWrapper({
+    required List<Widget> children,
+    bool highlight = false,
+  }) => AnimatedContainer(
+    duration: const Duration(milliseconds: 250),
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: cSurfaceLowest,
+      color: highlight ? AppColors.primaryFixed : cSurfaceLowest,
       borderRadius: BorderRadius.circular(16),
       boxShadow: const [
         BoxShadow(

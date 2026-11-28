@@ -10,4 +10,10 @@ class SupabaseConfig {
     'SUPABASE_ANON_KEY',
     defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0d2N6YW1kd2Roc2pvZ3FtcGtlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2OTEyODYsImV4cCI6MjExMTI2NzI4Nn0.Bk9svezNS0n3Wc5baVXTiIJqOLG8rDX9ULAIRLy_ba8',
   );
+
+  /// Alias publishable key yang dipakai controller notifikasi.
+  static String get publishableKey => anonKey;
+
+  /// True bila URL dan kunci sudah diisi.
+  static bool get isConfigured => url.isNotEmpty && anonKey.isNotEmpty;
 }

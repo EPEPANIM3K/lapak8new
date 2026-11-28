@@ -8,19 +8,21 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimens.dart';
 import '../../core/constants/app_text_styles.dart';
+import '../../features/notifications/controllers/notification_badge_controller.dart';
+import '../../features/notifications/utils/badge_count.dart';
 import 'ms_icon.dart';
 
 class AppBottomNavItem {
   const AppBottomNavItem({
     required this.icon,
     required this.label,
-    this.showBadge = false,
+    this.badgeCount = 0,
     this.route = '/',
   });
 
   final IconData icon;
   final String label;
-  final bool showBadge;
+  final int badgeCount;
   final String route;
 }
 
@@ -151,17 +153,80 @@ class AppBottomNav extends StatelessWidget {
   }
 }
 
-class AdminBottomNav extends StatelessWidget {
-  const AdminBottomNav({super.key, required this.currentIndex});
+/// Navigasi bawah pengguna dengan badge jumlah notifikasi belum dibaca.
+class UserBottomNav extends StatelessWidget {
+  const UserBottomNav({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+    this.useRouter = true,
+  });
 
   final int currentIndex;
+  final ValueChanged<int> onTap;
+  final bool useRouter;
 
   @override
-  Widget build(BuildContext context) => AppBottomNav(
-    items: AppBottomNav.dashboardItems,
-    currentIndex: currentIndex,
-    onTap: (_) {},
-  );
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: notificationBadgeController,
+      builder: (context, _) {
+        final items = List<AppBottomNavItem>.from(AppBottomNav.userItems);
+        final index = items.indexWhere((item) => item.route == '/borrowings');
+        if (index != -1) {
+          final pinjaman = items[index];
+          items[index] = AppBottomNavItem(
+            icon: pinjaman.icon,
+            label: pinjaman.label,
+            badgeCount: notificationBadgeController.unreadCount,
+            route: pinjaman.route,
+          );
+        }
+
+        return AppBottomNav(
+          items: items,
+          currentIndex: currentIndex,
+          onTap: onTap,
+          useRouter: useRouter,
+        );
+      },
+    );
+  }
+}
+
+/// Navigasi bawah admin dengan badge notifikasi pada menu Aktivitas.
+class AdminBottomNav extends StatelessWidget {
+  const AdminBottomNav({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+    this.useRouter = true,
+    this.aktivitasBadgeCount = 0,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  final bool useRouter;
+  final int aktivitasBadgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = List<AppBottomNavItem>.from(AppBottomNav.dashboardItems);
+    final aktivitas = items[1];
+    items[1] = AppBottomNavItem(
+      icon: aktivitas.icon,
+      label: aktivitas.label,
+      badgeCount: aktivitasBadgeCount,
+      route: aktivitas.route,
+    );
+
+    return AppBottomNav(
+      items: items,
+      currentIndex: currentIndex,
+      onTap: onTap,
+      useRouter: useRouter,
+    );
+  }
 }
 
 class _NavItem extends StatelessWidget {
@@ -208,23 +273,36 @@ class _NavItem extends StatelessWidget {
                   ),
                 ],
               ),
-              if (item.showBadge)
+              if (item.badgeCount > 0)
                 Positioned(
                   top: 4,
                   right: 10,
                   child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                      // ring-2 ring-surface-container-lowest
-                      boxShadow: [
+                    key: Key('notification-badge-${item.route}'),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: const [
                         BoxShadow(
                           color: AppColors.surfaceContainerLowest,
                           spreadRadius: 2,
                         ),
                       ],
+                    ),
+                    child: Text(
+                      formatBadgeCount(item.badgeCount),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        height: 1,
+                      ),
                     ),
                   ),
                 ),
