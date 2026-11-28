@@ -56,8 +56,12 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(authProvider.error ?? 'Login gagal')),
       );
+      return;
     }
-    // Kalau berhasil tidak perlu context.go(): router otomatis pindah.
+
+    // Arahkan langsung sesuai role. Admin dan staf/petugas masuk area admin,
+    // sedangkan siswa/guru masuk dashboard user.
+    context.go(authProvider.isAdminAtauStaf ? '/admin/dashboard' : '/');
   }
 
   @override

@@ -44,7 +44,7 @@ final GoRouter appRouter = GoRouter(
 
     // Sudah login tapi masih di halaman login → arahkan sesuai role.
     if (isPublic) {
-      return authProvider.isAdmin ? '/admin/dashboard' : '/';
+      return authProvider.isAdminAtauStaf ? '/admin/dashboard' : '/';
     }
 
     // Scanner hanya tersedia untuk admin dan staf aktif.

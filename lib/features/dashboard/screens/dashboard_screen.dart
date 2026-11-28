@@ -257,7 +257,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               QuickActionsSection(
                 items: QuickActionsSection.defaults(
-                  onQuickBorrow: () => context.push('/borrowing-form'),
+                  onQuickBorrow: () => context.go('/facilities'),
                   onSchedule: () => showDialog(
                     context: context,
                     builder: (_) => const AulaScheduleModal(),

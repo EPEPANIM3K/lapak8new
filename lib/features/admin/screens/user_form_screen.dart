@@ -97,13 +97,46 @@ class _UserFormScreenState extends State<UserFormScreen> {
 
   /// Pilihan kelas (hanya nama kelas, tanpa prefix peran).
   static const _kelasOptions = <String>[
-    'X RPL 1',
-    'XI RPL 1',
-    'XII RPL 1',
-    'X TKJ 3',
-    'XI MM 2',
-    'XI Multimedia (DKV)',
-    'XII DKV 1',
+    // RPL
+    'X RPL A',
+    'X RPL B',
+    'X RPL C',
+    'X RPL D',
+    'XI RPL A',
+    'XI RPL B',
+    'XI RPL C',
+    'XI RPL D',
+    'XII RPL A',
+    'XII RPL B',
+    'XII RPL C',
+    'XII RPL D',
+    // TKJ
+    'X TKJ A',
+    'X TKJ B',
+    'X TKJ C',
+    'X TKJ D',
+    'XI TKJ A',
+    'XI TKJ B',
+    'XI TKJ C',
+    'XI TKJ D',
+    'XII TKJ A',
+    'XII TKJ B',
+    'XII TKJ C',
+    'XII TKJ D',
+    // METRO
+    'X METRO A',
+    'X METRO B',
+    'XI METRO A',
+    'XI METRO B',
+    'XII METRO A',
+    'XII METRO B',
+    // ELIN
+    'X ELIN A',
+    'X ELIN B',
+    'XI ELIN A',
+    'XI ELIN B',
+    'XII ELIN A',
+    'XII ELIN B',
   ];
 
   String? _kelas;
@@ -792,17 +825,23 @@ class _UserFormScreenState extends State<UserFormScreen> {
               child: ElevatedButton.icon(
                 onPressed: _submit,
                 icon: const Icon(Symbols.save, size: 20),
-                label: Text(
-                  _isEdit ? 'Simpan Perubahan' : 'Tambahkan',
-                  style: AppTextStyles.labelLg(
-                    weight: FontWeight.w700,
-                    color: AppColors.onPrimary,
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    _isEdit ? 'Simpan Perubahan' : 'Tambahkan',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: AppTextStyles.labelLg(
+                      weight: FontWeight.w700,
+                      color: AppColors.onPrimary,
+                    ),
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.onPrimary,
                   elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                   shape: const StadiumBorder(),
                 ),
               ),

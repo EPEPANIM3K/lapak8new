@@ -55,7 +55,6 @@ class AppBottomNav extends StatelessWidget {
     AppBottomNavItem(
       icon: Symbols.event_available,
       label: 'Pinjaman',
-      showBadge: true,
       route: '/borrowings',
     ),
     AppBottomNavItem(

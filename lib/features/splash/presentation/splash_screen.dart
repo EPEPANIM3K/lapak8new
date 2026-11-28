@@ -56,7 +56,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (status == AnimationStatus.completed && mounted) {
         context.go(
           authProvider.sudahLogin
-              ? (authProvider.isAdmin ? '/admin/dashboard' : '/')
+              ? (authProvider.isAdminAtauStaf ? '/admin/dashboard' : '/')
               : '/welcome',
         );
       }

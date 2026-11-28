@@ -29,11 +29,8 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
   static const cOnSurface = Color(0xFF131B2E);
   static const cOnSurfaceVariant = Color(0xFF434655);
   static const cPrimary = Color(0xFF0037B0);
-  static const cPrimaryContainer = Color(0xFF1D4ED8);
-  static const cTertiary = Color(0xFF004F35);
-  static const cTertiaryContainer = Color(0xFF006A48);
+  static const cSecondary = Color(0xFF505F76);
   static const cError = Color(0xFFBA1A1A);
-  static const cOutlineVariant = Color(0xFFC4C5D7);
   static const cOutline = Color(0xFF747686);
 
   final _searchCtrl = TextEditingController();
@@ -228,28 +225,11 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
-              _filterChip(
-                'Semua',
-                'all',
-                color: cPrimaryContainer,
-                textColor: Colors.white,
-              ),
+              _filterChip('Semua', 'all'),
               const SizedBox(width: 8),
-              _filterChip(
-                'Tersedia',
-                'available',
-                color: cSurfaceLowest,
-                textColor: cTertiary,
-                dot: cTertiaryContainer,
-              ),
+              _filterChip('Tersedia', 'available'),
               const SizedBox(width: 8),
-              _filterChip(
-                'Tidak tersedia',
-                'unavailable',
-                color: cSurfaceLowest,
-                textColor: cError,
-                dot: cError,
-              ),
+              _filterChip('Tidak tersedia', 'unavailable'),
             ],
           ),
         ),
@@ -257,53 +237,30 @@ class _FacilityListScreenState extends State<FacilityListScreen> {
     ),
   );
 
-  Widget _filterChip(
-    String label,
-    String value, {
-    required Color color,
-    required Color textColor,
-    Color? dot,
-  }) {
+  Widget _filterChip(String label, String value) {
     final selected = _filter == value;
     return GestureDetector(
       onTap: () => setState(() => _filter = value),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? cPrimaryContainer : color,
-          borderRadius: BorderRadius.circular(8),
-          border: selected
-              ? null
-              : Border.all(color: cOutlineVariant.withValues(alpha: 0.6)),
+          color: selected ? cPrimary : cSurfaceLowest,
+          borderRadius: BorderRadius.circular(999),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x08000000),
-              blurRadius: 2,
-              offset: Offset(0, 1),
+              color: Color(0x0D000000),
+              blurRadius: 4,
+              offset: Offset(0, 2),
             ),
           ],
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (dot != null) ...[
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'Plus Jakarta Sans',
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                color: selected ? Colors.white : textColor,
-              ),
-            ),
-          ],
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            color: selected ? Colors.white : cSecondary,
+          ),
         ),
       ),
     );

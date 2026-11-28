@@ -359,10 +359,12 @@ class PeraturanModal extends StatelessWidget {
                     _buildRuleItem(
                       icon: Icons.assignment,
                       title: '1. Pengajuan & Persetujuan',
-                      desc: '- Item berkategori Ruangan dapat diajukan maksimal 7 hari sebelum tanggal peminjaman.\n'
-                          '- Item selain kategori Ruangan dapat diajukan maksimal 1 hari sebelum tanggal peminjaman.\n'
-                          '- Peminjaman di hari yang sama diperbolehkan selama item tersedia.\n'
-                          '- Setiap pengajuan wajib mendapatkan persetujuan admin atau petugas sebelum barang dapat diambil.',
+                      points: const [
+                        'Item berkategori Ruangan dapat diajukan maksimal 7 hari sebelum tanggal peminjaman.',
+                        'Item selain kategori Ruangan dapat diajukan maksimal 1 hari sebelum tanggal peminjaman.',
+                        'Peminjaman di hari yang sama diperbolehkan selama item tersedia.',
+                        'Setiap pengajuan wajib mendapatkan persetujuan admin atau petugas sebelum barang dapat diambil.',
+                      ],
                     ),
                     const SizedBox(height: 10),
                     _buildRuleItem(
@@ -469,7 +471,8 @@ class PeraturanModal extends StatelessWidget {
   Widget _buildRuleItem({
     required IconData icon,
     required String title,
-    required String desc,
+    String? desc,
+    List<String> points = const [],
     bool isWarning = false,
   }) {
     final iconColor = isWarning ? const Color(0xFFD97706) : const Color(0xFF1D4ED8);
@@ -497,12 +500,53 @@ class PeraturanModal extends StatelessWidget {
               children: [
                 Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontFamily: 'Outfit')),
                 const SizedBox(height: 4),
-                Text(desc, style: const TextStyle(fontSize: 10, color: Color(0xFF475569), height: 1.4)),
+                if (points.isNotEmpty)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < points.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 6),
+                        _buildRulePoint(points[i]),
+                      ],
+                    ],
+                  )
+                else if (desc != null)
+                  Text(desc, style: const TextStyle(fontSize: 10, color: Color(0xFF475569), height: 1.4)),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildRulePoint(String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(
+          width: 10,
+          child: Text(
+            '-',
+            style: TextStyle(
+              fontSize: 10,
+              height: 1.4,
+              color: Color(0xFF475569),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 10,
+              height: 1.4,
+              color: Color(0xFF475569),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -166,6 +166,27 @@ class PeminjamanService {
   }
 
   // -------------------------------------------------------------------------
+  // Ambil satu fasilitas untuk memeriksa ketersediaan stok.
+  // Mengembalikan null jika barang tidak ada atau tidak aktif.
+  // -------------------------------------------------------------------------
+  Future<FasilitasRingkas?> ambilFasilitasById(String id) async {
+    try {
+      final row = await _db
+          .from('fasilitas')
+          .select(
+            'id, nama, kategori, total_unit, status, foto_url, lokasi(nama)',
+          )
+          .eq('id', id)
+          .eq('aktif', true)
+          .maybeSingle();
+      if (row == null) return null;
+      return FasilitasRingkas.fromMap(Map<String, dynamic>.from(row));
+    } on PostgrestException catch (e) {
+      throw PeminjamanException('Gagal memuat fasilitas: ${e.message}');
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Ambil daftar peminjaman milik user yang sedang login
   // -------------------------------------------------------------------------
   Future<List<Peminjaman>> ambilPeminjamanSaya() async {

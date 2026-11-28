@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../shared/widgets/confirm_dialog.dart';
 import '../../borrowings/models/peminjaman.dart';
 import '../../borrowings/services/peminjaman_service.dart';
 
@@ -140,6 +141,50 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final eh =
         '${e.hour.toString().padLeft(2, '0')}:${e.minute.toString().padLeft(2, '0')}';
     return '${s.day} ${_months[s.month - 1]} ${s.year} ($sh - $eh WIB)';
+  }
+
+  Future<void> _pinjamLagi(Peminjaman p) async {
+    final firstItem = p.items.isNotEmpty ? p.items.first : null;
+    final fasilitasId = firstItem?.fasilitasId;
+
+    if (fasilitasId == null || fasilitasId.isEmpty) {
+      context.push('/borrowing-form');
+      return;
+    }
+
+    FasilitasRingkas? fasilitas;
+    try {
+      fasilitas = await peminjamanService.ambilFasilitasById(fasilitasId);
+    } on PeminjamanException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.pesan)));
+      return;
+    }
+    if (!mounted) return;
+
+    if (fasilitas == null || !fasilitas.tersedia) {
+      await showDialog<void>(
+        context: context,
+        barrierColor: Colors.black54,
+        builder: (_) => ConfirmDialog(
+          icon: Icons.inventory_2_outlined,
+          title: 'Barang Tidak Tersedia',
+          message:
+              'Stok "${firstItem?.namaFasilitasSnapshot ?? p.namaKegiatan}" '
+              'sudah habis atau barang sedang tidak dapat dipinjam. '
+              'Silakan pilih item lain.',
+          confirmText: 'Mengerti',
+          confirmIcon: null,
+          showCancel: false,
+          onConfirm: () {},
+        ),
+      );
+      return;
+    }
+
+    context.push('/borrowing-form', extra: fasilitasId);
   }
 
   @override
@@ -679,10 +724,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           SizedBox(
             height: 44,
             child: ElevatedButton.icon(
-              onPressed: () => context.push(
-                '/borrowing-form',
-                extra: firstItem?.fasilitasId,
-              ),
+              onPressed: () => _pinjamLagi(p),
               icon: const Icon(Icons.cached, size: 18),
               label: Text(
                 (isRejected || isCanceled)

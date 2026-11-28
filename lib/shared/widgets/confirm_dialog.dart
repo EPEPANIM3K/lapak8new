@@ -21,6 +21,9 @@ class ConfirmDialog extends StatelessWidget {
   /// Warna lingkaran di belakang ikon utama.
   final Color iconBackground;
 
+  /// Tampilkan tombol batal. Set `false` untuk dialog notifikasi satu tombol.
+  final bool showCancel;
+
   const ConfirmDialog({
     super.key,
     this.icon = Icons.save,
@@ -33,6 +36,7 @@ class ConfirmDialog extends StatelessWidget {
     this.confirmColor = const Color(0xFF004BE4),
     this.iconColor = const Color(0xFF004BE4),
     this.iconBackground = const Color(0xFFEFF3FE),
+    this.showCancel = true,
   });
 
   @override
@@ -41,17 +45,12 @@ class ConfirmDialog extends StatelessWidget {
       elevation: 0,
       backgroundColor: confirmColor,
       foregroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       padding: const EdgeInsets.symmetric(vertical: 14),
     );
     final confirmLabel = Text(
       confirmText,
-      style: const TextStyle(
-        fontWeight: FontWeight.w600,
-        fontSize: 14,
-      ),
+      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
     );
     void handleConfirm() {
       Navigator.of(context).pop();
@@ -91,7 +90,7 @@ class ConfirmDialog extends StatelessWidget {
                 ),
               ],
             ),
-            
+
             // Icon Lingkaran Biru Muda
             Container(
               width: 72,
@@ -100,11 +99,7 @@ class ConfirmDialog extends StatelessWidget {
                 color: iconBackground,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                icon,
-                size: 32,
-                color: iconColor,
-              ),
+              child: Icon(icon, size: 32, color: iconColor),
             ),
             const SizedBox(height: 20),
 
@@ -135,28 +130,30 @@ class ConfirmDialog extends StatelessWidget {
             // Action Buttons
             Row(
               children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: ElevatedButton.styleFrom(
-                      elevation: 0,
-                      backgroundColor: const Color(0xFFF1F5F9),
-                      foregroundColor: const Color(0xFF1E293B),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
+                if (showCancel) ...[
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: const Color(0xFF1E293B),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: Text(
-                      cancelText,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                      child: Text(
+                        cancelText,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
+                  const SizedBox(width: 12),
+                ],
                 Expanded(
                   child: confirmIcon == null
                       ? ElevatedButton(
