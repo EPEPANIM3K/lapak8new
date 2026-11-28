@@ -2,29 +2,18 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimens.dart';
 import '../../core/constants/app_text_styles.dart';
-import 'ms_icon.dart';
 
-/// Header tetap di atas (logo LAPAK8 + notifikasi + avatar).
+/// Header tetap di atas (logo LAPAK8 + avatar).
 /// Latar: surface 85%; blur 24 dipakai native, web tanpa backdrop filter.
 /// Letakkan di `Positioned(top: 0, ...)` di dalam Stack.
 class LapakHeader extends StatelessWidget {
-  const LapakHeader({
-    super.key,
-    required this.avatarUrl,
-    this.hasUnreadNotification = true,
-    this.onNotificationTap,
-    this.onAvatarTap,
-  });
+  const LapakHeader({super.key, required this.avatarUrl, this.onAvatarTap});
 
   final String avatarUrl;
-  final bool hasUnreadNotification;
-  final VoidCallback? onNotificationTap;
   final VoidCallback? onAvatarTap;
 
   /// Tinggi konten header (h-16), belum termasuk safe area atas.
@@ -46,18 +35,7 @@ class LapakHeader extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const _Brand(),
-              Row(
-                children: [
-                  _NotificationButton(
-                    showDot: hasUnreadNotification,
-                    onTap:
-                        onNotificationTap ??
-                        () => context.push('/notifications'),
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  _Avatar(url: avatarUrl, onTap: onAvatarTap),
-                ],
-              ),
+              _Avatar(url: avatarUrl, onTap: onAvatarTap),
             ],
           ),
         ),
@@ -115,56 +93,6 @@ class _Brand extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-}
-
-class _NotificationButton extends StatelessWidget {
-  const _NotificationButton({required this.showDot, this.onTap});
-
-  final bool showDot;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: AppSpacing.touchTargetMin,
-      height: AppSpacing.touchTargetMin,
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              const MsIcon(
-                Symbols.notifications,
-                size: 24,
-                color: AppColors.onSurfaceVariant,
-              ),
-              if (showDot)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.error,
-                      shape: BoxShape.circle,
-                      // ring-2 ring-surface
-                      boxShadow: [
-                        BoxShadow(color: AppColors.surface, spreadRadius: 2),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

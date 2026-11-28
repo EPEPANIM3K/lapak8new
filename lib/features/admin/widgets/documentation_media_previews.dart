@@ -2,6 +2,7 @@ import 'dart:io' show File;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:lapak8new/core/storage/storage_config.dart';
 
@@ -22,8 +23,7 @@ class LocalImagePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = bytes;
     if (data != null) {
-      final typed =
-          data is Uint8List ? data : Uint8List.fromList(data);
+      final typed = data is Uint8List ? data : Uint8List.fromList(data);
       return Image.memory(typed, fit: fit, gaplessPlayback: true);
     }
     if (path.isEmpty) return const _BrokenImage();
@@ -37,47 +37,80 @@ class LocalImagePreview extends StatelessWidget {
   }
 }
 
-/// Gambar dari server penyimpanan (butuh header otorisasi).
-class RemoteMediaImage extends StatelessWidget {
+/// Gambar privat dari Supabase Storage menggunakan signed URL sementara.
+class RemoteMediaImage extends StatefulWidget {
   const RemoteMediaImage({
     super.key,
     required this.url,
     this.fit = BoxFit.cover,
-    this.token,
     this.onTap,
   });
 
   final String url;
   final BoxFit fit;
-
-  /// Token opsional; default memakai konfigurasi penyimpanan.
-  final String? token;
   final VoidCallback? onTap;
 
   @override
+  State<RemoteMediaImage> createState() => _RemoteMediaImageState();
+}
+
+class _RemoteMediaImageState extends State<RemoteMediaImage> {
+  late Future<String> _signedUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _signedUrl = _createSignedUrl();
+  }
+
+  @override
+  void didUpdateWidget(covariant RemoteMediaImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _signedUrl = _createSignedUrl();
+    }
+  }
+
+  Future<String> _createSignedUrl() => Supabase.instance.client.storage
+      .from(Lapak8StorageConfig.bucket)
+      .createSignedUrl(widget.url, 60 * 60);
+
+  @override
   Widget build(BuildContext context) {
-    final headers = token == null
-        ? Lapak8StorageConfig.mediaHeaders
-        : {'authorization': 'Bearer $token'};
-    final image = Image.network(
-      Lapak8StorageConfig.absoluteUrl(url),
-      fit: fit,
-      headers: headers,
-      gaplessPlayback: true,
-      loadingBuilder: (context, child, progress) {
-        if (progress == null) return child;
-        return const Center(
-          child: SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
+    final image = FutureBuilder<String>(
+      future: _signedUrl,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return const _BrokenImage();
+        final signedUrl = snapshot.data;
+        if (signedUrl == null) {
+          return const Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        }
+        return Image.network(
+          signedUrl,
+          fit: widget.fit,
+          gaplessPlayback: true,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return const Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            );
+          },
+          errorBuilder: (_, __, ___) => const _BrokenImage(),
         );
       },
-      errorBuilder: (_, __, ___) => const _BrokenImage(),
     );
-    if (onTap == null) return image;
-    return GestureDetector(onTap: onTap, child: image);
+    if (widget.onTap == null) return image;
+    return GestureDetector(onTap: widget.onTap, child: image);
   }
 }
 

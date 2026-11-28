@@ -2,14 +2,12 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 
 /// Data ringan untuk kartu populer.
-/// TODO: ganti dengan model `Facility` dari features/facilities/models.
 class PopularItem {
   const PopularItem({
     required this.name,
@@ -21,7 +19,7 @@ class PopularItem {
   final String name;
   final String location;
   final String stockLabel;
-  final String imageUrl;
+  final String? imageUrl;
 }
 
 /// Ikon pin lokasi (heroicons outline, stroke 2) persis seperti di HTML.
@@ -39,11 +37,13 @@ class PopularItemsSection extends StatelessWidget {
     required this.items,
     this.onSeeAllTap,
     this.onBorrowTap,
+    this.emptyMessage = 'Belum ada item populer.',
   });
 
   final List<PopularItem> items;
   final VoidCallback? onSeeAllTap;
   final ValueChanged<PopularItem>? onBorrowTap;
+  final String emptyMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -56,16 +56,21 @@ class PopularItemsSection extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-              Expanded(
-                  child: _ItemCard(
-                      item: left, onBorrow: () => onBorrowTap?.call(left))),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: right == null
-                    ? const SizedBox.shrink()
-                    : _ItemCard(
-                        item: right, onBorrow: () => onBorrowTap?.call(right)),
+            Expanded(
+              child: _ItemCard(
+                item: left,
+                onBorrow: () => onBorrowTap?.call(left),
               ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: right == null
+                  ? const SizedBox.shrink()
+                  : _ItemCard(
+                      item: right,
+                      onBorrow: () => onBorrowTap?.call(right),
+                    ),
+            ),
           ],
         ),
       );
@@ -83,25 +88,45 @@ class PopularItemsSection extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Item Populer',
-                        style: AppTextStyles.headlineSm(
-                            color: AppColors.onSurface)),
-                    Text('Sering dipinjam siswa untuk praktikum & ekskul',
-                        style: AppTextStyles.bodySm(
-                            color: AppColors.onSurfaceVariant)),
+                    Text(
+                      'Item Populer',
+                      style: AppTextStyles.headlineSm(
+                        color: AppColors.onSurface,
+                      ),
+                    ),
+                    Text(
+                      'Urut berdasarkan jumlah unit yang pernah dipinjam',
+                      style: AppTextStyles.bodySm(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ),
               ),
               GestureDetector(
                 onTap: onSeeAllTap,
-                child: Text('Lihat Semua',
-                    style: AppTextStyles.labelSm(
-                        weight: FontWeight.w600, color: AppColors.primary)),
+                child: Text(
+                  'Lihat Semua',
+                  style: AppTextStyles.labelSm(
+                    weight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          ...rows,
+          if (items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: Text(
+                emptyMessage,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.bodySm(color: AppColors.onSurfaceVariant),
+              ),
+            )
+          else
+            ...rows,
         ],
       ),
     );
@@ -134,12 +159,13 @@ class _ItemCard extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 const ColoredBox(color: AppColors.slate100),
-                Image.network(
-                  item.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      const ColoredBox(color: AppColors.slate100),
-                ),
+                if (item.imageUrl?.trim().isNotEmpty == true)
+                  Image.network(
+                    item.imageUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        const ColoredBox(color: AppColors.slate100),
+                  ),
                 Positioned(
                   top: 10,
                   right: 10,
@@ -153,46 +179,48 @@ class _ItemCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        // font-['Outfit'] font-bold text-sm (14/20)
-                        style: AppTextStyles.outfit(
-                            size: 14,
-                            lineHeight: 20,
-                            weight: FontWeight.w700,
-                            color: AppColors.slate900),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      // font-['Outfit'] font-bold text-sm (14/20)
+                      style: AppTextStyles.outfit(
+                        size: 14,
+                        lineHeight: 20,
+                        weight: FontWeight.w700,
+                        color: AppColors.slate900,
                       ),
-                      const SizedBox(height: 4), // mb-1
-                      Row(
-                        children: [
-                          SvgPicture.string(_pinSvg, width: 14, height: 14),
-                          const SizedBox(width: 6), // gap-1.5
-                          Expanded(
-                            child: Text(
-                              item.location,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              // text-xs (12/16) font-normal slate-500
-                              style: AppTextStyles.jakarta(
-                                  size: 12,
-                                  lineHeight: 16,
-                                  color: AppColors.slate500),
+                    ),
+                    const SizedBox(height: 4), // mb-1
+                    Row(
+                      children: [
+                        SvgPicture.string(_pinSvg, width: 14, height: 14),
+                        const SizedBox(width: 6), // gap-1.5
+                        Expanded(
+                          child: Text(
+                            item.location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            // text-xs (12/16) font-normal slate-500
+                            style: AppTextStyles.jakarta(
+                              size: 12,
+                              lineHeight: 16,
+                              color: AppColors.slate500,
                             ),
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14), // mt-3.5
-                  _BorrowButton(onTap: onBorrow),
-                ],
-              ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14), // mt-3.5
+                _BorrowButton(onTap: onBorrow),
+              ],
             ),
+          ),
         ],
       ),
     );
@@ -227,17 +255,20 @@ class _StockBadge extends StatelessWidget {
                   width: 6,
                   height: 6,
                   decoration: const BoxDecoration(
-                      color: AppColors.emerald500, shape: BoxShape.circle),
+                    color: AppColors.emerald500,
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 const SizedBox(width: 6),
                 // text-[10px] font-bold, line-height mewarisi body (22px)
                 Text(
                   label,
                   style: AppTextStyles.jakarta(
-                      size: 10,
-                      lineHeight: 22,
-                      weight: FontWeight.w700,
-                      color: AppColors.slate700),
+                    size: 10,
+                    lineHeight: 22,
+                    weight: FontWeight.w700,
+                    color: AppColors.slate700,
+                  ),
                 ),
               ],
             ),
@@ -265,17 +296,18 @@ class _BorrowButton extends StatelessWidget {
         type: MaterialType.transparency,
         child: InkWell(
           customBorder: const StadiumBorder(),
-          onTap: () => context.push('/borrowing-form'),
+          onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 10), // py-2.5
             child: Center(
               child: Text(
                 'Pinjam',
                 style: AppTextStyles.jakarta(
-                    size: 12,
-                    lineHeight: 16,
-                    weight: FontWeight.w500,
-                    color: AppColors.white),
+                  size: 12,
+                  lineHeight: 16,
+                  weight: FontWeight.w500,
+                  color: AppColors.white,
+                ),
               ),
             ),
           ),

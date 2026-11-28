@@ -89,6 +89,8 @@ enum StatusPeminjaman {
   ditolak,
   dibatalkan,
   dipinjam,
+  menungguPengembalian,
+  pelanggaran,
   dikembalikan,
   terlambat,
   // ignore: constant_identifier_names
@@ -100,6 +102,8 @@ enum StatusPeminjaman {
     'ditolak' => ditolak,
     'dibatalkan' => dibatalkan,
     'dipinjam' => dipinjam,
+    'menunggu_pengembalian' => menungguPengembalian,
+    'pelanggaran' => pelanggaran,
     'dikembalikan' => dikembalikan,
     'terlambat' => terlambat,
     _ => tidak_dikenal,
@@ -111,6 +115,8 @@ enum StatusPeminjaman {
     StatusPeminjaman.ditolak => 'ditolak',
     StatusPeminjaman.dibatalkan => 'dibatalkan',
     StatusPeminjaman.dipinjam => 'dipinjam',
+    StatusPeminjaman.menungguPengembalian => 'menunggu_pengembalian',
+    StatusPeminjaman.pelanggaran => 'pelanggaran',
     StatusPeminjaman.dikembalikan => 'dikembalikan',
     StatusPeminjaman.terlambat => 'terlambat',
     StatusPeminjaman.tidak_dikenal => 'tidak_dikenal',
@@ -122,10 +128,134 @@ enum StatusPeminjaman {
     StatusPeminjaman.ditolak => 'Ditolak',
     StatusPeminjaman.dibatalkan => 'Dibatalkan',
     StatusPeminjaman.dipinjam => 'Sedang Dipinjam',
+    StatusPeminjaman.menungguPengembalian => 'Menunggu Pengembalian',
+    StatusPeminjaman.pelanggaran => 'Pelanggaran',
     StatusPeminjaman.dikembalikan => 'Selesai',
     StatusPeminjaman.terlambat => 'Terlambat',
     StatusPeminjaman.tidak_dikenal => 'Tidak Dikenal',
   };
+}
+
+class BuktiPemeriksaanPengembalian {
+  const BuktiPemeriksaanPengembalian({
+    required this.fileId,
+    required this.jenis,
+    required this.namaFile,
+    required this.path,
+    required this.mimeType,
+    required this.ukuranByte,
+  });
+
+  final String fileId;
+  final String jenis;
+  final String namaFile;
+  final String path;
+  final String mimeType;
+  final int ukuranByte;
+
+  factory BuktiPemeriksaanPengembalian.fromMap(Map<String, dynamic> map) =>
+      BuktiPemeriksaanPengembalian(
+        fileId: map['file_id'] as String? ?? '',
+        jenis: map['jenis'] as String? ?? 'photo',
+        namaFile: map['file_name'] as String? ?? 'Bukti',
+        path: map['file_path'] as String? ?? '',
+        mimeType: map['mime_type'] as String? ?? 'application/octet-stream',
+        ukuranByte: (map['ukuran_byte'] as num?)?.toInt() ?? 0,
+      );
+}
+
+class PemeriksaanPengembalian {
+  const PemeriksaanPengembalian({
+    required this.id,
+    required this.status,
+    required this.kondisiBarang,
+    required this.jenisPelanggaran,
+    required this.denda,
+    required this.keterangan,
+    required this.statusPembayaran,
+    required this.diperiksaPada,
+    required this.dibayarPada,
+    required this.pembayaranDikonfirmasiOleh,
+    required this.bukti,
+  });
+
+  final String id;
+  final String status;
+  final String? kondisiBarang;
+  final String? jenisPelanggaran;
+  final int denda;
+  final String? keterangan;
+  final String statusPembayaran;
+  final DateTime? diperiksaPada;
+  final DateTime? dibayarPada;
+  final String? pembayaranDikonfirmasiOleh;
+  final List<BuktiPemeriksaanPengembalian> bukti;
+
+  String get labelKondisi =>
+      switch ((kondisiBarang ?? jenisPelanggaran)?.toLowerCase()) {
+        'baik' => 'Baik',
+        'rusak' => 'Rusak',
+        'hilang' => 'Hilang',
+        'terlambat' => 'Terlambat',
+        _ => 'Tidak diketahui',
+      };
+
+  String get labelStatusAkhir =>
+      switch ((kondisiBarang ?? jenisPelanggaran)?.toLowerCase()) {
+        'rusak' => 'Pelanggaran Selesai',
+        'hilang' => 'Hilang',
+        'terlambat' => 'Terlambat Selesai',
+        _ => 'Selesai',
+      };
+
+  bool get hasPelanggaran {
+    final condition = (kondisiBarang ?? jenisPelanggaran)?.toLowerCase();
+    return jenisPelanggaran != null ||
+        denda > 0 ||
+        (condition != null && condition != 'baik');
+  }
+
+  String get labelHasil =>
+      hasPelanggaran ? 'Pelanggaran diselesaikan' : 'Pengembalian selesai';
+
+  String get labelDenda {
+    if (denda <= 0) return 'Tidak ada';
+    final digits = denda.toString();
+    final grouped = StringBuffer();
+    for (var index = 0; index < digits.length; index++) {
+      if (index > 0 && (digits.length - index) % 3 == 0) grouped.write('.');
+      grouped.write(digits[index]);
+    }
+    return 'Rp$grouped';
+  }
+
+  factory PemeriksaanPengembalian.fromMap(Map<String, dynamic> map) {
+    DateTime? date(String key) {
+      final value = map[key];
+      return value is String ? DateTime.tryParse(value) : null;
+    }
+
+    final evidence = map['return_documentation'];
+    return PemeriksaanPengembalian(
+      id: map['id'] as String,
+      status: map['status'] as String? ?? 'menunggu',
+      kondisiBarang: map['kondisi_barang'] as String?,
+      jenisPelanggaran: map['jenis_pelanggaran'] as String?,
+      denda: (map['denda'] as num?)?.round() ?? 0,
+      keterangan: map['keterangan_pelanggaran'] as String?,
+      statusPembayaran: map['status_pembayaran'] as String? ?? 'tidak_ada',
+      diperiksaPada: date('diperiksa_pada'),
+      dibayarPada: date('dibayar_pada'),
+      pembayaranDikonfirmasiOleh:
+          map['pembayaran_dikonfirmasi_oleh'] as String?,
+      bukti: evidence is List
+          ? evidence
+                .whereType<Map<String, dynamic>>()
+                .map(BuktiPemeriksaanPengembalian.fromMap)
+                .toList(growable: false)
+          : const [],
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -148,9 +278,12 @@ class Peminjaman {
     this.disetujuiPada,
     this.diambilPada,
     this.dikembalikanPada,
+    this.dimintaKembaliPada,
     this.kondisiBarang,
     this.catatanPengembalian,
+    this.pemeriksaanPengembalian,
     this.namaPeminjam,
+    this.fotoUrlPeminjam,
     this.nomorIndukPeminjam,
     this.kelasPeminjam,
     this.items = const [],
@@ -170,12 +303,15 @@ class Peminjaman {
   final DateTime? disetujuiPada;
   final DateTime? diambilPada;
   final DateTime? dikembalikanPada;
+  final DateTime? dimintaKembaliPada;
   final String? kondisiBarang; // 'baik' | 'rusak' | 'hilang'
   final String? catatanPengembalian;
+  final PemeriksaanPengembalian? pemeriksaanPengembalian;
   final DateTime dibuatPada;
 
   // Data join (opsional, dimuat bersama query)
   final String? namaPeminjam;
+  final String? fotoUrlPeminjam;
   final String? nomorIndukPeminjam;
   final String? kelasPeminjam;
   final List<ItemPeminjaman> items;
@@ -196,6 +332,27 @@ class Peminjaman {
     final peminjam = map['pengguna'] as Map<String, dynamic>?;
     final rawItems = map['item_peminjaman'] as List<dynamic>?;
     final rawApprovals = map['persetujuan_peminjaman'] as List<dynamic>?;
+    final rawInspections = map['return_inspections'];
+    Map<String, dynamic>? inspectionMap;
+    if (rawInspections is List) {
+      final inspections = rawInspections
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      DateTime inspectionTime(Map<String, dynamic> inspection) =>
+          DateTime.tryParse(
+            (inspection['updated_at'] ?? inspection['dibuat_pada'] ?? '')
+                .toString(),
+          ) ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+      inspections.sort(
+        (a, b) => inspectionTime(b).compareTo(inspectionTime(a)),
+      );
+      if (inspections.isNotEmpty) {
+        inspectionMap = inspections.first;
+      }
+    } else if (rawInspections is Map<String, dynamic>) {
+      inspectionMap = rawInspections;
+    }
     final rejectionReason =
         map['alasan_penolakan'] as String? ??
         rawApprovals
@@ -223,10 +380,15 @@ class Peminjaman {
       disetujuiPada: tanggal('disetujui_pada'),
       diambilPada: tanggal('diambil_pada'),
       dikembalikanPada: tanggal('dikembalikan_pada'),
+      dimintaKembaliPada: tanggal('return_requested_at'),
       kondisiBarang: map['kondisi_barang'] as String?,
       catatanPengembalian: map['catatan_pengembalian'] as String?,
+      pemeriksaanPengembalian: inspectionMap == null
+          ? null
+          : PemeriksaanPengembalian.fromMap(inspectionMap),
       dibuatPada: DateTime.parse(map['dibuat_pada'] as String),
       namaPeminjam: peminjam?['nama_lengkap'] as String?,
+      fotoUrlPeminjam: peminjam?['foto_url'] as String?,
       nomorIndukPeminjam: peminjam?['nomor_induk'] as String?,
       kelasPeminjam: peminjam?['kelas_atau_unit'] as String?,
       items:

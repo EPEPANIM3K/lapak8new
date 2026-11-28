@@ -15,22 +15,22 @@ class UpcomingBorrowingSection extends StatelessWidget {
     required this.subtitle,
     required this.statusLabel,
     required this.scheduleLabel,
-    required this.approverName,
-    required this.approverRole,
+    this.approvalLabel,
     this.onDetailTap,
     this.onShowQrTap,
     this.onDirectionsTap,
+    this.isQrLoading = false,
   });
 
   final String title; // "Lab Komputer 2"
   final String subtitle; // "Praktik Uji Sertifikasi LSP"
   final String statusLabel; // "Disetujui"
   final String scheduleLabel; // "Hari ini • 13:30 - 15:30 WIB"
-  final String approverName;
-  final String approverRole;
+  final String? approvalLabel;
   final VoidCallback? onDetailTap;
   final VoidCallback? onShowQrTap;
   final VoidCallback? onDirectionsTap;
+  final bool isQrLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -54,16 +54,21 @@ class UpcomingBorrowingSection extends StatelessWidget {
                     dotColor: AppColors.tertiary,
                   ),
                   const SizedBox(width: AppSpacing.xs),
-                  Text('Peminjaman Mendatang',
-                      style:
-                          AppTextStyles.headlineSm(color: AppColors.onSurface)),
+                  Text(
+                    'Peminjaman Mendatang',
+                    style: AppTextStyles.headlineSm(color: AppColors.onSurface),
+                  ),
                 ],
               ),
               GestureDetector(
                 onTap: onDetailTap,
-                child: Text('Detail',
-                    style: AppTextStyles.labelSm(
-                        weight: FontWeight.w600, color: AppColors.primary)),
+                child: Text(
+                  'Detail',
+                  style: AppTextStyles.labelSm(
+                    weight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
               ),
             ],
           ),
@@ -73,10 +78,10 @@ class UpcomingBorrowingSection extends StatelessWidget {
             subtitle: subtitle,
             statusLabel: statusLabel,
             scheduleLabel: scheduleLabel,
-            approverName: approverName,
-            approverRole: approverRole,
+            approvalLabel: approvalLabel,
             onShowQrTap: onShowQrTap,
             onDirectionsTap: onDirectionsTap,
+            isQrLoading: isQrLoading,
           ),
         ],
       ),
@@ -90,20 +95,20 @@ class _Card extends StatelessWidget {
     required this.subtitle,
     required this.statusLabel,
     required this.scheduleLabel,
-    required this.approverName,
-    required this.approverRole,
+    this.approvalLabel,
     this.onShowQrTap,
     this.onDirectionsTap,
+    this.isQrLoading = false,
   });
 
   final String title;
   final String subtitle;
   final String statusLabel;
   final String scheduleLabel;
-  final String approverName;
-  final String approverRole;
+  final String? approvalLabel;
   final VoidCallback? onShowQrTap;
   final VoidCallback? onDirectionsTap;
+  final bool isQrLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -128,8 +133,9 @@ class _Card extends StatelessWidget {
                   width: 96,
                   height: 96,
                   decoration: BoxDecoration(
-                    borderRadius:
-                        const BorderRadius.only(bottomLeft: Radius.circular(96)),
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(96),
+                    ),
                     gradient: LinearGradient(
                       begin: Alignment.topRight,
                       end: Alignment.bottomLeft,
@@ -156,21 +162,25 @@ class _Card extends StatelessWidget {
                 const SizedBox(height: AppSpacing.sm),
                 _Ribbon(
                   scheduleLabel: scheduleLabel,
-                  approverName: approverName,
-                  approverRole: approverRole,
+                  approvalLabel: approvalLabel,
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                Padding(
-                  padding: const EdgeInsets.only(top: 4), // pt-1
-                  child: _PillButton(
-                    label: 'Tiket Akses QR',
-                    icon: Symbols.qr_code_2,
-                    background: AppColors.primary,
-                    foreground: AppColors.onPrimary,
-                    shadow: AppShadows.sm,
-                    onTap: onShowQrTap,
+                if (onShowQrTap != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: _PillButton(
+                      label: isQrLoading
+                          ? 'Membuat Tiket...'
+                          : 'Tiket Akses QR',
+                      icon: isQrLoading
+                          ? Symbols.hourglass_top
+                          : Symbols.qr_code_2,
+                      background: AppColors.primary,
+                      foreground: AppColors.onPrimary,
+                      shadow: AppShadows.sm,
+                      onTap: isQrLoading ? null : onShowQrTap,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -208,20 +218,29 @@ class _TopRow extends StatelessWidget {
                   color: AppColors.surfaceContainer,
                   shape: BoxShape.circle,
                 ),
-                child: const MsIcon(Symbols.computer,
-                    size: 28, color: AppColors.primary),
+                child: const MsIcon(
+                  Symbols.computer,
+                  size: 28,
+                  color: AppColors.primary,
+                ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: AppTextStyles.headlineSm(
-                            color: AppColors.onSurface)),
-                    Text(subtitle,
-                        style: AppTextStyles.bodySm(
-                            color: AppColors.onSurfaceVariant)),
+                    Text(
+                      title,
+                      style: AppTextStyles.headlineSm(
+                        color: AppColors.onSurface,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: AppTextStyles.bodySm(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -230,7 +249,9 @@ class _TopRow extends StatelessWidget {
         ),
         Container(
           padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xs, vertical: AppSpacing.xxs),
+            horizontal: AppSpacing.xs,
+            vertical: AppSpacing.xxs,
+          ),
           decoration: BoxDecoration(
             color: AppColors.tertiaryFixed,
             borderRadius: BorderRadius.circular(AppRadius.full),
@@ -242,13 +263,18 @@ class _TopRow extends StatelessWidget {
                 width: 6,
                 height: 6,
                 decoration: const BoxDecoration(
-                    color: AppColors.tertiary, shape: BoxShape.circle),
+                  color: AppColors.tertiary,
+                  shape: BoxShape.circle,
+                ),
               ),
               const SizedBox(width: AppSpacing.xxs),
-              Text(statusLabel,
-                  style: AppTextStyles.labelSm(
-                      weight: FontWeight.w600,
-                      color: AppColors.onTertiaryFixed)),
+              Text(
+                statusLabel,
+                style: AppTextStyles.labelSm(
+                  weight: FontWeight.w600,
+                  color: AppColors.onTertiaryFixed,
+                ),
+              ),
             ],
           ),
         ),
@@ -258,15 +284,10 @@ class _TopRow extends StatelessWidget {
 }
 
 class _Ribbon extends StatelessWidget {
-  const _Ribbon({
-    required this.scheduleLabel,
-    required this.approverName,
-    required this.approverRole,
-  });
+  const _Ribbon({required this.scheduleLabel, this.approvalLabel});
 
   final String scheduleLabel;
-  final String approverName;
-  final String approverRole;
+  final String? approvalLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -281,42 +302,44 @@ class _Ribbon extends StatelessWidget {
         children: [
           Row(
             children: [
-              const MsIcon(Symbols.schedule, size: 18, color: AppColors.primary),
+              const MsIcon(
+                Symbols.schedule,
+                size: 18,
+                color: AppColors.primary,
+              ),
               const SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: Text(
                   scheduleLabel,
                   style: AppTextStyles.labelMd(
-                      weight: FontWeight.w600, color: AppColors.onSurface),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6), // gap-1.5
-          Row(
-            children: [
-              const MsIcon(Symbols.verified, size: 18, color: AppColors.tertiary),
-              const SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: Text.rich(
-                  TextSpan(
-                    style: AppTextStyles.bodySm(
-                        color: AppColors.onSurfaceVariant),
-                    children: [
-                      const TextSpan(text: 'Disetujui oleh: '),
-                      TextSpan(
-                        text: approverName,
-                        style: AppTextStyles.bodySm(
-                            weight: FontWeight.w500,
-                            color: AppColors.onSurface),
-                      ),
-                      TextSpan(text: ' ($approverRole)'),
-                    ],
+                    weight: FontWeight.w600,
+                    color: AppColors.onSurface,
                   ),
                 ),
               ),
             ],
           ),
+          if (approvalLabel != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const MsIcon(
+                  Symbols.verified,
+                  size: 18,
+                  color: AppColors.tertiary,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    approvalLabel!,
+                    style: AppTextStyles.bodySm(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -367,7 +390,9 @@ class _PillButton extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.labelMd(
-                        weight: FontWeight.w600, color: foreground),
+                      weight: FontWeight.w600,
+                      color: foreground,
+                    ),
                   ),
                 ),
               ],

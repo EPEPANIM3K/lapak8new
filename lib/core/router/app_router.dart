@@ -20,7 +20,7 @@ import 'package:lapak8new/features/admin/screens/manage_users_screen.dart';
 import 'package:lapak8new/features/admin/screens/admin_profile_screen.dart';
 
 // Halaman yang boleh dibuka tanpa login.
-const _publicPaths = {'/login'};
+const _publicPaths = {'/login', '/password-reset-help'};
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/login',
@@ -58,6 +58,10 @@ final GoRouter appRouter = GoRouter(
   routes: [
     // ---------- AUTH ----------
     GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+    GoRoute(
+      path: '/password-reset-help',
+      builder: (_, __) => const ChatScreen(passwordResetHelp: true),
+    ),
 
     // ---------- USER ----------
     GoRoute(path: '/', builder: (_, __) => const DashboardScreen()),
@@ -78,11 +82,28 @@ final GoRouter appRouter = GoRouter(
     GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
     GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
     GoRoute(path: '/chat', builder: (_, __) => const ChatScreen()),
-    GoRoute(path: '/notifications',builder: (context, state) => const NotificationsScreen(),
-),
+    GoRoute(
+      path: '/notifications',
+      builder: (context, state) => const NotificationsScreen(),
+    ),
 
     // ---------- UMUM ----------
-    GoRoute(path: '/scan', builder: (_, __) => const QrScannerScreen()),
+    GoRoute(
+      path: '/scan',
+      builder: (_, state) {
+        final extra = state.extra;
+        final peminjamanId = extra is Map ? extra['peminjamanId'] : null;
+        final returnPeminjamanId = extra is Map
+            ? extra['returnPeminjamanId']
+            : null;
+        return QrScannerScreen(
+          expectedBorrowingId: peminjamanId is String ? peminjamanId : null,
+          expectedReturnBorrowingId: returnPeminjamanId is String
+              ? returnPeminjamanId
+              : null,
+        );
+      },
+    ),
 
     // ---------- ADMIN ----------
     ShellRoute(

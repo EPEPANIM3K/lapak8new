@@ -4,10 +4,9 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../shared/widgets/animated_indicators.dart';
 import '../../../shared/widgets/ms_icon.dart';
 
-/// Sapaan "Halo, {nama} 👋" + chip peran + NIS + lencana verifikasi.
+/// Sapaan "Halo, {nama}" + chip peran + NIS.
 class GreetingSection extends StatelessWidget {
   const GreetingSection({
     super.key,
@@ -32,32 +31,15 @@ class GreetingSection extends StatelessWidget {
         AppSpacing.sm,
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        'Halo, $name',
-                        style: AppTextStyles.headlineMd(
-                          color: AppColors.onSurface,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.xxs),
-                    // animate-bounce: tinggi elemen 22px → naik 25% = 5.5px
-                    BounceEffect(
-                      travel: 5.5,
-                      child: Text(
-                        '👋',
-                        style: const TextStyle(fontSize: 20, height: 1.1),
-                      ),
-                    ),
-                  ],
+                Text(
+                  'Halo, $name',
+                  style: AppTextStyles.headlineMd(color: AppColors.onSurface),
                 ),
                 const SizedBox(height: 2), // mt-0.5
                 Row(
@@ -109,21 +91,6 @@ class GreetingSection extends StatelessWidget {
                   ],
                 ),
               ],
-            ),
-          ),
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: AppColors.surfaceContainerHigh,
-              shape: BoxShape.circle,
-              boxShadow: AppShadows.sm,
-            ),
-            child: const MsIcon(
-              Symbols.verified_user,
-              size: 21.6,
-              color: AppColors.primary,
             ),
           ),
         ],

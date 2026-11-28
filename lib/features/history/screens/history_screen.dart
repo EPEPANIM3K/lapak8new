@@ -29,8 +29,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
   static const cOutlineVariant = Color(0xFFC4C5D7);
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'Mei',
+    'Jun',
+    'Jul',
+    'Agu',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Des',
   ];
 
   final _searchCtrl = TextEditingController();
@@ -75,16 +85,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   bool _isLate(Peminjaman p) {
     if (p.status == StatusPeminjaman.terlambat) return true;
-    if (p.status == StatusPeminjaman.dikembalikan && p.dikembalikanPada != null) {
+    if (p.status == StatusPeminjaman.dikembalikan &&
+        p.dikembalikanPada != null) {
       return p.dikembalikanPada!.isAfter(p.estimasiKembaliPada);
     }
     return false;
   }
 
   int get _completedCount => _items
-      .where((p) =>
-          p.status == StatusPeminjaman.dikembalikan ||
-          p.status == StatusPeminjaman.terlambat)
+      .where(
+        (p) =>
+            p.status == StatusPeminjaman.dikembalikan ||
+            p.status == StatusPeminjaman.terlambat,
+      )
       .length;
 
   int get _onTimeCount => _items
@@ -94,24 +107,26 @@ class _HistoryScreenState extends State<HistoryScreen> {
   int get _lateCount => _items.where(_isLate).length;
 
   List<Peminjaman> get _filtered => _items.where((p) {
-        final q = _query.toLowerCase();
-        final itemName = p.items.isNotEmpty
-            ? p.items.first.namaFasilitasSnapshot
-            : p.namaKegiatan;
-        final okQ = q.isEmpty ||
-            itemName.toLowerCase().contains(q) ||
-            p.kodeBooking.toLowerCase().contains(q) ||
-            p.namaKegiatan.toLowerCase().contains(q);
+    final q = _query.toLowerCase();
+    final itemName = p.items.isNotEmpty
+        ? p.items.first.namaFasilitasSnapshot
+        : p.namaKegiatan;
+    final okQ =
+        q.isEmpty ||
+        itemName.toLowerCase().contains(q) ||
+        p.kodeBooking.toLowerCase().contains(q) ||
+        p.namaKegiatan.toLowerCase().contains(q);
 
-        final okT = switch (_tab) {
-          'completed' => p.status == StatusPeminjaman.dikembalikan ||
-              p.status == StatusPeminjaman.terlambat,
-          'canceled' => p.status == StatusPeminjaman.dibatalkan,
-          'rejected' => p.status == StatusPeminjaman.ditolak,
-          _ => true,
-        };
-        return okQ && okT;
-      }).toList();
+    final okT = switch (_tab) {
+      'completed' =>
+        p.status == StatusPeminjaman.dikembalikan ||
+            p.status == StatusPeminjaman.terlambat,
+      'canceled' => p.status == StatusPeminjaman.dibatalkan,
+      'rejected' => p.status == StatusPeminjaman.ditolak,
+      _ => true,
+    };
+    return okQ && okT;
+  }).toList();
 
   String _formatDateTime(DateTime dt) {
     final local = dt.toLocal();
@@ -123,8 +138,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
   String _formatRange(Peminjaman p) {
     final s = p.mulaiPada.toLocal();
     final e = p.estimasiKembaliPada.toLocal();
-    final sh = '${s.hour.toString().padLeft(2, '0')}:${s.minute.toString().padLeft(2, '0')}';
-    final eh = '${e.hour.toString().padLeft(2, '0')}:${e.minute.toString().padLeft(2, '0')}';
+    final sh =
+        '${s.hour.toString().padLeft(2, '0')}:${s.minute.toString().padLeft(2, '0')}';
+    final eh =
+        '${e.hour.toString().padLeft(2, '0')}:${e.minute.toString().padLeft(2, '0')}';
     return '${s.day} ${_months[s.month - 1]} ${s.year} ($sh - $eh WIB)';
   }
 
@@ -147,7 +164,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 physics: const AlwaysScrollableScrollPhysics(
                   parent: ClampingScrollPhysics(),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -171,10 +191,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     else
                       Column(
                         children: filtered
-                            .map((p) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _historyCard(p),
-                                ))
+                            .map(
+                              (p) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _historyCard(p),
+                              ),
+                            )
                             .toList(),
                       ),
                   ],
@@ -193,57 +215,59 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _pageTitle() => const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Riwayat Peminjaman',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: cOnSurface,
-              letterSpacing: -0.5,
-            ),
-          ),
-          SizedBox(height: 2),
-          Text(
-            'Catatan riwayat peminjaman sarana dan item sekolah',
-            style: TextStyle(fontSize: 13, color: cSecondary),
-          ),
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Riwayat Peminjaman',
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          color: cOnSurface,
+          letterSpacing: -0.5,
+        ),
+      ),
+      SizedBox(height: 2),
+      Text(
+        'Catatan riwayat peminjaman sarana dan item sekolah',
+        style: TextStyle(fontSize: 13, color: cSecondary),
+      ),
+    ],
+  );
 
-  Widget _statsGrid() => Row(children: [
-        Expanded(
-          child: _statCard(
-            'Semua',
-            '$_completedCount',
-            'Selesai',
-            Icons.inventory_2_outlined,
-            cPrimary,
-          ),
+  Widget _statsGrid() => Row(
+    children: [
+      Expanded(
+        child: _statCard(
+          'Semua',
+          '$_completedCount',
+          'Selesai',
+          Icons.inventory_2_outlined,
+          cPrimary,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _statCard(
-            'Tepat Waktu',
-            '$_onTimeCount',
-            'Aman',
-            Icons.verified_outlined,
-            cTertiaryContainer,
-          ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: _statCard(
+          'Tepat Waktu',
+          '$_onTimeCount',
+          'Aman',
+          Icons.verified_outlined,
+          cTertiaryContainer,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _statCard(
-            'Terlambat',
-            '$_lateCount',
-            'Kasus',
-            Icons.running_with_errors,
-            cError,
-          ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: _statCard(
+          'Terlambat',
+          '$_lateCount',
+          'Kasus',
+          Icons.running_with_errors,
+          cError,
         ),
-      ]);
+      ),
+    ],
+  );
 
   Widget _statCard(
     String label,
@@ -251,113 +275,111 @@ class _HistoryScreenState extends State<HistoryScreen> {
     String suffix,
     IconData icon,
     Color color,
-  ) =>
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: cSurfaceLowest,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0D000000),
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
-          ],
+  ) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: cSurfaceLowest,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x0D000000),
+          blurRadius: 4,
+          offset: Offset(0, 2),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: cSecondary,
-                  ),
-                ),
-                Icon(icon, size: 16, color: color),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  suffix,
-                  style: const TextStyle(fontSize: 11, color: cSecondary),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-
-  Widget _searchField() => Container(
-        height: 52,
-        decoration: BoxDecoration(
-          color: cSurfaceLowest,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0D000000),
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            const SizedBox(width: 16),
-            const Icon(Icons.search, size: 20, color: cSecondary),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _searchCtrl,
-                onChanged: (v) =>
-                    setState(() => _query = v.toLowerCase().trim()),
-                style: const TextStyle(fontSize: 14, color: cOnSurface),
-                decoration: const InputDecoration(
-                  isDense: true,
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
-                  hintText: 'Cari riwayat booking atau item...',
-                  hintStyle: TextStyle(fontSize: 14, color: cOutlineVariant),
-                ),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: cSecondary,
               ),
             ),
+            Icon(icon, size: 16, color: color),
           ],
         ),
-      );
+        const SizedBox(height: 6),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              suffix,
+              style: const TextStyle(fontSize: 11, color: cSecondary),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+
+  Widget _searchField() => Container(
+    height: 52,
+    decoration: BoxDecoration(
+      color: cSurfaceLowest,
+      borderRadius: BorderRadius.circular(999),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x0D000000),
+          blurRadius: 4,
+          offset: Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Row(
+      children: [
+        const SizedBox(width: 16),
+        const Icon(Icons.search, size: 20, color: cSecondary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextField(
+            controller: _searchCtrl,
+            onChanged: (v) => setState(() => _query = v.toLowerCase().trim()),
+            style: const TextStyle(fontSize: 14, color: cOnSurface),
+            decoration: const InputDecoration(
+              isDense: true,
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+              hintText: 'Cari riwayat booking atau item...',
+              hintStyle: TextStyle(fontSize: 14, color: cOutlineVariant),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _filterTabs() => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _filterTab('all', 'Semua'),
-            const SizedBox(width: 8),
-            _filterTab('completed', 'Selesai'),
-            const SizedBox(width: 8),
-            _filterTab('canceled', 'Dibatalkan'),
-            const SizedBox(width: 8),
-            _filterTab('rejected', 'Ditolak'),
-          ],
-        ),
-      );
+    scrollDirection: Axis.horizontal,
+    child: Row(
+      children: [
+        _filterTab('all', 'Semua'),
+        const SizedBox(width: 8),
+        _filterTab('completed', 'Selesai'),
+        const SizedBox(width: 8),
+        _filterTab('canceled', 'Dibatalkan'),
+        const SizedBox(width: 8),
+        _filterTab('rejected', 'Ditolak'),
+      ],
+    ),
+  );
 
   Widget _filterTab(String key, String label) {
     final selected = _tab == key;
@@ -397,6 +419,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final isRejected = p.status == StatusPeminjaman.ditolak;
     final isCanceled = p.status == StatusPeminjaman.dibatalkan;
     final isLate = _isLate(p);
+    final inspection = p.pemeriksaanPengembalian;
+    final hasViolation = inspection?.hasPelanggaran == true;
 
     final Color badgeBg;
     final Color badgeFg;
@@ -413,16 +437,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
       badgeFg = cSecondary;
       badgeIcon = Icons.block;
       badgeText = 'Dibatalkan';
-    } else if (isLate) {
+    } else if (hasViolation || isLate) {
       badgeBg = cErrorContainer.withValues(alpha: 0.4);
       badgeFg = cError;
-      badgeIcon = Icons.schedule;
-      badgeText = 'Terlambat';
+      badgeIcon = hasViolation ? Icons.warning_amber_rounded : Icons.schedule;
+      badgeText = inspection?.labelStatusAkhir ?? 'Terlambat';
     } else {
       badgeBg = const Color(0xFFECFDF5);
       badgeFg = cTertiary;
       badgeIcon = Icons.circle;
-      badgeText = 'Selesai Tepat Waktu';
+      badgeText = inspection?.labelStatusAkhir ?? 'Selesai Tepat Waktu';
     }
 
     return Container(
@@ -639,6 +663,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     valueColor: cPrimary,
                     valueBold: true,
                   ),
+                  if (inspection != null) ...[
+                    const Divider(height: 16),
+                    _kvRow(
+                      'Hasil:',
+                      inspection.labelHasil,
+                      valueColor: hasViolation ? cError : cTertiary,
+                      valueBold: true,
+                    ),
+                    const SizedBox(height: 4),
+                    _kvRow(
+                      'Kondisi:',
+                      inspection.labelKondisi,
+                      valueColor: cOnSurface,
+                    ),
+                    const SizedBox(height: 4),
+                    _kvRow(
+                      'Denda:',
+                      inspection.labelDenda,
+                      valueColor: cOnSurface,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -658,10 +703,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 style: const TextStyle(fontSize: 13),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    (isRejected || isCanceled) ? cSurfaceHigh : cPrimary,
-                foregroundColor:
-                    (isRejected || isCanceled) ? cOnSurface : Colors.white,
+                backgroundColor: (isRejected || isCanceled)
+                    ? cSurfaceHigh
+                    : cPrimary,
+                foregroundColor: (isRejected || isCanceled)
+                    ? cOnSurface
+                    : Colors.white,
                 elevation: (isRejected || isCanceled) ? 0 : 2,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(999),
@@ -679,76 +726,75 @@ class _HistoryScreenState extends State<HistoryScreen> {
     String v, {
     required Color valueColor,
     bool valueBold = false,
-  }) =>
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(k, style: const TextStyle(fontSize: 11, color: cSecondary)),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              v,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: valueBold ? FontWeight.w600 : FontWeight.w400,
-                color: valueColor,
-              ),
-            ),
+  }) => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(k, style: const TextStyle(fontSize: 11, color: cSecondary)),
+      const SizedBox(width: 8),
+      Flexible(
+        child: Text(
+          v,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: valueBold ? FontWeight.w600 : FontWeight.w400,
+            color: valueColor,
           ),
-        ],
-      );
+        ),
+      ),
+    ],
+  );
 
   Widget _errorState() => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40),
-        child: Column(
-          children: [
-            Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: cError),
-            ),
-            const SizedBox(height: 12),
-            TextButton.icon(
-              onPressed: _load,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Coba lagi'),
-            ),
-          ],
+    padding: const EdgeInsets.symmetric(vertical: 40),
+    child: Column(
+      children: [
+        Text(
+          _error!,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 13, color: cError),
         ),
-      );
+        const SizedBox(height: 12),
+        TextButton.icon(
+          onPressed: _load,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Coba lagi'),
+        ),
+      ],
+    ),
+  );
 
   Widget _emptyState() => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40),
-        child: Column(
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: const BoxDecoration(
-                color: cSurfaceHigh,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.history, size: 32, color: cPrimary),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Belum ada data riwayat',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: cOnSurface,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Riwayat peminjaman yang sudah selesai, ditolak, atau dibatalkan akan tampil di sini.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: cOnSurfaceVariant),
-            ),
-          ],
+    padding: const EdgeInsets.symmetric(vertical: 40),
+    child: Column(
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          decoration: const BoxDecoration(
+            color: cSurfaceHigh,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.history, size: 32, color: cPrimary),
         ),
-      );
+        const SizedBox(height: 12),
+        const Text(
+          'Belum ada data riwayat',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: cOnSurface,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Riwayat peminjaman yang sudah selesai, ditolak, atau dibatalkan akan tampil di sini.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: cOnSurfaceVariant),
+        ),
+      ],
+    ),
+  );
 }

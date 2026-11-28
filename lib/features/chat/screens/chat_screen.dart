@@ -8,7 +8,9 @@ import 'package:lapak8new/features/chat/models/chat_message.dart';
 import 'package:lapak8new/features/chat/services/chat_service.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  const ChatScreen({super.key, this.passwordResetHelp = false});
+
+  final bool passwordResetHelp;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -25,11 +27,29 @@ class _ChatScreenState extends State<ChatScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _service = ChatService();
-  late final List<ChatMessage> _messages = [_welcomeMessage()];
+  late final List<ChatMessage> _messages;
   bool _isSending = false;
   String? _errorMessage;
   ChatFailure? _errorKind;
   String? _retryText;
+
+  @override
+  void initState() {
+    super.initState();
+    _messages = widget.passwordResetHelp
+        ? [
+            _welcomeMessage(),
+            const ChatMessage(
+              role: ChatRole.user,
+              text: 'reset-password-request',
+            ),
+            const ChatMessage(
+              role: ChatRole.assistant,
+              text: 'Reset sandi, mohon hubungi WA admin di 0859-6029-7134.',
+            ),
+          ]
+        : [_welcomeMessage()];
+  }
 
   ChatMessage _welcomeMessage() => ChatMessage(
     role: ChatRole.assistant,
@@ -159,26 +179,45 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        titleSpacing: 0,
+        title: Row(
           children: [
-            Text(
-              'ALLOC8 AI',
-              style: AppTextStyles.headlineSm(color: AppColors.onSurface),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'Gemini_Generated_Image_nrvldpnrvldpnrvl.png',
+                width: 38,
+                height: 38,
+                fit: BoxFit.cover,
+              ),
             ),
-            Text(
-              'Pusat Bantuan LAPAK8',
-              style: AppTextStyles.bodySm(color: AppColors.slate600),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ALLOC8 AI',
+                    style: AppTextStyles.headlineSm(color: AppColors.onSurface),
+                  ),
+                  Text(
+                    'Pusat Bantuan LAPAK8',
+                    style: AppTextStyles.bodySm(color: AppColors.slate600),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Hapus percakapan',
-            onPressed: _isSending ? null : _clearConversation,
-            icon: const Icon(Icons.delete_outline),
-          ),
-        ],
+        actions: widget.passwordResetHelp
+            ? null
+            : [
+                IconButton(
+                  tooltip: 'Hapus percakapan',
+                  onPressed: _isSending ? null : _clearConversation,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ],
       ),
       body: Column(
         children: [
@@ -243,67 +282,68 @@ class _ChatScreenState extends State<ChatScreen> {
                 ],
               ),
             ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.sm,
-                AppSpacing.xs,
-                AppSpacing.sm,
-                AppSpacing.sm,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      minLines: 1,
-                      maxLines: 4,
-                      maxLength: 1000,
-                      buildCounter:
-                          (
-                            context, {
-                            required currentLength,
-                            required isFocused,
-                            maxLength,
-                          }) => null,
-                      textInputAction: TextInputAction.send,
-                      onChanged: (_) {
-                        if (_errorMessage != null) {
-                          setState(() {
-                            _errorMessage = null;
-                            _errorKind = null;
-                            _retryText = null;
-                          });
-                        }
-                      },
-                      onSubmitted: (_) => _sendMessage(),
-                      decoration: InputDecoration(
-                        hintText: 'Tulis pertanyaan...',
-                        filled: true,
-                        fillColor: AppColors.surfaceContainerLow,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.full),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.lg,
-                          vertical: AppSpacing.sm,
+          if (!widget.passwordResetHelp)
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.sm,
+                  AppSpacing.xs,
+                  AppSpacing.sm,
+                  AppSpacing.sm,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        minLines: 1,
+                        maxLines: 4,
+                        maxLength: 1000,
+                        buildCounter:
+                            (
+                              context, {
+                              required currentLength,
+                              required isFocused,
+                              maxLength,
+                            }) => null,
+                        textInputAction: TextInputAction.send,
+                        onChanged: (_) {
+                          if (_errorMessage != null) {
+                            setState(() {
+                              _errorMessage = null;
+                              _errorKind = null;
+                              _retryText = null;
+                            });
+                          }
+                        },
+                        onSubmitted: (_) => _sendMessage(),
+                        decoration: InputDecoration(
+                          hintText: 'Tulis pertanyaan...',
+                          filled: true,
+                          fillColor: AppColors.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.full),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg,
+                            vertical: AppSpacing.sm,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  IconButton.filled(
-                    tooltip: 'Kirim pesan',
-                    onPressed: _isSending ? null : _sendMessage,
-                    icon: const Icon(Icons.send_rounded),
-                  ),
-                ],
+                    const SizedBox(width: AppSpacing.xs),
+                    IconButton.filled(
+                      tooltip: 'Kirim pesan',
+                      onPressed: _isSending ? null : _sendMessage,
+                      icon: const Icon(Icons.send_rounded),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

@@ -1,14 +1,13 @@
-import 'dart:async';
-import 'dart:convert';
+import 'dart:typed_data';
 
-import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:lapak8new/core/storage/storage_config.dart';
 import 'package:lapak8new/features/admin/models/return_documentation.dart';
 
-/// Kegagalan pemanggilan API penyimpanan dokumentasi.
+/// Kegagalan pemanggilan penyimpanan dokumentasi pemeriksaan.
 class StorageApiException implements Exception {
-  StorageApiException(this.message, {this.code, this.statusCode});
+  const StorageApiException(this.message, {this.code, this.statusCode});
 
   final String message;
   final String? code;
@@ -18,47 +17,53 @@ class StorageApiException implements Exception {
   String toString() => message;
 }
 
-/// Klien HTTP untuk layanan penyimpanan dokumentasi kondisi barang.
-///
-/// Endpoint yang dipakai:
-/// - `GET    /api/v1/inspections/:returnId/docs`
-/// - `POST   /api/v1/inspections/:returnId/upload`  (multipart, 1 berkas/request)
-/// - `DELETE /api/v1/inspections/:returnId/files/:fileId`
-/// - `GET    /api/v1/inspections/:returnId/file/:fileId` (stream, dukung Range)
+/// Repository metadata dan berkas bukti yang tersimpan di Supabase.
 class DocumentationRepository {
-  DocumentationRepository({http.Client? client})
-      : _client = client ?? http.Client();
+  DocumentationRepository({SupabaseClient? client}) : _client = client;
 
-  final http.Client _client;
+  final SupabaseClient? _client;
 
-  /// Batas unggah sinkron dengan validasi server.
+  SupabaseClient get _db => _client ?? Supabase.instance.client;
+
   static const int maxPhotos = Lapak8StorageConfig.maxPhotos;
   static const int maxVideos = Lapak8StorageConfig.maxVideos;
   static const int maxPhotoBytes = Lapak8StorageConfig.maxPhotoBytes;
   static const int maxVideoBytes = Lapak8StorageConfig.maxVideoBytes;
 
-  void dispose() => _client.close();
-
-  // -------------------------------------------------------------------------
-  // Metadata
-  // -------------------------------------------------------------------------
   Future<ReturnDocumentation> fetchDocumentation(String returnId) async {
-    final uri = Lapak8StorageConfig.uri(_docsPath(returnId));
-    final res = await _send(
-      () => _client.get(uri, headers: _headers()),
-    );
-    final data = _decode(res);
-    final payload = data['data'];
-    if (payload is! Map<String, dynamic>) {
-      throw StorageApiException('Respons dokumentasi tidak valid.',
-          statusCode: res.statusCode);
+    try {
+      final rows = await _db
+          .from('return_documentation')
+          .select(
+            'borrowing_id, item_id, file_id, jenis, file_name, file_path, '
+            'mime_type, ukuran_byte, diunggah_oleh, diunggah_pada',
+          )
+          .eq('return_inspection_id', returnId)
+          .order('diunggah_pada', ascending: false);
+      final files = (rows as List<dynamic>)
+          .map((row) => _fileFromRow(Map<String, dynamic>.from(row as Map)))
+          .toList(growable: false);
+      final records = rows as List<dynamic>;
+      final firstRow = files.isEmpty
+          ? null
+          : Map<String, dynamic>.from(records.first as Map);
+      final videos = files.where((file) => file.isVideo).toList();
+      return ReturnDocumentation(
+        returnId: returnId,
+        borrowingId: firstRow?['borrowing_id'] as String?,
+        itemId: firstRow?['item_id'] as String?,
+        photos: files.where((file) => file.isPhoto).toList(growable: false),
+        video: videos.isEmpty ? null : videos.first,
+        updatedAt: files.isEmpty ? null : files.first.uploadedAt,
+      );
+    } on PostgrestException catch (error) {
+      throw StorageApiException(
+        'Gagal memuat metadata bukti dari Supabase: ${error.message}',
+        code: error.code,
+      );
     }
-    return ReturnDocumentation.fromJson(payload);
   }
 
-  // -------------------------------------------------------------------------
-  // Unggah satu berkas
-  // -------------------------------------------------------------------------
   Future<DocumentationFile> uploadFile({
     required String returnId,
     required String borrowingId,
@@ -67,63 +72,61 @@ class DocumentationRepository {
     void Function(double progress)? onProgress,
   }) async {
     _assertUploadable(file);
-
-    final uri = Lapak8StorageConfig.uri(
-      _uploadPath(returnId),
-      {'borrowingId': borrowingId, 'itemId': itemId},
-    );
-
-    final request = http.MultipartRequest('POST', uri)
-      ..headers.addAll({
-        ..._headers(),
-        'x-borrowing-id': borrowingId,
-        'x-item-id': itemId,
-      })
-      ..fields['kind'] = file.isPhoto ? 'photo' : 'video'
-      ..fields['fileName'] = file.fileName;
-
     final bytes = file.bytes;
-    if (bytes != null) {
-      request.files.add(
-        http.MultipartFile.fromBytes('file', bytes, filename: file.fileName),
+    if (bytes == null || bytes.isEmpty) {
+      throw StorageApiException(
+        'Isi berkas "${file.fileName}" tidak tersedia. Pilih ulang berkas tersebut.',
+        code: 'missing_file_bytes',
       );
-    } else {
-      request.files.add(
-        await http.MultipartFile.fromPath('file', file.localPath,
-            filename: file.fileName),
+    }
+    if (bytes.length != file.size) {
+      throw StorageApiException(
+        'Ukuran berkas "${file.fileName}" berubah sebelum diunggah.',
+        code: 'file_size_mismatch',
       );
     }
 
-    final totalBytes = request.contentLength;
+    final mime = Lapak8StorageConfig.mediaMimeTypes[file.extension];
+    if (mime == null) {
+      throw StorageApiException(
+        'Tipe berkas "${file.fileName}" tidak didukung.',
+        code: 'unsupported_format',
+      );
+    }
+    final objectPath =
+        '${_safePathSegment(returnId)}/${_safePathSegment(file.id)}';
+
     onProgress?.call(0);
-
-    final streamed = await _withTimeout(() => _client.send(request));
-    final chunks = <int>[];
-    var received = 0;
-
-    await for (final chunk in streamed.stream) {
-      received += chunk.length;
-      chunks.addAll(chunk);
-      if (totalBytes > 0) {
-        onProgress?.call((received / totalBytes).clamp(0.0, 1.0));
-      }
+    try {
+      await _db.storage
+          .from(Lapak8StorageConfig.bucket)
+          .uploadBinary(
+            objectPath,
+            Uint8List.fromList(bytes),
+            fileOptions: FileOptions(contentType: mime, upsert: false),
+          );
+    } on StorageException catch (error) {
+      throw StorageApiException(
+        'Gagal mengunggah bukti ke Supabase Storage: ${error.message}',
+        code: 'storage_upload_failed',
+      );
     }
+    onProgress?.call(1);
 
-    final res = http.Response.bytes(chunks, streamed.statusCode,
-        headers: streamed.headers);
-    final data = _decode(res);
-    final payload = data['data'];
-    if (payload is Map) {
-      final remote = DocumentationFile.tryParse(payload['file']);
-      onProgress?.call(1);
-      if (remote != null) return remote;
-    }
-    throw StorageApiException('Respons unggah tidak valid.',
-        statusCode: res.statusCode);
+    return DocumentationFile(
+      id: file.id,
+      kind: file.kind,
+      fileName: file.fileName,
+      mime: mime,
+      size: bytes.length,
+      path: objectPath,
+      uploadedAt: DateTime.now(),
+      uploadedBy: _db.auth.currentUser?.id,
+    );
   }
 
-  /// Unggah seluruh dokumentasi yang dipilih. Berkas yang gagal tidak
-  /// membatalkan yang lain; kegagalannya dilaporkan via [DocumentationResult.warnings].
+  /// Unggah semua berkas terpilih; kegagalan per berkas dilaporkan sebagai
+  /// peringatan agar alur pemeriksaan dapat menampilkan hasilnya dengan jelas.
   Future<DocumentationResult> uploadAll({
     required String returnId,
     required String borrowingId,
@@ -145,13 +148,15 @@ class DocumentationRepository {
           borrowingId: borrowingId,
           itemId: itemId,
           file: photo,
-          onProgress: (p) => onProgress?.call(photo.id, p),
+          onProgress: (progress) => onProgress?.call(photo.id, progress),
         );
         uploadedPhotos.add(remote);
         onUploaded?.call(photo.id, remote);
-      } on StorageApiException catch (e) {
-        warnings.add('Foto "${photo.fileName}" gagal diunggah: ${e.message}');
-        onFailed?.call(photo.id, e.message);
+      } on StorageApiException catch (error) {
+        warnings.add(
+          'Foto "${photo.fileName}" gagal diunggah: ${error.message}',
+        );
+        onFailed?.call(photo.id, error.message);
       }
     }
 
@@ -162,12 +167,14 @@ class DocumentationRepository {
           borrowingId: borrowingId,
           itemId: itemId,
           file: video,
-          onProgress: (p) => onProgress?.call(video.id, p),
+          onProgress: (progress) => onProgress?.call(video.id, progress),
         );
         onUploaded?.call(video.id, uploadedVideo);
-      } on StorageApiException catch (e) {
-        warnings.add('Video "${video.fileName}" gagal diunggah: ${e.message}');
-        onFailed?.call(video.id, e.message);
+      } on StorageApiException catch (error) {
+        warnings.add(
+          'Video "${video.fileName}" gagal diunggah: ${error.message}',
+        );
+        onFailed?.call(video.id, error.message);
       }
     }
 
@@ -181,38 +188,59 @@ class DocumentationRepository {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // Hapus
-  // -------------------------------------------------------------------------
   Future<ReturnDocumentation> deleteFile({
     required String returnId,
     required String fileId,
   }) async {
-    final uri = Lapak8StorageConfig.uri(_deletePath(returnId, fileId));
-    final res = await _send(
-      () => _client.delete(uri, headers: _headers()),
-    );
-    final data = _decode(res);
-    final payload = data['data'];
-    if (payload is Map<String, dynamic>) {
-      return ReturnDocumentation.fromJson(payload);
+    final row = await _db
+        .from('return_documentation')
+        .select('file_path')
+        .eq('return_inspection_id', returnId)
+        .eq('file_id', fileId)
+        .maybeSingle();
+    if (row == null) {
+      throw const StorageApiException(
+        'Bukti pemeriksaan yang akan dihapus tidak ditemukan.',
+        code: 'file_not_found',
+      );
     }
-    throw StorageApiException('Respons hapus dokumentasi tidak valid.',
-        statusCode: res.statusCode);
+
+    try {
+      await _db.storage.from(Lapak8StorageConfig.bucket).remove([
+        row['file_path'] as String,
+      ]);
+    } on StorageException catch (error) {
+      throw StorageApiException(
+        'Gagal menghapus bukti dari Supabase Storage: ${error.message}',
+        code: 'storage_delete_failed',
+      );
+    }
+
+    try {
+      await _db
+          .from('return_documentation')
+          .delete()
+          .eq('return_inspection_id', returnId)
+          .eq('file_id', fileId);
+    } on PostgrestException catch (error) {
+      throw StorageApiException(
+        'Berkas terhapus, tetapi metadata bukti gagal diperbarui: '
+        '${error.message}',
+        code: error.code,
+      );
+    }
+    return fetchDocumentation(returnId);
   }
 
-  // -------------------------------------------------------------------------
-  // Validasi lokal sebelum unggah
-  // -------------------------------------------------------------------------
   void _assertUploadable(PendingDocumentationFile file) {
-    final ext = file.extension;
     final allowed = file.isPhoto
         ? Lapak8StorageConfig.photoExtensions
         : Lapak8StorageConfig.videoExtensions;
-    if (!allowed.contains(ext)) {
+    if (!allowed.contains(file.extension)) {
       throw StorageApiException(
         file.isPhoto
-            ? 'Format foto harus JPG, JPEG, PNG, atau WEBP.'
+            ? 'Format foto yang didukung: JPG, PNG, WEBP, GIF, BMP, TIFF, '
+                  'HEIC/HEIF, AVIF, ICO, dan JXL.'
             : 'Format video harus MP4, MOV, atau WEBM.',
         code: 'unsupported_format',
       );
@@ -226,111 +254,54 @@ class DocumentationRepository {
       );
     }
     if (file.size == 0) {
-      throw StorageApiException('Berkas "${file.fileName}" kosong.',
-          code: 'empty_file');
-    }
-  }
-
-  /// Baca header gambar untuk memastikan isi berkas benar, bukan sekadar nama.
-  Future<bool> isRealImage(List<int> bytes) async {
-    if (bytes.length < 12) return false;
-    final head = bytes.sublist(0, 12);
-    final isJpeg = head[0] == 0xFF && head[1] == 0xD8 && head[2] == 0xFF;
-    final isPng = head[0] == 0x89 &&
-        head[1] == 0x50 &&
-        head[2] == 0x4E &&
-        head[3] == 0x47;
-    final isWebp = head[0] == 0x52 &&
-        head[1] == 0x49 &&
-        head[2] == 0x46 &&
-        head[3] == 0x46 &&
-        head[8] == 0x57 &&
-        head[9] == 0x45 &&
-        head[10] == 0x42 &&
-        head[11] == 0x50;
-    return isJpeg || isPng || isWebp;
-  }
-
-  // -------------------------------------------------------------------------
-  // Internal
-  // -------------------------------------------------------------------------
-  Map<String, String> _headers() => {
-        'authorization': 'Bearer ${Lapak8StorageConfig.authToken}',
-        'accept': 'application/json',
-      };
-
-  String _docsPath(String returnId) =>
-      '/api/v1/inspections/${Uri.encodeComponent(returnId)}/docs';
-
-  String _uploadPath(String returnId) =>
-      '/api/v1/inspections/${Uri.encodeComponent(returnId)}/upload';
-
-  String _deletePath(String returnId, String fileId) =>
-      '/api/v1/inspections/${Uri.encodeComponent(returnId)}/files/'
-      '${Uri.encodeComponent(fileId)}';
-
-  Future<http.Response> _send(Future<http.Response> Function() call) async {
-    try {
-      final res = await _withTimeout(call);
-      return res;
-    } on StorageApiException {
-      rethrow;
-    } catch (e) {
       throw StorageApiException(
-        'Tidak dapat menghubungi penyimpanan dokumentasi. '
-        'Periksa koneksi atau server storage. ($e)',
+        'Berkas "${file.fileName}" kosong.',
+        code: 'empty_file',
       );
     }
   }
 
-  Future<T> _withTimeout<T>(Future<T> Function() call) async {
-    try {
-      return await call().timeout(Lapak8StorageConfig.uploadTimeout);
-    } on TimeoutException {
-      throw StorageApiException(
-        'Unggahan melebihi batas waktu. Coba lagi dengan berkas lebih kecil.',
-        code: 'timeout',
+  DocumentationFile _fileFromRow(Map<String, dynamic> row) {
+    final id = row['file_id'];
+    final path = row['file_path'];
+    final kind = row['jenis'];
+    final uploadedAt = row['diunggah_pada'];
+    if (id is! String ||
+        path is! String ||
+        (kind != 'photo' && kind != 'video') ||
+        uploadedAt is! String) {
+      throw const StorageApiException(
+        'Metadata bukti pemeriksaan dari database tidak valid.',
+        code: 'invalid_metadata',
       );
     }
-  }
-
-  Map<String, dynamic> _decode(http.Response res) {
-    Map<String, dynamic>? json;
-    try {
-      final decoded = jsonDecode(utf8.decode(res.bodyBytes));
-      if (decoded is Map<String, dynamic>) json = decoded;
-    } catch (_) {
-      json = null;
+    final date = DateTime.tryParse(uploadedAt);
+    if (date == null) {
+      throw const StorageApiException(
+        'Waktu unggah bukti pemeriksaan tidak valid.',
+        code: 'invalid_metadata',
+      );
     }
 
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      return json ?? const <String, dynamic>{'ok': false};
-    }
-
-    final error = json?['error'];
-    final message = error is Map ? error['message'] as String? : null;
-    final code = error is Map ? error['code'] as String? : null;
-    throw StorageApiException(
-      message ?? _defaultMessage(res.statusCode),
-      code: code,
-      statusCode: res.statusCode,
+    return DocumentationFile(
+      id: id,
+      kind: kind == 'video' ? DocumentationKind.video : DocumentationKind.photo,
+      fileName: row['file_name'] as String? ?? 'Bukti pemeriksaan',
+      mime: row['mime_type'] as String? ?? 'application/octet-stream',
+      size: (row['ukuran_byte'] as num?)?.toInt() ?? 0,
+      path: path,
+      uploadedAt: date.toLocal(),
+      uploadedBy: row['diunggah_oleh'] as String?,
     );
   }
 
-  String _defaultMessage(int status) {
-    switch (status) {
-      case 401:
-        return 'Sesi penyimpanan tidak valid. Silakan login kembali.';
-      case 403:
-        return 'Anda tidak memiliki akses untuk mengubah dokumentasi.';
-      case 409:
-        return 'Batas jumlah dokumentasi tercapai.';
-      case 413:
-        return 'Ukuran berkas terlalu besar.';
-      case 415:
-        return 'Format berkas tidak didukung.';
-      default:
-        return 'Penyimpanan dokumentasi gagal (kode $status).';
+  String _safePathSegment(String value) {
+    if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$').hasMatch(value)) {
+      throw const StorageApiException(
+        'Identitas berkas pemeriksaan tidak valid.',
+        code: 'invalid_path',
+      );
     }
+    return value;
   }
 }

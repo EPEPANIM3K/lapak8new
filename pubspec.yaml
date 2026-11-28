@@ -43,6 +43,7 @@ dependencies:
   adaptive_platform_ui: ^1.0.2
   video_player: ^2.14.1
   http: ^1.6.0
+  http_parser: ^4.1.2
   mime: ^2.1.0
   flutter_secure_storage: ^11.2.0
   supabase_flutter: ^2.18.3
@@ -73,6 +74,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - qrisnya.jpeg
+    - Gemini_Generated_Image_nrvldpnrvldpnrvl.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

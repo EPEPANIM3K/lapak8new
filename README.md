@@ -15,6 +15,24 @@ For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
 
+## Server penyimpanan bukti pengembalian
+
+Unggahan foto/video pemeriksaan memakai server terpisah di port `8787`.
+Format foto yang diterima: JPG/JPEG, PNG, WebP, GIF, BMP, TIF/TIFF,
+HEIC/HEIF, AVIF, ICO, dan JXL.
+Jalankan server ini di terminal tersendiri saat menggunakan fitur bukti:
+
+```powershell
+cd tooling\lapak8_storage_server
+npm start
+```
+
+Server menggunakan Node.js 18+ tanpa dependensi npm tambahan dan menyimpan
+berkas pada folder `tooling\lapak8_storage_server\storage`. Pastikan
+`http://127.0.0.1:8787/api/v1/health` dapat dibuka di browser. Aplikasi
+Android emulator memakai `10.0.2.2:8787`; untuk perangkat fisik, gunakan IP
+komputer host melalui `LAPAK8_STORAGE_BASE_URL`.
+
 ## Backend peminjaman (MySQL)
 
 Backend peminjaman ini berjalan terpisah dari server penyimpanan di port

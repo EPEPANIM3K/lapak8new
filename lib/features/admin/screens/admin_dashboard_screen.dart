@@ -307,8 +307,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         for (final borrowing in _recentBorrowings) ...[
           _BorrowingCard(
             borrowing: borrowing,
-            onReviewTap: widget.onReviewTap ??
-                () => context.go('/admin/borrowings'),
+            onReviewTap:
+                widget.onReviewTap ?? () => context.go('/admin/borrowings'),
           ),
           const SizedBox(height: 12),
         ],
@@ -394,8 +394,7 @@ class _WelcomeCard extends StatelessWidget {
       builder: (context, _) {
         final user = authProvider.user;
         final name = user?.namaLengkap.trim();
-        final displayName =
-            name == null || name.isEmpty ? 'Pengelola' : name;
+        final displayName = name == null || name.isEmpty ? 'Pengelola' : name;
         final role = switch (user?.peran) {
           'admin' => 'Pengelola Sarpras',
           'staf' => 'Staf Sarpras',
@@ -404,100 +403,99 @@ class _WelcomeCard extends StatelessWidget {
           _ => 'Pengelola Sarpras',
         };
         final unit = user?.kelasAtauUnit?.trim();
-        final roleLabel =
-            unit == null || unit.isEmpty ? role : '$role • $unit';
+        final roleLabel = unit == null || unit.isEmpty ? role : '$role • $unit';
 
         return _WhiteCard(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.tertiaryFixed.fade(0.55),
-                  borderRadius: BorderRadius.circular(AppRadius.full),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: AppColors.emerald500,
-                        shape: BoxShape.circle,
-                      ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Sistem Online & Aktif',
-                      style: AppTextStyles.labelSm(
-                        color: AppColors.onTertiaryFixedVariant,
-                      ),
+                    decoration: BoxDecoration(
+                      color: AppColors.tertiaryFixed.fade(0.55),
+                      borderRadius: BorderRadius.circular(AppRadius.full),
                     ),
-                  ],
-                ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: AppColors.emerald500,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Sistem Online & Aktif',
+                          style: AppTextStyles.labelSm(
+                            color: AppColors.onTertiaryFixedVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.schedule,
+                        size: 16,
+                        color: AppColors.slate600,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Semester Ganjil',
+                        style: AppTextStyles.labelMd(
+                          weight: FontWeight.w700,
+                          color: AppColors.slate600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
+              const SizedBox(height: 14),
+              Text(
+                'Selamat Datang,',
+                style: AppTextStyles.bodyMd(color: AppColors.slate600),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                displayName,
+                style: AppTextStyles.headlineMd(
+                  color: AppColors.onSurface,
+                ).copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
               Row(
                 children: [
                   const Icon(
-                    Icons.schedule,
+                    Icons.verified_outlined,
                     size: 16,
-                    color: AppColors.slate600,
+                    color: AppColors.primaryContainer,
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Semester Ganjil',
-                    style: AppTextStyles.labelMd(
-                      weight: FontWeight.w700,
-                      color: AppColors.slate600,
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      roleLabel,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodySm(
+                        weight: FontWeight.w500,
+                        color: AppColors.slate600,
+                      ),
                     ),
                   ),
                 ],
               ),
             ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Selamat Datang,',
-            style: AppTextStyles.bodyMd(color: AppColors.slate600),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            displayName,
-            style: AppTextStyles.headlineMd(
-              color: AppColors.onSurface,
-            ).copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(
-                Icons.verified_outlined,
-                size: 16,
-                color: AppColors.primaryContainer,
-              ),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(
-                  roleLabel,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodySm(
-                    weight: FontWeight.w500,
-                    color: AppColors.slate600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
           ),
         );
       },
@@ -795,10 +793,7 @@ class _LegendDot extends StatelessWidget {
 // Kartu peminjaman terbaru
 // ---------------------------------------------------------------------------
 class _BorrowingCard extends StatelessWidget {
-  const _BorrowingCard({
-    required this.borrowing,
-    required this.onReviewTap,
-  });
+  const _BorrowingCard({required this.borrowing, required this.onReviewTap});
 
   final Peminjaman borrowing;
   final VoidCallback? onReviewTap;
@@ -918,8 +913,7 @@ class _BorrowingCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (borrowing.status ==
-                    StatusPeminjaman.menungguPersetujuan)
+                if (borrowing.status == StatusPeminjaman.menungguPersetujuan)
                   ElevatedButton(
                     onPressed: onReviewTap,
                     style: ElevatedButton.styleFrom(
@@ -955,33 +949,32 @@ class _BorrowingStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (backgroundColor, foregroundColor) = switch (status) {
       StatusPeminjaman.menungguPersetujuan => (
-          const Color(0xFFFFF1D6),
-          const Color(0xFFB45309),
-        ),
-      StatusPeminjaman.disetujui ||
-      StatusPeminjaman.dikembalikan => (
-          AppColors.tertiaryFixed,
-          AppColors.onTertiaryFixedVariant,
-        ),
-      StatusPeminjaman.dipinjam => (
-          AppColors.primaryFixed,
-          AppColors.primary,
-        ),
+        const Color(0xFFFFF1D6),
+        const Color(0xFFB45309),
+      ),
+      StatusPeminjaman.disetujui || StatusPeminjaman.dikembalikan => (
+        AppColors.tertiaryFixed,
+        AppColors.onTertiaryFixedVariant,
+      ),
+      StatusPeminjaman.dipinjam => (AppColors.primaryFixed, AppColors.primary),
+      StatusPeminjaman.menungguPengembalian => (
+        const Color(0xFFFFF1D6),
+        const Color(0xFFB45309),
+      ),
       StatusPeminjaman.terlambat ||
-      StatusPeminjaman.ditolak => (
-          AppColors.errorContainer,
-          AppColors.error,
-        ),
-      StatusPeminjaman.dibatalkan ||
-      StatusPeminjaman.tidak_dikenal => (
-          AppColors.surfaceContainerHigh,
-          AppColors.slate600,
-        ),
+      StatusPeminjaman.pelanggaran ||
+      StatusPeminjaman.ditolak => (AppColors.errorContainer, AppColors.error),
+      StatusPeminjaman.dibatalkan || StatusPeminjaman.tidak_dikenal => (
+        AppColors.surfaceContainerHigh,
+        AppColors.slate600,
+      ),
     };
     final label = switch (status) {
       StatusPeminjaman.menungguPersetujuan => 'Menunggu',
       StatusPeminjaman.disetujui => 'Disetujui',
       StatusPeminjaman.dipinjam => 'Dipinjam',
+      StatusPeminjaman.menungguPengembalian => 'Menunggu Pengembalian',
+      StatusPeminjaman.pelanggaran => 'Pelanggaran',
       StatusPeminjaman.dikembalikan => 'Dikembalikan',
       StatusPeminjaman.terlambat => 'Terlambat',
       StatusPeminjaman.ditolak => 'Ditolak',

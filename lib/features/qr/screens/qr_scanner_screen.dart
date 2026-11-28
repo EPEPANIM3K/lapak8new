@@ -11,6 +11,7 @@ import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
+import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 
 // Simpan di: lib/features/scanner/screens/qr_scanner_screen.dart
 
@@ -18,7 +19,14 @@ const _cameraBg = Color(0xFF0B1224);
 const _frameBlue = Color(0xFF2563EB);
 
 class QrScannerScreen extends StatefulWidget {
-  const QrScannerScreen({super.key});
+  const QrScannerScreen({
+    super.key,
+    this.expectedBorrowingId,
+    this.expectedReturnBorrowingId,
+  });
+
+  final String? expectedBorrowingId;
+  final String? expectedReturnBorrowingId;
 
   @override
   State<QrScannerScreen> createState() => _QrScannerScreenState();
@@ -124,6 +132,7 @@ class _QrScannerScreenState extends State<QrScannerScreen>
     await _controller.stop();
     if (!mounted) return;
 
+    var shouldPopAfterSuccess = false;
     try {
       if (code == null || code.isEmpty) {
         await _showResult(
@@ -133,19 +142,92 @@ class _QrScannerScreenState extends State<QrScannerScreen>
         return;
       }
 
-      final result = await peminjamanService.prosesQrAdmin(code);
+      final expectedBorrowingId = widget.expectedBorrowingId;
+      final expectedReturnBorrowingId = widget.expectedReturnBorrowingId;
+      late final Map<String, dynamic> result;
+      if (expectedReturnBorrowingId != null) {
+        result = await peminjamanService.prosesQrPengembalianAdmin(
+          kodeQr: code,
+          peminjamanId: expectedReturnBorrowingId,
+        );
+        if (result['peminjaman_id'] != expectedReturnBorrowingId ||
+            result['tipe_tiket'] != 'pengembalian' ||
+            result['status'] != 'menunggu_pengembalian' ||
+            result['return_inspection_id'] is! String) {
+          throw const PeminjamanException(
+            'QR tidak cocok dengan transaksi pengembalian yang dipilih.',
+          );
+        }
+        if (!mounted) return;
+        shouldPopAfterSuccess = true;
+        context.pop(result);
+        return;
+      } else if (expectedBorrowingId == null) {
+        result = await peminjamanService.prosesQrAdmin(code);
+      } else {
+        final validation = await peminjamanService.validasiQrPeminjamanAdmin(
+          kodeQr: code,
+          peminjamanId: expectedBorrowingId,
+        );
+        if (validation['peminjaman_id'] != expectedBorrowingId ||
+            validation['tipe_tiket'] != 'pengambilan' ||
+            validation['status'] != 'disetujui') {
+          throw const PeminjamanException(
+            'QR tidak cocok dengan transaksi peminjaman yang dipilih.',
+          );
+        }
+
+        if (!mounted) return;
+        var confirmed = false;
+        await showDialog<void>(
+          context: context,
+          barrierColor: Colors.black54,
+          builder: (_) => ConfirmDialog(
+            icon: Symbols.inventory_2,
+            title: 'Konfirmasi Peminjaman?',
+            message:
+                'Apakah kamu yakin ingin mengonfirmasi penyerahan barang ini kepada user?',
+            cancelText: 'Batal',
+            confirmText: 'Ya, Konfirmasi',
+            confirmIcon: Symbols.check,
+            confirmColor: AppColors.primary,
+            iconColor: AppColors.primary,
+            iconBackground: AppColors.primaryFixed,
+            onConfirm: () => confirmed = true,
+          ),
+        );
+        if (!confirmed || !mounted) return;
+
+        result = await peminjamanService.prosesQrPeminjamanAdmin(
+          kodeQr: code,
+          peminjamanId: expectedBorrowingId,
+        );
+        if (result['peminjaman_id'] != expectedBorrowingId ||
+            result['tipe_tiket'] != 'pengambilan' ||
+            result['status'] != 'dipinjam') {
+          throw const PeminjamanException(
+            'QR tidak cocok dengan transaksi peminjaman yang dipilih.',
+          );
+        }
+      }
+
       switch (result['tipe_tiket']) {
         case 'pengambilan':
           await _showResult(
             success: true,
-            title: 'Pengambilan Berhasil',
-            message:
-                'Peminjaman ${result['kode_booking'] ?? ''} telah ditandai '
-                'sedang dipinjam.',
+            title: expectedBorrowingId == null
+                ? 'Pengambilan Berhasil'
+                : 'Peminjaman Berhasil',
+            message: expectedBorrowingId == null
+                ? 'Peminjaman ${result['kode_booking'] ?? ''} telah ditandai '
+                      'sedang dipinjam.'
+                : 'Peminjaman ${result['kode_booking'] ?? ''} telah '
+                      'dikonfirmasi dan berstatus dipinjam.',
           );
-          break;
-        case 'pengembalian':
-          await _confirmQrReturn(result);
+          if (expectedBorrowingId != null && mounted && context.canPop()) {
+            shouldPopAfterSuccess = true;
+            context.pop();
+          }
           break;
         default:
           throw const PeminjamanException(
@@ -161,125 +243,11 @@ class _QrScannerScreenState extends State<QrScannerScreen>
             'Terjadi kesalahan saat memproses QR. Periksa koneksi lalu coba lagi.',
       );
     } finally {
-      if (mounted) {
+      if (mounted && !shouldPopAfterSuccess) {
         setState(() => _busy = false);
         await _controller.start();
       }
     }
-  }
-
-  Future<void> _confirmQrReturn(Map<String, dynamic> result) async {
-    final borrowingId = result['peminjaman_id'];
-    if (borrowingId is! String || borrowingId.isEmpty) {
-      throw const PeminjamanException('ID peminjaman dari server tidak valid.');
-    }
-    final borrower = result['peminjam'];
-    final borrowerName = borrower is Map
-        ? borrower['nama_lengkap'] as String? ?? 'Peminjam LAPAK8'
-        : 'Peminjam LAPAK8';
-    final items = result['items'];
-    final itemSummary = items is List
-        ? items
-              .whereType<Map>()
-              .map((item) {
-                final name = item['nama_fasilitas'] as String? ?? 'Barang';
-                final quantity = item['jumlah'] as num? ?? 1;
-                return '$name (${quantity.toInt()} unit)';
-              })
-              .join(', ')
-        : 'Barang tidak diketahui';
-    final late = result['terlambat'] == true;
-    final noteController = TextEditingController();
-    var condition = 'baik';
-    final confirmation = await showDialog<Map<String, String?>>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Konfirmasi Pengembalian'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Peminjam: $borrowerName'),
-                const SizedBox(height: 8),
-                Text('Barang: $itemSummary'),
-                const SizedBox(height: 8),
-                Text(
-                  late ? 'Status: Terlambat' : 'Status: Belum terlambat',
-                  style: TextStyle(
-                    color: late ? AppColors.error : AppColors.onSurface,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: condition,
-                  decoration: const InputDecoration(
-                    labelText: 'Kondisi barang',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'baik', child: Text('Baik')),
-                    DropdownMenuItem(value: 'rusak', child: Text('Rusak')),
-                    DropdownMenuItem(value: 'hilang', child: Text('Hilang')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() => condition = value);
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: noteController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Catatan (opsional)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, {
-                'kondisi': condition,
-                'catatan': noteController.text,
-              }),
-              child: const Text('Konfirmasi'),
-            ),
-          ],
-        ),
-      ),
-    );
-    noteController.dispose();
-
-    if (confirmation == null) {
-      await _showResult(
-        success: false,
-        message:
-            'Pengembalian belum dikonfirmasi. Tiket QR ini sudah digunakan; '
-            'minta peminjam membuat QR baru untuk mencoba lagi.',
-      );
-      return;
-    }
-
-    await peminjamanService.selesaikanPengembalian(
-      peminjamanId: borrowingId,
-      kondisiBarang: confirmation['kondisi']!,
-      catatan: confirmation['catatan'],
-    );
-    await _showResult(
-      success: true,
-      title: 'Pengembalian Selesai',
-      message: 'Pengembalian ${result['kode_booking'] ?? ''} berhasil dicatat.',
-    );
   }
 
   Future<void> _showResult({
@@ -347,7 +315,11 @@ class _QrScannerScreenState extends State<QrScannerScreen>
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  'Scan Tiket Akses',
+                  widget.expectedReturnBorrowingId != null
+                      ? 'Scan QR Pengembalian'
+                      : widget.expectedBorrowingId == null
+                      ? 'Scan Tiket Akses'
+                      : 'Scan QR Peminjaman',
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.headlineSm(
                     color: AppColors.onSurface,

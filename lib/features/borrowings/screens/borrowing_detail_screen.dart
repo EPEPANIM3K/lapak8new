@@ -5,29 +5,28 @@ import 'package:flutter/material.dart';
 
 import '../models/peminjaman.dart';
 
-
 class BorrowingDetailSheet extends StatelessWidget {
   const BorrowingDetailSheet({super.key, required this.peminjaman});
 
   final Peminjaman peminjaman;
 
-  static const _primary          = Color(0xFF0037B0);
-  static const _surfaceLow       = Color(0xFFF2F3FF);
-  static const _surfaceLowest    = Color(0xFFFFFFFF);
-  static const _onSurface        = Color(0xFF131B2E);
+  static const _primary = Color(0xFF0037B0);
+  static const _surfaceLow = Color(0xFFF2F3FF);
+  static const _surfaceLowest = Color(0xFFFFFFFF);
+  static const _onSurface = Color(0xFF131B2E);
   static const _onSurfaceVariant = Color(0xFF434655);
-  static const _error            = Color(0xFFBA1A1A);
-  static const _outline          = Color(0xFFC4C5D7);
+  static const _error = Color(0xFFBA1A1A);
+  static const _outline = Color(0xFFC4C5D7);
 
   Color _statusColor(StatusPeminjaman s) => switch (s) {
     StatusPeminjaman.menungguPersetujuan => const Color(0xFFB45309),
-    StatusPeminjaman.disetujui           => const Color(0xFF065F46),
-    StatusPeminjaman.dipinjam            => _primary,
-    StatusPeminjaman.dikembalikan        => const Color(0xFF065F46),
-    StatusPeminjaman.ditolak             => _error,
-    StatusPeminjaman.dibatalkan          => const Color(0xFF64748B),
-    StatusPeminjaman.terlambat           => _error,
-    _                                    => _onSurfaceVariant,
+    StatusPeminjaman.disetujui => const Color(0xFF065F46),
+    StatusPeminjaman.dipinjam => _primary,
+    StatusPeminjaman.dikembalikan => const Color(0xFF065F46),
+    StatusPeminjaman.ditolak => _error,
+    StatusPeminjaman.dibatalkan => const Color(0xFF64748B),
+    StatusPeminjaman.terlambat => _error,
+    _ => _onSurfaceVariant,
   };
 
   @override
@@ -50,7 +49,8 @@ class BorrowingDetailSheet extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 12, bottom: 8),
                 child: Container(
-                  width: 40, height: 4,
+                  width: 40,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: _outline,
                     borderRadius: BorderRadius.circular(99),
@@ -76,9 +76,14 @@ class BorrowingDetailSheet extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: _statusColor(p.status).withValues(alpha: 0.12),
+                              color: _statusColor(
+                                p.status,
+                              ).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
@@ -109,21 +114,46 @@ class BorrowingDetailSheet extends StatelessWidget {
                   children: [
                     _SectionTitle('Informasi Kegiatan'),
                     const SizedBox(height: 8),
-                    _InfoRow(label: 'Kategori',    value: p.labelKategori),
-                    _InfoRow(label: 'Nama Acara',  value: p.namaKegiatan),
+                    _InfoRow(label: 'Kategori', value: p.labelKategori),
+                    _InfoRow(label: 'Nama Acara', value: p.namaKegiatan),
                     if (p.catatanTujuan != null && p.catatanTujuan!.isNotEmpty)
-                      _InfoRow(label: 'Catatan',   value: p.catatanTujuan!),
+                      _InfoRow(label: 'Catatan', value: p.catatanTujuan!),
                     const SizedBox(height: 20),
 
                     _SectionTitle('Waktu Peminjaman'),
                     const SizedBox(height: 8),
-                    _InfoRow(label: 'Mulai',      value: _fmtDt(p.mulaiPada)),
-                    _InfoRow(label: 'Estimasi Kembali', value: _fmtDt(p.estimasiKembaliPada)),
+                    _InfoRow(label: 'Mulai', value: _fmtDt(p.mulaiPada)),
+                    _InfoRow(
+                      label: 'Estimasi Kembali',
+                      value: _fmtDt(p.estimasiKembaliPada),
+                    ),
                     if (p.diambilPada != null)
-                      _InfoRow(label: 'Diambil',  value: _fmtDt(p.diambilPada!)),
+                      _InfoRow(label: 'Diambil', value: _fmtDt(p.diambilPada!)),
                     if (p.dikembalikanPada != null)
-                      _InfoRow(label: 'Dikembalikan', value: _fmtDt(p.dikembalikanPada!)),
+                      _InfoRow(
+                        label: 'Dikembalikan',
+                        value: _fmtDt(p.dikembalikanPada!),
+                      ),
                     const SizedBox(height: 20),
+
+                    if (p.status == StatusPeminjaman.dikembalikan &&
+                        p.pemeriksaanPengembalian != null) ...[
+                      _SectionTitle('Ringkasan Pengembalian'),
+                      const SizedBox(height: 8),
+                      _InfoRow(
+                        label: 'Hasil',
+                        value: p.pemeriksaanPengembalian!.labelHasil,
+                      ),
+                      _InfoRow(
+                        label: 'Kondisi',
+                        value: p.pemeriksaanPengembalian!.labelKondisi,
+                      ),
+                      _InfoRow(
+                        label: 'Denda',
+                        value: p.pemeriksaanPengembalian!.labelDenda,
+                      ),
+                      const SizedBox(height: 20),
+                    ],
 
                     if (p.items.isNotEmpty) ...[
                       _SectionTitle('Item Dipinjam'),
@@ -138,7 +168,11 @@ class BorrowingDetailSheet extends StatelessWidget {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.inventory_2, color: _primary, size: 20),
+                              const Icon(
+                                Icons.inventory_2,
+                                color: _primary,
+                                size: 20,
+                              ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
@@ -151,7 +185,10 @@ class BorrowingDetailSheet extends StatelessWidget {
                               ),
                               Text(
                                 '${item.jumlah} unit',
-                                style: const TextStyle(color: _onSurfaceVariant, fontSize: 12),
+                                style: const TextStyle(
+                                  color: _onSurfaceVariant,
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
@@ -161,11 +198,18 @@ class BorrowingDetailSheet extends StatelessWidget {
 
                     _SectionTitle('Riwayat Status'),
                     const SizedBox(height: 8),
-                    _InfoRow(label: 'Diajukan',   value: _fmtDt(p.diajukanPada)),
+                    _InfoRow(label: 'Diajukan', value: _fmtDt(p.diajukanPada)),
                     if (p.disetujuiPada != null)
-                      _InfoRow(label: 'Disetujui', value: _fmtDt(p.disetujuiPada!)),
-                    if (p.alasanPenolakan != null && p.alasanPenolakan!.isNotEmpty)
-                      _InfoRow(label: 'Alasan Penolakan', value: p.alasanPenolakan!),
+                      _InfoRow(
+                        label: 'Disetujui',
+                        value: _fmtDt(p.disetujuiPada!),
+                      ),
+                    if (p.alasanPenolakan != null &&
+                        p.alasanPenolakan!.isNotEmpty)
+                      _InfoRow(
+                        label: 'Alasan Penolakan',
+                        value: p.alasanPenolakan!,
+                      ),
                   ],
                 ),
               ),
@@ -177,9 +221,22 @@ class BorrowingDetailSheet extends StatelessWidget {
   }
 
   String _fmtDt(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
     return '${dt.day} ${months[dt.month - 1]} ${dt.year}, '
-        '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
+        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }
 

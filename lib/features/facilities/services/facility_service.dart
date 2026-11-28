@@ -33,6 +33,27 @@ class FacilityService {
     }
   }
 
+  Future<List<Facility>> fetchPopularFacilities({int limit = 4}) async {
+    try {
+      final response = await _db.rpc(
+        'fasilitas_populer_dashboard',
+        params: {'p_limit': limit},
+      );
+      if (response is! List) {
+        throw const FacilityException(
+          'Data item populer dari server tidak valid.',
+        );
+      }
+      return response
+          .map<Facility>(
+            (row) => Facility.fromMap(Map<String, dynamic>.from(row as Map)),
+          )
+          .toList(growable: false);
+    } on PostgrestException catch (e) {
+      throw FacilityException('Gagal memuat item populer: ${e.message}');
+    }
+  }
+
   Future<List<LokasiItem>> fetchLocations() async {
     try {
       final rows = await _db.from('lokasi').select('id, nama').order('nama');

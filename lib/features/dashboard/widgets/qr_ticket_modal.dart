@@ -1,4 +1,3 @@
-
 import 'dart:ui' as ui;
 
 import 'package:file_saver/file_saver.dart';
@@ -11,29 +10,25 @@ class QrTicketModal extends StatelessWidget {
   final String facilityName;
   final String activity;
   final String schedule;
-  final String picName;
-  final String? qrPayload;
+  final String qrPayload;
   final String borrowerName;
   final bool isReturn;
-  final DateTime? expiresAt;
+  final DateTime expiresAt;
 
   const QrTicketModal({
     super.key,
-    this.bookingCode = '#BK-2024-089',
-    this.facilityName = 'Lab Komputer 2',
-    this.activity = 'Uji Sertifikasi LSP',
-    this.schedule = 'Hari ini • 13:30 - 15:30 WIB',
-    this.picName = 'Pak Budi Santoso, S.Kom',
-    this.qrPayload,
-    this.borrowerName = '-',
+    required this.bookingCode,
+    required this.facilityName,
+    required this.activity,
+    required this.schedule,
+    required this.qrPayload,
+    required this.borrowerName,
+    required this.expiresAt,
     this.isReturn = false,
-    this.expiresAt,
   });
 
   String _expiryLabel() {
-    final expiry = expiresAt;
-    if (expiry == null) return 'Tidak diketahui';
-    final local = expiry.toLocal();
+    final local = expiresAt.toLocal();
     String twoDigits(int value) => value.toString().padLeft(2, '0');
     return '${twoDigits(local.day)}/${twoDigits(local.month)}/${local.year} '
         '${twoDigits(local.hour)}:${twoDigits(local.minute)} WIB';
@@ -73,18 +68,8 @@ class QrTicketModal extends StatelessWidget {
 
   Future<void> _unduhTiket(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
-    final payload = qrPayload;
-    if (payload == null) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('QR belum tersedia.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
     try {
-      final bytes = await _renderQrPng(payload);
+      final bytes = await _renderQrPng(qrPayload);
       final kode = bookingCode.replaceAll('#', '');
       await FileSaver.instance.saveFile(
         name: 'tiket-$kode',
@@ -328,19 +313,12 @@ class QrTicketModal extends StatelessWidget {
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
-                                if (qrPayload == null)
-                                  const Icon(
-                                    Icons.qr_code_2,
-                                    size: 130,
-                                    color: Color(0xFF0F172A),
-                                  )
-                                else
-                                  QrImageView(
-                                    data: qrPayload!,
-                                    size: 130,
-                                    backgroundColor: Colors.white,
-                                    errorCorrectionLevel: QrErrorCorrectLevel.M,
-                                  ),
+                                QrImageView(
+                                  data: qrPayload,
+                                  size: 130,
+                                  backgroundColor: Colors.white,
+                                  errorCorrectionLevel: QrErrorCorrectLevel.M,
+                                ),
                               ],
                             ),
                           ),
@@ -360,7 +338,7 @@ class QrTicketModal extends StatelessWidget {
                                   child: Text(
                                     isReturn
                                         ? 'Tunjukkan QR ini kepada petugas saat mengembalikan barang'
-                                        : 'Tunjukkan QR ini kepada petugas saat mengambil barang',
+                                        : 'Tunjukkan QR ini kepada petugas untuk konfirmasi peminjaman',
                                     textAlign: TextAlign.center,
                                     style: const TextStyle(
                                       fontSize: 10,
@@ -430,10 +408,6 @@ class QrTicketModal extends StatelessWidget {
                           _buildDetailRow('Kegiatan', activity),
                           const SizedBox(height: 6),
                           _buildDetailRow('Jadwal', schedule),
-                          const SizedBox(height: 8),
-                          const Divider(color: Color(0xFFE2E8F0), height: 1),
-                          const SizedBox(height: 8),
-                          _buildDetailRow('PIC Lab', picName),
                         ],
                       ),
                     ),

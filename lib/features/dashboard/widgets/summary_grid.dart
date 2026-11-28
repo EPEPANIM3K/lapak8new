@@ -11,10 +11,12 @@ class SummaryGrid extends StatelessWidget {
     super.key,
     required this.activeCount,
     required this.pendingCount,
+    required this.isLoading,
   });
 
-  final int activeCount;
-  final int pendingCount;
+  final int? activeCount;
+  final int? pendingCount;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -28,9 +30,9 @@ class SummaryGrid extends StatelessWidget {
         children: [
           Expanded(
             child: SummaryCard(
-              value: '$activeCount',
+              value: isLoading ? '…' : activeCount?.toString() ?? '—',
               title: 'Pinjaman Aktif',
-              subtitle: 'Disetujui hari ini',
+              subtitle: 'Status pinjaman aktif',
               icon: Symbols.task_alt,
               iconFilled: true,
               iconBackground: AppColors.tertiaryFixed,
@@ -43,9 +45,9 @@ class SummaryGrid extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: SummaryCard(
-              value: '$pendingCount',
+              value: isLoading ? '…' : pendingCount?.toString() ?? '—',
               title: 'Menunggu Review',
-              subtitle: 'Verifikasi Sarpras',
+              subtitle: 'Belum disetujui',
               icon: Symbols.pending_actions,
               iconBackground: AppColors.secondaryContainer,
               iconColor: AppColors.onSecondaryContainer,

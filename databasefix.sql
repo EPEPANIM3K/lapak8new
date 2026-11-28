@@ -277,9 +277,9 @@ CREATE TABLE IF NOT EXISTS public.return_inspections (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Table: public.return_documentation (external inspection file metadata)
--- Files are stored by the external storage server; DB stores metadata/compatibility only.
--- External API contract: /api/v1/inspections/:returnId/docs|upload|files/:fileId|file/:fileId
+-- Table: public.return_documentation (Supabase Storage evidence metadata)
+-- Files are stored privately in the return-documentation bucket; this table
+-- stores metadata and the relative object path.
 CREATE TABLE IF NOT EXISTS public.return_documentation (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   borrowing_id UUID REFERENCES public.peminjaman(id) ON DELETE CASCADE,
@@ -289,7 +289,7 @@ CREATE TABLE IF NOT EXISTS public.return_documentation (
   file_id TEXT,                         -- external file id from storage API
   jenis TEXT NOT NULL DEFAULT 'photo' CHECK (jenis IN ('photo','video')),
   file_name TEXT,
-  file_path TEXT NOT NULL,              -- relative API path: /api/v1/inspections/<inspectionId>/file/<fileId>
+  file_path TEXT NOT NULL,              -- relative Storage path: <returnInspectionId>/<fileId>
   mime_type TEXT,
   ukuran_byte BIGINT NOT NULL DEFAULT 0,
   diunggah_oleh UUID REFERENCES public.pengguna(id) ON DELETE SET NULL,
@@ -551,7 +551,7 @@ BEGIN
   END IF;
 
   IF p_status IS NULL
-     OR p_status NOT IN ('disetujui', 'ditolak', 'dipinjam', 'dikembalikan', 'terlambat') THEN
+     OR p_status NOT IN ('disetujui', 'ditolak', 'dikembalikan', 'terlambat') THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Status peminjaman tidak valid.';
   END IF;
 
@@ -568,7 +568,6 @@ BEGIN
 
   IF NOT (
     (v_status_lama = 'menunggu_persetujuan' AND p_status IN ('disetujui', 'ditolak'))
-    OR (v_status_lama = 'disetujui' AND p_status = 'dipinjam')
     OR (v_status_lama = 'dipinjam' AND p_status IN ('dikembalikan', 'terlambat'))
     OR (v_status_lama = 'terlambat' AND p_status = 'dikembalikan')
   ) THEN
@@ -671,7 +670,6 @@ BEGIN
   SET status = p_status,
       alasan_penolakan = CASE WHEN p_status = 'ditolak' THEN v_alasan ELSE NULL END,
       disetujui_pada = CASE WHEN p_status = 'disetujui' THEN now() ELSE disetujui_pada END,
-      diambil_pada = CASE WHEN p_status = 'dipinjam' THEN now() ELSE diambil_pada END,
       dikembalikan_pada = CASE WHEN p_status = 'dikembalikan' THEN now() ELSE dikembalikan_pada END,
       updated_at = now()
   WHERE id = p_peminjaman_id;
@@ -1027,10 +1025,8 @@ CREATE POLICY peminjaman_baca_milik_atau_admin ON public.peminjaman
 DROP POLICY IF EXISTS peminjaman_buat_sendiri ON public.peminjaman;
 
 DROP POLICY IF EXISTS peminjaman_kelola_admin ON public.peminjaman;
-CREATE POLICY peminjaman_kelola_admin ON public.peminjaman
-  FOR ALL TO authenticated
-  USING (public.adalah_admin_atau_staf())
-  WITH CHECK (public.adalah_admin_atau_staf());
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.peminjaman
+  FROM PUBLIC, anon, authenticated;
 
 -- ==== item_peminjaman ====
 DROP POLICY IF EXISTS item_baca_milik_atau_admin ON public.item_peminjaman;

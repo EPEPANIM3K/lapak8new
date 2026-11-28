@@ -54,6 +54,12 @@ function startServer() {
   });
 }
 
+function isoBmffBuffer(brand) {
+  const size = Buffer.alloc(4);
+  size.writeUInt32BE(24);
+  return Buffer.concat([size, Buffer.from(`ftyp${brand}mif1`), Buffer.alloc(20)]);
+}
+
 async function stopServer() {
   if (!child) return;
   const done = new Promise((r) => child.once('exit', r));
@@ -163,9 +169,37 @@ async function main() {
   const fake = await upload(RETURN_ID, BORROW_ID, ITEM_ID, 'palsu.jpg', 'image/jpeg', Buffer.from('bukan gambar sama sekali'));
   check('berkas palsu ditolak 415', fake.status === 415, JSON.stringify(fake.json));
 
-  // 2b. format tidak didukung
+  // 2b. ekstensi GIF didukung, tetapi isi palsu harus ditolak
   const gif = await upload(RETURN_ID, BORROW_ID, ITEM_ID, 'x.gif', 'image/gif', pngBuffer(2));
-  check('format GIF ditolak 415', gif.status === 415, JSON.stringify(gif.json));
+  check('signature GIF palsu ditolak 415', gif.status === 415, JSON.stringify(gif.json));
+
+  const extraPhotoFormats = [
+    ['gif', 'image/gif', Buffer.from('GIF89a' + 'LAPAK8')],
+    ['bmp', 'image/bmp', Buffer.concat([Buffer.from('BM'), Buffer.alloc(20)])],
+    ['tif', 'image/tiff', Buffer.concat([Buffer.from([0x49, 0x49, 0x2a, 0x00]), Buffer.alloc(20)])],
+    ['tiff', 'image/tiff', Buffer.concat([Buffer.from([0x4d, 0x4d, 0x00, 0x2a]), Buffer.alloc(20)])],
+    ['heic', 'image/heic', isoBmffBuffer('heic')],
+    ['heif', 'image/heif', isoBmffBuffer('mif1')],
+    ['avif', 'image/avif', isoBmffBuffer('avif')],
+    ['ico', 'image/vnd.microsoft.icon', Buffer.concat([Buffer.from([0x00, 0x00, 0x01, 0x00]), Buffer.alloc(20)])],
+    ['jxl', 'image/jxl', Buffer.concat([Buffer.from([0xff, 0x0a]), Buffer.alloc(20)])],
+  ];
+  for (const [ext, mime, bytes] of extraPhotoFormats) {
+    const formatReturnId = `KM-format-${ext}`;
+    const result = await upload(
+      formatReturnId,
+      BORROW_ID,
+      ITEM_ID,
+      `foto.${ext}`,
+      mime,
+      bytes,
+    );
+    check(
+      `${ext.toUpperCase()} diterima`,
+      result.status === 201 && result.json.data.file.kind === 'photo',
+      JSON.stringify(result.json).slice(0, 160),
+    );
+  }
 
   // 2c. mime tidak cocok dengan ekstensi
   const mimeBad = await upload(RETURN_ID, BORROW_ID, ITEM_ID, 'foto.png', 'image/jpeg', pngBuffer(3));

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -133,9 +134,16 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
-        // Welcome text
+        // App name and welcome text
         Text(
-          'LAPAK8 - Selamat Datang Kembali!',
+          'LAPAK8',
+          textAlign: TextAlign.center,
+          style: AppTextStyles.headlineLg(
+            color: AppColors.onSurface,
+          ).copyWith(letterSpacing: -0.02 * 28),
+        ),
+        Text(
+          'selamat datang!',
           textAlign: TextAlign.center,
           style: AppTextStyles.headlineLg(
             color: AppColors.onSurface,
@@ -218,14 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               GestureDetector(
-                onTap: () {
-                  // TODO: Implement forgot password flow
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Fitur lupa password akan segera hadir'),
-                    ),
-                  );
-                },
+                onTap: () => context.push('/password-reset-help'),
                 child: Text(
                   'Lupa Kata Sandi?',
                   style: AppTextStyles.labelMd(

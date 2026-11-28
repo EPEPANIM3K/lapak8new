@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:lapak8new/core/storage/storage_config.dart';
 import 'package:lapak8new/features/admin/models/return_documentation.dart';
 
 /// Sumber pemilihan berkas dokumentasi.
@@ -148,7 +149,7 @@ class MediaPickerService {
   }
 
   static const List<String> _videoExt = ['mp4', 'mov', 'webm'];
-  static const int _photoLimit = 10 * 1024 * 1024;
+  static const int _photoLimit = Lapak8StorageConfig.maxPhotoBytes;
   static const int _videoLimit = 100 * 1024 * 1024;
   static const int _maxVideos = 1;
 

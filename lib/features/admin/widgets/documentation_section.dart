@@ -17,9 +17,8 @@ const int kMaxDocVideos = 1;
 
 /// Section "Dokumentasi Kondisi Barang" pada form Cek Kondisi.
 ///
-/// Mengelola pemilihan & preview foto (maks [kMaxDocPhotos]) dan video
-/// (maks [kMaxDocVideos]) secara lokal di frontend. Belum ada integrasi
-/// backend — berkas hanya disimpan pada state sementara.
+/// Mengelola pemilihan dan preview lokal foto/video sebelum parent mengunggah
+/// berkas yang dipilih ke penyimpanan dokumentasi.
 class DocumentationSection extends StatefulWidget {
   const DocumentationSection({
     super.key,
@@ -31,8 +30,10 @@ class DocumentationSection extends StatefulWidget {
 
   /// Dipanggil setiap kali daftar foto / video berubah.
   final void Function(
-          List<PendingDocumentationFile> photos, PendingDocumentationFile? video)
-      onChanged;
+    List<PendingDocumentationFile> photos,
+    PendingDocumentationFile? video,
+  )
+  onChanged;
 
   @override
   State<DocumentationSection> createState() => _DocumentationSectionState();
@@ -87,8 +88,10 @@ class _DocumentationSectionState extends State<DocumentationSection> {
     if (source == null || !mounted) return;
 
     setState(() => _busy = true);
-    final outcome = await widget.picker
-        .pickPhotos(source: source, remainingSlots: remaining);
+    final outcome = await widget.picker.pickPhotos(
+      source: source,
+      remainingSlots: remaining,
+    );
     if (!mounted) return;
     setState(() => _busy = false);
 
@@ -116,7 +119,8 @@ class _DocumentationSectionState extends State<DocumentationSection> {
     if (_busy) return;
     if (_video != null) {
       _showMessage(
-          'Hanya satu video per pemeriksaan. Hapus dulu untuk mengganti.');
+        'Hanya satu video per pemeriksaan. Hapus dulu untuk mengganti.',
+      );
       return;
     }
     _clearMessage();
@@ -202,8 +206,11 @@ class _DocumentationSectionState extends State<DocumentationSection> {
             color: AppColors.primaryFixed,
             shape: BoxShape.circle,
           ),
-          child: const MsIcon(Symbols.photo_camera,
-              size: 20, color: AppColors.primary),
+          child: const MsIcon(
+            Symbols.photo_camera,
+            size: 20,
+            color: AppColors.primary,
+          ),
         ),
         const SizedBox(width: 12),
         const Expanded(
@@ -222,10 +229,7 @@ class _DocumentationSectionState extends State<DocumentationSection> {
               Text(
                 'Lampirkan foto (maks. 6) dan video (maks. 1) sebagai '
                 'bukti kondisi barang saat dikembalikan.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.slate600,
-                ),
+                style: TextStyle(fontSize: 12, color: AppColors.slate600),
               ),
             ],
           ),
@@ -256,8 +260,9 @@ class _DocumentationSectionState extends State<DocumentationSection> {
 
   Widget _buildMessageBanner() {
     final color = _messageIsError ? AppColors.error : AppColors.primary;
-    final bg =
-        _messageIsError ? AppColors.errorContainer : AppColors.primaryFixed;
+    final bg = _messageIsError
+        ? AppColors.errorContainer
+        : AppColors.primaryFixed;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -317,8 +322,10 @@ class _DocumentationSectionState extends State<DocumentationSection> {
             const gap = 10.0;
             final width = constraints.maxWidth;
             final columns = width >= 560 ? 5 : (width >= 420 ? 4 : 3);
-            final tile =
-                ((width - gap * (columns - 1)) / columns).clamp(0.0, 96.0);
+            final tile = ((width - gap * (columns - 1)) / columns).clamp(
+              0.0,
+              96.0,
+            );
             final children = <Widget>[
               for (var i = 0; i < _photos.length; i++)
                 _PhotoTile(
@@ -327,17 +334,9 @@ class _DocumentationSectionState extends State<DocumentationSection> {
                   onRemove: () => _removePhoto(i),
                 ),
               if (_photos.length < kMaxDocPhotos)
-                _AddTile(
-                  size: tile,
-                  busy: _busy,
-                  onTap: _addPhotos,
-                ),
+                _AddTile(size: tile, busy: _busy, onTap: _addPhotos),
             ];
-            return Wrap(
-              spacing: gap,
-              runSpacing: gap,
-              children: children,
-            );
+            return Wrap(spacing: gap, runSpacing: gap, children: children);
           },
         ),
       ],
@@ -384,7 +383,6 @@ class _DocumentationSectionState extends State<DocumentationSection> {
       ],
     );
   }
-
 }
 
 // ---------------------------------------------------------------------------
@@ -442,11 +440,7 @@ class _PhotoTile extends StatelessWidget {
 // Tile tambah foto (tombol +)
 // ---------------------------------------------------------------------------
 class _AddTile extends StatelessWidget {
-  const _AddTile({
-    required this.size,
-    required this.busy,
-    required this.onTap,
-  });
+  const _AddTile({required this.size, required this.busy, required this.onTap});
 
   final double size;
   final bool busy;
@@ -463,10 +457,7 @@ class _AddTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.primaryFixed.fade(0.35),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: AppColors.primary.fade(0.35),
-            width: 1.4,
-          ),
+          border: Border.all(color: AppColors.primary.fade(0.35), width: 1.4),
         ),
         child: busy
             ? const Center(
@@ -479,8 +470,7 @@ class _AddTile extends StatelessWidget {
             : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const MsIcon(Symbols.add,
-                      size: 24, color: AppColors.primary),
+                  const MsIcon(Symbols.add, size: 24, color: AppColors.primary),
                   const SizedBox(height: 2),
                   Text(
                     'Tambah',
@@ -500,11 +490,7 @@ class _AddTile extends StatelessWidget {
 // Area video kosong (upload)
 // ---------------------------------------------------------------------------
 class _EmptyVideoTile extends StatelessWidget {
-  const _EmptyVideoTile({
-    super.key,
-    required this.busy,
-    required this.onTap,
-  });
+  const _EmptyVideoTile({super.key, required this.busy, required this.onTap});
 
   final bool busy;
   final VoidCallback onTap;
@@ -519,10 +505,7 @@ class _EmptyVideoTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.primaryFixed.fade(0.35),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: AppColors.primary.fade(0.35),
-            width: 1.4,
-          ),
+          border: Border.all(color: AppColors.primary.fade(0.35), width: 1.4),
         ),
         child: busy
             ? const Center(
@@ -534,8 +517,11 @@ class _EmptyVideoTile extends StatelessWidget {
               )
             : Column(
                 children: [
-                  const MsIcon(Symbols.videocam,
-                      size: 30, color: AppColors.primary),
+                  const MsIcon(
+                    Symbols.videocam,
+                    size: 30,
+                    color: AppColors.primary,
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     'Tambah Video',
@@ -558,7 +544,6 @@ class _EmptyVideoTile extends StatelessWidget {
     );
   }
 }
-
 
 // ---------------------------------------------------------------------------
 // Preview video + tombol ganti & hapus
@@ -595,8 +580,11 @@ class _VideoTile extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
             child: Row(
               children: [
-                const MsIcon(Symbols.videocam,
-                    size: 16, color: AppColors.slate600),
+                const MsIcon(
+                  Symbols.videocam,
+                  size: 16,
+                  color: AppColors.slate600,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -677,4 +665,3 @@ class _VideoAction extends StatelessWidget {
     );
   }
 }
-

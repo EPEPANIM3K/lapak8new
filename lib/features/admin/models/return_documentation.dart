@@ -1,7 +1,4 @@
-/// Model dokumentasi kondisi barang yang tersimpan di server penyimpanan.
-///
-/// Semua field berasal dari respons API `/api/v1/inspections/:returnId/docs`,
-/// tidak ada data dummy.
+/// Model metadata dokumentasi kondisi barang yang tersimpan di Supabase.
 library;
 
 enum DocumentationKind { photo, video }
@@ -24,7 +21,7 @@ class DocumentationFile {
   final String mime;
   final int size;
 
-  /// Path relatif di server (mis. `/api/v1/inspections/KM-1/file/<uuid>`).
+  /// Path relatif di bucket Supabase (mis. `<returnInspectionId>/<fileId>`).
   final String path;
   final DateTime uploadedAt;
   final String? uploadedBy;
@@ -49,7 +46,7 @@ class DocumentationFile {
       path: path,
       uploadedAt:
           DateTime.tryParse((json['uploadedAt'] as String?) ?? '')?.toLocal() ??
-              DateTime.now(),
+          DateTime.now(),
       uploadedBy: json['uploadedBy'] as String?,
     );
   }
@@ -102,8 +99,9 @@ class ReturnDocumentation {
       itemId: json['itemId'] as String?,
       photos: DocumentationFile.parseList(json['photos']),
       video: DocumentationFile.tryParse(json['video']),
-      updatedAt: DateTime.tryParse((json['updatedAt'] as String?) ?? '')
-          ?.toLocal(),
+      updatedAt: DateTime.tryParse(
+        (json['updatedAt'] as String?) ?? '',
+      )?.toLocal(),
     );
   }
 }
@@ -202,11 +200,11 @@ class DocumentationResult {
   int get videoCount => video == null ? 0 : 1;
 
   ReturnDocumentation toDocumentation() => ReturnDocumentation(
-        returnId: returnId,
-        borrowingId: borrowingId,
-        itemId: itemId,
-        photos: photos,
-        video: video,
-        updatedAt: DateTime.now(),
-      );
+    returnId: returnId,
+    borrowingId: borrowingId,
+    itemId: itemId,
+    photos: photos,
+    video: video,
+    updatedAt: DateTime.now(),
+  );
 }

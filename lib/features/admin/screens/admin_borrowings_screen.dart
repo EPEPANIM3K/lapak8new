@@ -1,17 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:video_player/video_player.dart';
 
 import 'package:lapak8new/core/constants/app_colors.dart';
 import 'package:lapak8new/core/constants/app_dimens.dart';
 import 'package:lapak8new/core/constants/app_text_styles.dart';
+import 'package:lapak8new/core/storage/storage_config.dart';
 import 'package:lapak8new/features/borrowings/models/peminjaman.dart';
 import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
 import 'package:lapak8new/features/admin/models/return_documentation.dart';
 import 'package:lapak8new/features/admin/services/media_picker_service.dart';
+import 'package:lapak8new/features/admin/services/documentation_repository.dart';
 import 'package:lapak8new/features/admin/widgets/documentation_section.dart';
+import 'package:lapak8new/features/admin/widgets/documentation_media_previews.dart';
 import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
 import 'package:lapak8new/shared/widgets/confirm_dialog.dart';
 import 'package:lapak8new/shared/widgets/ms_icon.dart';
+import 'package:lapak8new/shared/widgets/user_avatar.dart';
 
 // Simpan di: lib/features/admin/screens/admin_borrowings_screen.dart
 // Halaman Aktivitas admin: Peminjaman + Pengembalian (satu screen, dua tab).
@@ -31,7 +39,14 @@ enum _LoanStatus {
   cancelled,
 }
 
-enum _ReturnStatus { pending, returned, late, damaged, rejected }
+enum _ReturnStatus {
+  pending,
+  waitingPayment,
+  waitingAdminConfirmation,
+  returned,
+  late,
+  damaged,
+}
 
 // Warna status yang belum ada di AppColors (amber untuk "menunggu").
 const _amberBg = Color(0xFFFFF1D6);
@@ -90,6 +105,7 @@ class _Loan {
 
 class _Return {
   const _Return({
+    required this.borrowingId,
     required this.code,
     required this.name,
     required this.subtitle,
@@ -99,15 +115,16 @@ class _Return {
     required this.itemIcon,
     required this.detailIcon,
     required this.detail,
-    this.isTeacher = false,
     this.highlight,
     this.highlightColor,
-    this.trailingDetail,
-    this.note,
     this.avatarUrl,
-    this.checkResult,
+    this.itemId,
+    this.returnRequestedAt,
+    this.dueAt,
+    this.inspection,
   });
 
+  final String borrowingId;
   final String code;
   final String name;
   final String subtitle;
@@ -117,46 +134,30 @@ class _Return {
   final IconData itemIcon;
   final IconData detailIcon;
   final String detail;
-  final bool isTeacher;
   final String? highlight;
   final Color? highlightColor;
-  final String? trailingDetail;
-  final String? note;
   final String? avatarUrl;
-
-  /// Hasil verifikasi Cek Kondisi (diisi saat petugas selesai memeriksa).
-  final InspectionResult? checkResult;
-
-  String get initials {
-    final parts = name.replaceAll('Drs. ', '').trim().split(' ');
-    final a = parts.first.isNotEmpty ? parts.first[0] : '';
-    final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
-    return (a + b).toUpperCase();
-  }
+  final String? itemId;
+  final DateTime? returnRequestedAt;
+  final DateTime? dueAt;
+  final PemeriksaanPengembalian? inspection;
 }
 
 /// Hasil pemeriksaan kondisi barang dari form Cek Kondisi.
 class InspectionResult {
   const InspectionResult({
-    required this.isApproved,
-    required this.positiveChecks,
-    required this.negativeChecks,
+    required this.condition,
     required this.description,
     required this.fine,
-    required this.checkedAt,
     this.documentationPhotos = const [],
     this.documentationVideo,
   });
 
-  final bool isApproved;
-  final List<String> positiveChecks;
-  final List<String> negativeChecks;
+  final String condition;
   final String description;
-  final String fine;
-  final String checkedAt;
+  final int fine;
 
   /// Dokumentasi kondisi barang yang dipilih saat pemeriksaan.
-  /// (State frontend sementara; integrasi unggah menyusul.)
   final List<PendingDocumentationFile> documentationPhotos;
   final PendingDocumentationFile? documentationVideo;
 }
@@ -181,7 +182,10 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
   _ReturnStatus? _returnFilter; // null = semua
   String _query = '';
   final PeminjamanService _svc = peminjamanService;
+  final DocumentationRepository _documentationRepository =
+      DocumentationRepository();
   final Set<String> _updatingBorrowingIds = {};
+  List<Peminjaman> _borrowings = [];
   List<_Loan> _loans = [];
   bool _isLoadingLoans = true;
   String? _loansError;
@@ -203,7 +207,15 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
       final peminjaman = await _svc.ambilSemuaPeminjaman();
       if (!mounted) return;
       setState(() {
-        _loans = peminjaman.map(_toLoan).toList();
+        _borrowings = peminjaman;
+        _loans = peminjaman
+            .where(
+              (p) =>
+                  p.status != StatusPeminjaman.menungguPengembalian &&
+                  p.status != StatusPeminjaman.pelanggaran,
+            )
+            .map(_toLoan)
+            .toList();
         _isLoadingLoans = false;
         _loansError = null;
       });
@@ -257,11 +269,63 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
       highlightColor: null,
       trailingDetail: null,
       note: p.alasanPenolakan,
-      avatarUrl: null,
+      avatarUrl: p.fotoUrlPeminjam,
       borrowingId: p.id,
       isLate:
           p.status == StatusPeminjaman.terlambat ||
           DateTime.now().isAfter(p.estimasiKembaliPada),
+    );
+  }
+
+  _Return? _toReturn(Peminjaman p) {
+    final isReturned = p.status == StatusPeminjaman.dikembalikan;
+    final status = switch (p.status) {
+      StatusPeminjaman.dikembalikan => _ReturnStatus.returned,
+      StatusPeminjaman.menungguPengembalian => _ReturnStatus.pending,
+      StatusPeminjaman.pelanggaran =>
+        p.pemeriksaanPengembalian?.statusPembayaran ==
+                'menunggu_konfirmasi_admin'
+            ? _ReturnStatus.waitingAdminConfirmation
+            : _ReturnStatus.waitingPayment,
+      _ => null,
+    };
+    if (status == null) return null;
+
+    final firstItem = p.items.isEmpty ? null : p.items.first;
+    final returnedAt = p.dikembalikanPada;
+    final inspection = p.pemeriksaanPengembalian;
+    return _Return(
+      borrowingId: p.id,
+      code: p.kodeBooking,
+      name: p.namaPeminjam?.trim().isNotEmpty == true
+          ? p.namaPeminjam!.trim()
+          : 'Pengguna LAPAK8',
+      subtitle: p.nomorIndukPeminjam != null
+          ? 'ID: ${p.nomorIndukPeminjam}'
+          : p.kelasPeminjam ?? 'Pengguna LAPAK8',
+      status: status,
+      itemName: firstItem?.namaFasilitasSnapshot ?? p.namaKegiatan,
+      serial:
+          '${p.items.fold<int>(0, (total, item) => total + item.jumlah)} '
+          'unit • ${p.labelKategori}',
+      itemIcon: Symbols.category,
+      detailIcon: isReturned ? Symbols.check_circle : Symbols.schedule,
+      detail: isReturned ? 'Dikembalikan: ' : 'Batas: ',
+      highlight: _formatDateTime(
+        isReturned
+            ? returnedAt ?? p.estimasiKembaliPada
+            : p.estimasiKembaliPada,
+      ),
+      highlightColor: status == _ReturnStatus.damaged
+          ? AppColors.error
+          : status == _ReturnStatus.returned
+          ? AppColors.emerald500
+          : null,
+      avatarUrl: p.fotoUrlPeminjam,
+      itemId: firstItem?.id,
+      returnRequestedAt: p.dimintaKembaliPada,
+      dueAt: p.estimasiKembaliPada,
+      inspection: inspection,
     );
   }
 
@@ -271,64 +335,6 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
     return '${twoDigits(date.day)}/${twoDigits(date.month)}/${date.year} '
         '${twoDigits(date.hour)}:${twoDigits(date.minute)}';
   }
-
-  final List<_Return> _returns = [
-    _Return(
-      code: 'KM-2024-031',
-      name: 'Siti Nurhaliza',
-      subtitle: 'XI MM 2 • NIS: 202307045',
-      status: _ReturnStatus.pending,
-      itemName: 'Sony Alpha A7 IV Kit',
-      serial: 'SNY-A74-002',
-      itemIcon: Symbols.photo_camera,
-      detailIcon: Symbols.schedule,
-      detail: 'Pengajuan: 24 Okt 2024, 16:45 WIB',
-      note: 'Kondisi dilaporkan: Lengkap & Bersih',
-      avatarUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCM9TBr73lAvJae_M-j8bVPXa69t9E8fJjw6s1fOkJB9Rwn5SdnSrc2vwOfl_FwiSc0PAsKLZ3OrWbOxQRw_0Nv8TltDOZ-YW8v68X2WTQJl29s3nRn2_K2GuSWHAvMZpMCZJe6iBeZDp5yEl_7IcjmKNNuCgejx9XkiISbISzKzJKsN4oi8-ZVu-ddev07E4AA7eAz81C-Lou8NTkx8lFKRMgys8zcncLJEU3cjaxS9X4CrRZuET7Y',
-    ),
-    _Return(
-      code: 'KM-2024-030',
-      name: 'Drs. Agus Hidayat',
-      isTeacher: true,
-      subtitle: 'Guru Produktif TKJ • NIP: 19780512...',
-      status: _ReturnStatus.returned,
-      itemName: 'MikroTik Cloud Core CCR',
-      serial: 'MTK-CCR-1009',
-      itemIcon: Symbols.router,
-      detailIcon: Symbols.check_circle,
-      detail: 'Dikembalikan: ',
-      highlight: '24 Okt 2024, 11:50 WIB',
-      highlightColor: AppColors.emerald500,
-      trailingDetail: '24 Okt 2024',
-    ),
-    _Return(
-      code: 'KM-2024-029',
-      name: 'Praboro Subranto',
-      subtitle: 'XI MM 2 • NIS: 202307200',
-      status: _ReturnStatus.late,
-      itemName: 'Sony Alpha A7 IV Kit',
-      serial: 'SNY-A74-002',
-      itemIcon: Symbols.photo_camera,
-      detailIcon: Symbols.history,
-      detail: 'Batas: ',
-      highlight: '24 Okt 2024, 16:30 WIB',
-      highlightColor: AppColors.error,
-      note: '"Terlambat 2 jam 15 menit"',
-    ),
-    _Return(
-      code: 'KM-2024-028',
-      name: 'Annisa Rahma',
-      subtitle: 'XII DKV 1 • NIS: 202208034',
-      status: _ReturnStatus.damaged,
-      itemName: 'Rode PodMic Set Dual',
-      serial: 'ROD-PM-019',
-      itemIcon: Symbols.mic,
-      detailIcon: Symbols.build,
-      detail: 'Diterima: 23 Okt 2024, 15:20 WIB',
-      note: 'Kabel XLR putus, shock mount longgar',
-    ),
-  ];
 
   // Filter status per jenis aktivitas (tidak tercampur antar tab).
   static const _loanFilters = <(String, _LoanStatus?)>[
@@ -345,10 +351,11 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
   static const _returnFilters = <(String, _ReturnStatus?)>[
     ('Semua', null),
     ('Menunggu', _ReturnStatus.pending),
-    ('Diverifikasi', _ReturnStatus.returned),
+    ('Menunggu Pembayaran', _ReturnStatus.waitingPayment),
+    ('Menunggu Konfirmasi Admin', _ReturnStatus.waitingAdminConfirmation),
+    ('Selesai', _ReturnStatus.returned),
     ('Terlambat', _ReturnStatus.late),
-    ('Rusak', _ReturnStatus.damaged),
-    ('Ditolak', _ReturnStatus.rejected),
+    ('Rusak / Hilang', _ReturnStatus.damaged),
   ];
 
   bool get _isLoanTab => _tab == ActivityTab.peminjaman;
@@ -365,6 +372,9 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
           l.subtitle.toLowerCase().contains(q);
     }).toList();
   }
+
+  List<_Return> get _returns =>
+      _borrowings.map(_toReturn).whereType<_Return>().toList();
 
   List<_Return> get _visibleReturns {
     final q = _query.trim().toLowerCase();
@@ -461,7 +471,7 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
     }
   }
 
-  Future<void> _confirmManualReturn(_Loan loan) async {
+  Future<void> _scanBorrowingQr(_Loan loan) async {
     final id = loan.borrowingId;
     if (id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -470,97 +480,11 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
       return;
     }
 
-    final noteController = TextEditingController();
-    var condition = 'baik';
-    Map<String, String?>? confirmation;
-    try {
-      confirmation = await showDialog<Map<String, String?>>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Catat Pengembalian'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Peminjam: ${loan.name}'),
-                  const SizedBox(height: 8),
-                  Text('Barang: ${loan.itemName} (${loan.serial})'),
-                  const SizedBox(height: 8),
-                  Text(
-                    loan.isLate
-                        ? 'Status: Terlambat'
-                        : 'Status: Belum terlambat',
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: condition,
-                    decoration: const InputDecoration(
-                      labelText: 'Kondisi barang',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'baik', child: Text('Baik')),
-                      DropdownMenuItem(value: 'rusak', child: Text('Rusak')),
-                      DropdownMenuItem(value: 'hilang', child: Text('Hilang')),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        setDialogState(() => condition = value);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: noteController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Catatan (opsional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Batal'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(dialogContext, {
-                  'kondisi': condition,
-                  'catatan': noteController.text,
-                }),
-                child: const Text('Konfirmasi'),
-              ),
-            ],
-          ),
-        ),
-      );
-    } finally {
-      noteController.dispose();
-    }
-
-    if (confirmation == null || !mounted) return;
     setState(() => _updatingBorrowingIds.add(id));
     try {
-      await _svc.selesaikanPengembalian(
-        peminjamanId: id,
-        kondisiBarang: confirmation['kondisi']!,
-        catatan: confirmation['catatan'],
-      );
+      await context.push<void>('/scan', extra: {'peminjamanId': id});
+      if (!mounted) return;
       await _loadLoans(showLoading: false);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pengembalian berhasil dicatat.')),
-      );
-    } on PeminjamanException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.pesan)));
     } finally {
       if (mounted) setState(() => _updatingBorrowingIds.remove(id));
     }
@@ -596,57 +520,177 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
   // Aksi pengembalian — alur verifikasi "Cek Kondisi"
   // -------------------------------------------------------------------------
   Future<void> _openInspection(_Return r) async {
-    final result = await showModalBottomSheet<InspectionResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black54,
-      builder: (_) => _ConditionInspectionSheet(item: r),
-    );
-    if (result == null || !mounted) return;
-
-    setState(() {
-      final idx = _returns.indexWhere((x) => x.code == r.code);
-      if (idx == -1) return;
-      _returns[idx] = _Return(
-        code: r.code,
-        name: r.name,
-        subtitle: r.subtitle,
-        status: result.isApproved
-            ? _ReturnStatus.returned
-            : _ReturnStatus.rejected,
-        itemName: r.itemName,
-        serial: r.serial,
-        itemIcon: r.itemIcon,
-        detailIcon: result.isApproved ? Symbols.check_circle : Symbols.close,
-        detail: result.isApproved
-            ? 'Diverifikasi: '
-            : 'Pengembalian ditolak • ',
-        highlight: result.checkedAt,
-        highlightColor: result.isApproved
-            ? AppColors.emerald500
-            : AppColors.error,
-        isTeacher: r.isTeacher,
-        note: result.negativeChecks.isEmpty
-            ? 'Kondisi barang: lengkap, baik & berfungsi normal.'
-            : 'Temuan: ${result.negativeChecks.join(', ')}.',
-        avatarUrl: r.avatarUrl,
-        checkResult: result,
+    setState(() => _updatingBorrowingIds.add(r.borrowingId));
+    try {
+      final scanResult = await context.push<Map<String, dynamic>>(
+        '/scan',
+        extra: {'returnPeminjamanId': r.borrowingId},
       );
-    });
+      if (!mounted || scanResult == null) return;
+      final inspectionId = scanResult['return_inspection_id'];
+      if (inspectionId is! String || inspectionId.isEmpty) {
+        throw const PeminjamanException(
+          'Data pemeriksaan dari hasil scan QR tidak valid.',
+        );
+      }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text(
-            result.isApproved
-                ? 'Pengembalian ${r.code} berhasil diverifikasi'
-                : 'Pengembalian ${r.code} ditolak karena kondisi barang',
+      final result = await showModalBottomSheet<InspectionResult>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black54,
+        builder: (_) =>
+            _ConditionInspectionSheet(item: r, inspectionId: inspectionId),
+      );
+      if (result == null || !mounted) return;
+
+      var uploadedFiles = <DocumentationFile>[];
+      var uploadWarnings = <String>[];
+      final hasFiles =
+          result.documentationPhotos.isNotEmpty ||
+          result.documentationVideo != null;
+      if (hasFiles) {
+        final itemId = r.itemId;
+        if (itemId == null) {
+          throw const PeminjamanException(
+            'Barang transaksi tidak ditemukan untuk menyimpan bukti.',
+          );
+        }
+        final uploads = await _documentationRepository.uploadAll(
+          returnId: inspectionId,
+          borrowingId: r.borrowingId,
+          itemId: itemId,
+          photos: result.documentationPhotos,
+          video: result.documentationVideo,
+        );
+        uploadWarnings = uploads.warnings;
+        uploadedFiles = [
+          ...uploads.photos,
+          if (uploads.video != null) uploads.video!,
+        ];
+        if (uploadedFiles.isEmpty && uploadWarnings.isNotEmpty) {
+          throw StorageApiException(
+            'Bukti gagal diunggah, pemeriksaan belum disimpan. '
+            '${uploadWarnings.join('\n')}',
+            code: 'upload_failed',
+          );
+        }
+      }
+
+      final evidence = uploadedFiles
+          .map(
+            (file) => <String, dynamic>{
+              'file_id': file.id,
+              'jenis': file.isVideo ? 'video' : 'photo',
+              'file_name': file.fileName,
+              'mime_type': file.mime,
+              'ukuran_byte': file.size,
+            },
+          )
+          .toList(growable: false);
+
+      await _svc.selesaikanPemeriksaanPengembalian(
+        peminjamanId: r.borrowingId,
+        pemeriksaanId: inspectionId,
+        kondisiBarang: result.condition,
+        denda: result.fine,
+        keterangan: result.description,
+        bukti: evidence,
+      );
+      await _loadLoans(showLoading: false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+              result.condition == 'baik'
+                  ? 'Pengembalian ${r.code} selesai diverifikasi.'
+                  : 'Pemeriksaan ${r.code} tersimpan. Menunggu pembayaran denda.',
+            ),
           ),
-        ),
+        );
+      if (uploadWarnings.isNotEmpty && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(uploadWarnings.join('\n'))));
+      }
+    } on PeminjamanException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.pesan)));
+    } on StorageApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memeriksa pengembalian: $error')),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _updatingBorrowingIds.remove(r.borrowingId));
+      }
+    }
+  }
+
+  Future<void> _confirmPaymentCompletion(_Return r) async {
+    if (r.status != _ReturnStatus.waitingAdminConfirmation) return;
+
+    var confirmed = false;
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => ConfirmDialog(
+        icon: Symbols.payments,
+        title: 'Konfirmasi Penyelesaian?',
+        message:
+            'Pengguna telah mengirim konfirmasi pembayaran denda untuk '
+            'peminjaman ${r.code}. Konfirmasi ini akan menyelesaikan '
+            'transaksi.',
+        cancelText: 'Batal',
+        confirmText: 'Ya, Selesaikan',
+        confirmIcon: Symbols.check,
+        confirmColor: AppColors.primary,
+        iconColor: AppColors.primary,
+        iconBackground: AppColors.primaryFixed,
+        onConfirm: () => confirmed = true,
+      ),
+    );
+    if (!confirmed || !mounted) return;
+
+    setState(() => _updatingBorrowingIds.add(r.borrowingId));
+    try {
+      await _svc.konfirmasiPembayaranDendaAdmin(r.borrowingId);
+      await _loadLoans(showLoading: false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('Peminjaman ${r.code} telah diselesaikan.'),
+          ),
+        );
+    } on PeminjamanException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.pesan)));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengonfirmasi pembayaran: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _updatingBorrowingIds.remove(r.borrowingId));
+      }
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -697,12 +741,12 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
           const SizedBox(height: 16),
           _isLoanTab ? _buildLoanFilterChips() : _buildReturnFilterChips(),
           const SizedBox(height: 16),
-          if (_isLoanTab && _isLoadingLoans)
+          if (_isLoadingLoans)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 48),
               child: Center(child: CircularProgressIndicator()),
             ),
-          if (_isLoanTab && _loansError != null)
+          if (_loansError != null)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 32),
               child: Column(
@@ -734,7 +778,10 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
                 ),
               ),
             ),
-          if (!_isLoanTab && returns.isEmpty)
+          if (!_isLoanTab &&
+              !_isLoadingLoans &&
+              _loansError == null &&
+              returns.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 48),
               child: Center(
@@ -752,19 +799,19 @@ class _AdminBorrowingsScreenState extends State<AdminBorrowingsScreen> {
                   isUpdating: _updatingBorrowingIds.contains(l.borrowingId),
                   onReject: () => _confirmReject(l),
                   onApprove: () => _confirmApprove(l),
-                  onMarkBorrowed: () => _updateBorrowingStatus(
-                    l,
-                    'dipinjam',
-                    'Peminjaman ditandai sedang dipinjam.',
-                  ),
-                  onMarkReturned: () => _confirmManualReturn(l),
+                  onScanBorrowingQr: () => _scanBorrowingQr(l),
                   onSuspend: () => _confirmSuspend(l),
                 ),
                 const SizedBox(height: 16),
               ],
           if (!_isLoanTab)
             for (final r in returns) ...[
-              _ReturnCard(item: r, onCheck: () => _openInspection(r)),
+              _ReturnCard(
+                item: r,
+                isUpdating: _updatingBorrowingIds.contains(r.borrowingId),
+                onCheck: () => _openInspection(r),
+                onConfirmPayment: () => _confirmPaymentCompletion(r),
+              ),
               const SizedBox(height: 16),
             ],
         ],
@@ -1109,11 +1156,21 @@ class _ReturnStatusChip extends StatelessWidget {
     IconData? icon;
     switch (status) {
       case _ReturnStatus.pending:
-        label = 'Menunggu Verifikasi';
+        label = 'Menunggu Pengembalian';
         bg = _amberBg;
         fg = _amberFg;
+      case _ReturnStatus.waitingPayment:
+        label = 'Menunggu Pembayaran';
+        bg = AppColors.errorContainer;
+        fg = AppColors.error;
+        icon = Symbols.payments;
+      case _ReturnStatus.waitingAdminConfirmation:
+        label = 'Menunggu Konfirmasi Admin';
+        bg = _amberBg;
+        fg = _amberFg;
+        icon = Symbols.hourglass_top;
       case _ReturnStatus.returned:
-        label = 'Dikembalikan';
+        label = 'Selesai';
         bg = AppColors.tertiaryFixed;
         fg = AppColors.onTertiaryFixedVariant;
         icon = Symbols.check_circle;
@@ -1122,15 +1179,10 @@ class _ReturnStatusChip extends StatelessWidget {
         bg = AppColors.errorContainer;
         fg = AppColors.error;
       case _ReturnStatus.damaged:
-        label = 'Rusak';
+        label = 'Rusak / Hilang';
         bg = AppColors.errorContainer;
         fg = AppColors.error;
         icon = Symbols.warning;
-      case _ReturnStatus.rejected:
-        label = 'Ditolak';
-        bg = AppColors.errorContainer;
-        fg = AppColors.error;
-        icon = Symbols.close;
     }
 
     return Container(
@@ -1169,8 +1221,7 @@ class _LoanCard extends StatelessWidget {
     required this.loan,
     required this.onReject,
     required this.onApprove,
-    required this.onMarkBorrowed,
-    required this.onMarkReturned,
+    required this.onScanBorrowingQr,
     required this.onSuspend,
     required this.isUpdating,
   });
@@ -1178,8 +1229,7 @@ class _LoanCard extends StatelessWidget {
   final _Loan loan;
   final VoidCallback onReject;
   final VoidCallback onApprove;
-  final VoidCallback onMarkBorrowed;
-  final VoidCallback onMarkReturned;
+  final VoidCallback onScanBorrowingQr;
   final VoidCallback onSuspend;
   final bool isUpdating;
 
@@ -1249,22 +1299,18 @@ class _LoanCard extends StatelessWidget {
           if (loan.status == _LoanStatus.approved) ...[
             const SizedBox(height: 16),
             _ActionButton(
-              label: 'Tandai Barang Dipinjam',
-              icon: Symbols.inventory_2,
+              label: 'Scan QR Peminjaman',
+              icon: Symbols.qr_code_scanner,
               background: AppColors.primary,
               foreground: AppColors.onPrimary,
-              onPressed: isUpdating ? null : onMarkBorrowed,
+              onPressed: isUpdating ? null : onScanBorrowingQr,
             ),
           ],
-          if (loan.status == _LoanStatus.borrowed ||
-              loan.status == _LoanStatus.late) ...[
+          if (loan.status == _LoanStatus.borrowed) ...[
             const SizedBox(height: 16),
-            _ActionButton(
-              label: 'Catat Pengembalian',
-              icon: Symbols.assignment_return,
-              background: AppColors.tertiaryFixed,
-              foreground: AppColors.onTertiaryFixed,
-              onPressed: isUpdating ? null : onMarkReturned,
+            const _LoanStatusInfo(
+              label: 'Sedang Dipinjam',
+              icon: Symbols.check_circle,
             ),
           ],
           if (loan.status == _LoanStatus.late) ...[
@@ -1286,29 +1332,7 @@ class _LoanCard extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.primaryFixed,
-            shape: BoxShape.circle,
-            image: loan.avatarUrl == null
-                ? null
-                : DecorationImage(
-                    image: NetworkImage(loan.avatarUrl!),
-                    fit: BoxFit.cover,
-                  ),
-          ),
-          child: loan.avatarUrl == null
-              ? Text(
-                  loan.initials,
-                  style: AppTextStyles.headlineSm(
-                    color: AppColors.primary,
-                  ).copyWith(fontSize: 16, fontWeight: FontWeight.w700),
-                )
-              : null,
-        ),
+        UserAvatar(name: loan.name, imageUrl: loan.avatarUrl),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -1495,10 +1519,17 @@ class _LoanCard extends StatelessWidget {
 // Kartu pengembalian (komponen & struktur konsisten dengan kartu peminjaman)
 // ---------------------------------------------------------------------------
 class _ReturnCard extends StatelessWidget {
-  const _ReturnCard({required this.item, required this.onCheck});
+  const _ReturnCard({
+    required this.item,
+    required this.isUpdating,
+    required this.onCheck,
+    required this.onConfirmPayment,
+  });
 
   final _Return item;
+  final bool isUpdating;
   final VoidCallback onCheck;
+  final VoidCallback onConfirmPayment;
 
   @override
   Widget build(BuildContext context) {
@@ -1523,7 +1554,7 @@ class _ReturnCard extends StatelessWidget {
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  item.code.startsWith('KM') ? item.code : '#${item.code}',
+                  item.code,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.headlineSm(
                     color: AppColors.onSurface,
@@ -1537,14 +1568,27 @@ class _ReturnCard extends StatelessWidget {
           _buildPerson(),
           const SizedBox(height: 14),
           _buildItemBox(),
+          if (item.inspection?.bukti.isNotEmpty == true) ...[
+            const SizedBox(height: 12),
+            _ReturnEvidenceStrip(files: item.inspection!.bukti),
+          ],
           if (item.status == _ReturnStatus.pending) ...[
             const SizedBox(height: 16),
             _ActionButton(
-              label: 'Cek Kondisi',
+              label: isUpdating ? 'Memproses...' : 'Cek Kondisi',
               icon: Symbols.checklist,
               background: AppColors.primary,
               foreground: AppColors.onPrimary,
-              onPressed: onCheck,
+              onPressed: isUpdating ? null : onCheck,
+            ),
+          ] else if (item.status == _ReturnStatus.waitingAdminConfirmation) ...[
+            const SizedBox(height: 16),
+            _ActionButton(
+              label: isUpdating ? 'Memproses...' : 'Konfirmasi Penyelesaian',
+              icon: Symbols.check_circle,
+              background: AppColors.primary,
+              foreground: AppColors.onPrimary,
+              onPressed: isUpdating ? null : onConfirmPayment,
             ),
           ] else ...[
             const SizedBox(height: 16),
@@ -1559,29 +1603,7 @@ class _ReturnCard extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.primaryFixed,
-            shape: BoxShape.circle,
-            image: item.avatarUrl == null
-                ? null
-                : DecorationImage(
-                    image: NetworkImage(item.avatarUrl!),
-                    fit: BoxFit.cover,
-                  ),
-          ),
-          child: item.avatarUrl == null
-              ? Text(
-                  item.initials,
-                  style: AppTextStyles.headlineSm(
-                    color: AppColors.primary,
-                  ).copyWith(fontSize: 16, fontWeight: FontWeight.w700),
-                )
-              : null,
-        ),
+        UserAvatar(name: item.name, imageUrl: item.avatarUrl),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -1598,26 +1620,6 @@ class _ReturnCard extends StatelessWidget {
                       ).copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
-                  if (item.isTeacher) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryFixed,
-                        borderRadius: BorderRadius.circular(AppRadius.full),
-                      ),
-                      child: Text(
-                        'Guru',
-                        style: AppTextStyles.labelSm(
-                          weight: FontWeight.w600,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
               const SizedBox(height: 2),
@@ -1637,6 +1639,8 @@ class _ReturnCard extends StatelessWidget {
   }
 
   Widget _buildItemBox() {
+    final note = item.inspection?.keterangan;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -1713,17 +1717,9 @@ class _ReturnCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (item.trailingDetail != null)
-                Text(
-                  item.trailingDetail!,
-                  style: AppTextStyles.bodySm(
-                    weight: FontWeight.w600,
-                    color: AppColors.slate600,
-                  ),
-                ),
             ],
           ),
-          if (item.note != null) ...[
+          if (note?.isNotEmpty == true) ...[
             const SizedBox(height: 6),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1736,7 +1732,7 @@ class _ReturnCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    item.note!,
+                    note!,
                     style: AppTextStyles.bodySm(
                       weight: FontWeight.w500,
                       color: AppColors.slate600,
@@ -1761,10 +1757,24 @@ class _InspectionResultStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ok = item.status == _ReturnStatus.returned;
-    final bg = ok ? AppColors.tertiaryFixed : AppColors.errorContainer;
-    final fg = ok ? AppColors.onTertiaryFixedVariant : AppColors.error;
-    final icon = ok ? Symbols.check_circle : Symbols.close;
+    final inspection = item.inspection;
+    final hasViolation =
+        inspection?.hasPelanggaran == true ||
+        item.status == _ReturnStatus.damaged ||
+        item.status == _ReturnStatus.waitingPayment ||
+        item.status == _ReturnStatus.waitingAdminConfirmation;
+    final bg = hasViolation
+        ? AppColors.errorContainer
+        : AppColors.tertiaryFixed;
+    final fg = hasViolation
+        ? AppColors.error
+        : AppColors.onTertiaryFixedVariant;
+    final icon = hasViolation ? Symbols.warning : Symbols.check_circle;
+    final heading = switch (item.status) {
+      _ReturnStatus.waitingPayment => 'Menunggu Pembayaran',
+      _ReturnStatus.waitingAdminConfirmation => 'Menunggu Konfirmasi Admin',
+      _ => inspection?.labelHasil ?? 'Pengembalian selesai',
+    };
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -1782,7 +1792,7 @@ class _InspectionResultStrip extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  ok ? 'Verifikasi berhasil' : 'Pengembalian ditolak',
+                  heading,
                   style: AppTextStyles.labelMd(
                     weight: FontWeight.w700,
                     color: fg,
@@ -1790,34 +1800,221 @@ class _InspectionResultStrip extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  item.checkResult?.negativeChecks.isEmpty ?? true
-                      ? 'Barang lengkap, baik, dan berfungsi normal.'
-                      : 'Temuan: ${item.checkResult?.negativeChecks.join(', ')}.',
+                  'Kondisi: ${inspection?.labelKondisi ?? 'Tidak diketahui'}\n'
+                  'Denda: ${inspection?.labelDenda ?? 'Tidak ada'}',
                   style: AppTextStyles.bodySm(
                     weight: FontWeight.w500,
                     color: fg,
                   ),
                 ),
-                if (item.checkResult != null &&
-                    (item.checkResult!.fine.isNotEmpty ||
-                        item.checkResult!.description.isNotEmpty)) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    [
-                      if (item.checkResult!.fine.isNotEmpty)
-                        'Denda: ${item.checkResult!.fine}',
-                      if (item.checkResult!.description.isNotEmpty)
-                        item.checkResult!.description,
-                    ].join(' • '),
-                    style: AppTextStyles.bodySm(
-                      weight: FontWeight.w500,
-                      color: fg,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReturnEvidenceStrip extends StatelessWidget {
+  const _ReturnEvidenceStrip({required this.files});
+
+  final List<BuktiPemeriksaanPengembalian> files;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(AppRadius.base),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Bukti Pemeriksaan',
+            style: AppTextStyles.labelMd(
+              weight: FontWeight.w700,
+              color: AppColors.onSurface,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 126,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: files.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                final file = files[index];
+                if (file.jenis == 'video') {
+                  return SizedBox(
+                    width: 210,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: _StoredVideoPreview(path: file.path),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          file.namaFile,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.labelSm(
+                            weight: FontWeight.w600,
+                            color: AppColors.slate600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return SizedBox(
+                  width: 104,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: RemoteMediaImage(
+                            url: file.path,
+                            fit: BoxFit.cover,
+                            onTap: () => showModalBottomSheet<void>(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.black,
+                              builder: (_) => SafeArea(
+                                child: InteractiveViewer(
+                                  child: RemoteMediaImage(
+                                    url: file.path,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        file.namaFile,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelSm(
+                          weight: FontWeight.w600,
+                          color: AppColors.slate600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StoredVideoPreview extends StatefulWidget {
+  const _StoredVideoPreview({required this.path});
+
+  final String path;
+
+  @override
+  State<_StoredVideoPreview> createState() => _StoredVideoPreviewState();
+}
+
+class _StoredVideoPreviewState extends State<_StoredVideoPreview> {
+  VideoPlayerController? _controller;
+  bool _ready = false;
+  bool _failed = false;
+  bool _playing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      final signedUrl = await Supabase.instance.client.storage
+          .from(Lapak8StorageConfig.bucket)
+          .createSignedUrl(widget.path, 60 * 60);
+      if (!mounted) return;
+      final controller = VideoPlayerController.networkUrl(Uri.parse(signedUrl))
+        ..addListener(_updatePlaying);
+      _controller = controller;
+      await controller.initialize();
+      if (mounted) setState(() => _ready = true);
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  void _updatePlaying() {
+    final playing = _controller?.value.isPlaying ?? false;
+    if (mounted && playing != _playing) {
+      setState(() => _playing = playing);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller
+      ?..removeListener(_updatePlaying)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_failed) {
+      return const ColoredBox(
+        color: Color(0xFFE2E7FF),
+        child: Center(child: Icon(Icons.videocam_off_outlined)),
+      );
+    }
+    if (!_ready) {
+      return const ColoredBox(
+        color: Color(0xFFE2E7FF),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+    return GestureDetector(
+      onTap: () {
+        final controller = _controller;
+        if (controller == null) return;
+        if (controller.value.isPlaying) {
+          controller.pause();
+        } else {
+          controller.play();
+        }
+      },
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox.expand(
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: _controller!.value.size.width,
+                height: _controller!.value.size.height,
+                child: VideoPlayer(_controller!),
+              ),
+            ),
+          ),
+          if (!_playing)
+            const Icon(Symbols.play_circle, color: Colors.white, size: 38),
         ],
       ),
     );
@@ -1828,8 +2025,12 @@ class _InspectionResultStrip extends StatelessWidget {
 // Bottom sheet: Form Pemeriksaan Kondisi Barang (Cek Kondisi)
 // ---------------------------------------------------------------------------
 class _ConditionInspectionSheet extends StatefulWidget {
-  const _ConditionInspectionSheet({required this.item});
+  const _ConditionInspectionSheet({
+    required this.item,
+    required this.inspectionId,
+  });
   final _Return item;
+  final String inspectionId;
 
   @override
   State<_ConditionInspectionSheet> createState() =>
@@ -1837,37 +2038,25 @@ class _ConditionInspectionSheet extends StatefulWidget {
 }
 
 class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
-  // Checklist positif (bisa dicentang sendiri-sendiri).
-  static const _positiveOptions = [
-    'Barang lengkap sesuai peminjaman',
-    'Kondisi fisik barang baik dan tidak rusak',
-    'Barang bersih dan berfungsi normal',
-  ];
+  static const _conditionLabels = {
+    'baik': 'Baik',
+    'rusak': 'Rusak',
+    'hilang': 'Hilang',
+    'terlambat': 'Terlambat',
+  };
 
-  // Checklist negatif (independen dari positif, boleh campur).
-  static const _negativeOptions = [
-    'Barang rusak',
-    'Barang cacat atau terdapat kerusakan fisik',
-    'Komponen atau aksesori hilang',
-    'Barang tidak berfungsi',
-    'Lainnya',
-  ];
-
-  final Set<int> _positive = {};
-  final Set<int> _negative = {};
+  String _condition = 'baik';
   final _descCtrl = TextEditingController();
   final _fineCtrl = TextEditingController();
   bool _submitting = false;
-
-  // Menandai apakah field validasi pernah gagal (untuk pesan error).
   bool _touched = false;
-
-  // Dokumentasi kondisi barang (state frontend sementara, belum ada backend).
   final MediaPickerService _docPicker = MediaPickerService();
   List<PendingDocumentationFile> _docPhotos = [];
   PendingDocumentationFile? _docVideo;
 
-  bool get _hasNegative => _negative.isNotEmpty;
+  bool get _hasViolation => _condition != 'baik';
+  bool get _requiresDescription =>
+      _condition == 'rusak' || _condition == 'hilang';
 
   @override
   void dispose() {
@@ -1878,11 +2067,7 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final hasNegative = _hasNegative;
-    final canSubmit =
-        _positive.isNotEmpty &&
-        (!hasNegative || _fineCtrl.text.trim().isNotEmpty);
-
+    final parsedFine = int.tryParse(_fineCtrl.text.trim()) ?? 0;
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * 0.92,
@@ -1916,32 +2101,24 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
                   const SizedBox(height: 24),
                   _buildSectionTitle(
                     'Kondisi Barang',
-                    'Centang kondisi yang sesuai hasil pemeriksaan.',
+                    'Pilih hasil pemeriksaan barang yang dikembalikan.',
                   ),
                   const SizedBox(height: 12),
-                  _buildChecklist(
-                    options: _positiveOptions,
-                    selected: _positive,
-                    positive: true,
-                    onToggle: _togglePositive,
-                  ),
+                  _buildConditionChoices(),
+                  if (_condition == 'terlambat') ...[
+                    const SizedBox(height: 12),
+                    _buildLateInfo(),
+                  ],
                   const SizedBox(height: 24),
                   _buildSectionTitle(
-                    'Temuan Kerusakan',
-                    'Centang bila ditemukan masalah. Dapat dipilih '
-                        'bersamaan dengan kondisi normal di atas.',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildChecklist(
-                    options: _negativeOptions,
-                    selected: _negative,
-                    positive: false,
-                    onToggle: _toggleNegative,
-                  ),
-                  const SizedBox(height: 24),
-                  _buildSectionTitle(
-                    'Deskripsi Kondisi Barang',
-                    'Keterangan tambahan (opsional).',
+                    _condition == 'rusak'
+                        ? 'Deskripsi Kerusakan'
+                        : _condition == 'hilang'
+                        ? 'Keterangan Kehilangan'
+                        : 'Keterangan',
+                    _requiresDescription
+                        ? 'Wajib diisi untuk mencatat temuan.'
+                        : 'Keterangan tambahan (opsional).',
                   ),
                   const SizedBox(height: 12),
                   _buildDescriptionField(),
@@ -1954,7 +2131,7 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
                       alignment: Alignment.topCenter,
                       child: FadeTransition(opacity: animation, child: child),
                     ),
-                    child: hasNegative
+                    child: _hasViolation
                         ? Padding(
                             key: const ValueKey('fine'),
                             padding: const EdgeInsets.only(top: 16),
@@ -1963,16 +2140,14 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
                               children: [
                                 _buildSectionTitle(
                                   'Denda / Sanksi',
-                                  'Wajib diisi karena ada temuan kerusakan.',
+                                  'Masukkan nominal denda yang ditentukan admin.',
                                 ),
                                 const SizedBox(height: 12),
                                 _buildFineField(),
-                                if (_touched &&
-                                    _fineCtrl.text.trim().isEmpty) ...[
+                                if (_touched && parsedFine <= 0) ...[
                                   const SizedBox(height: 8),
                                   _buildErrorText(
-                                    'Harap isi denda atau sanksi terlebih '
-                                    'dahulu.',
+                                    'Nominal denda harus lebih besar dari nol.',
                                   ),
                                 ],
                               ],
@@ -1988,12 +2163,11 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
                       _docVideo = video;
                     },
                   ),
-                  if (_touched && _positive.isEmpty) ...[
+                  if (_touched &&
+                      _requiresDescription &&
+                      _descCtrl.text.trim().isEmpty) ...[
                     const SizedBox(height: 12),
-                    _buildErrorText(
-                      'Pilih minimal satu kondisi pemeriksaan terlebih '
-                      'dahulu.',
-                    ),
+                    _buildErrorText('Keterangan temuan wajib diisi.'),
                   ],
                 ],
               ),
@@ -2012,7 +2186,7 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
                 ),
               ],
             ),
-            child: SafeArea(top: false, child: _buildSubmitButton(canSubmit)),
+            child: SafeArea(top: false, child: _buildSubmitButton()),
           ),
         ],
       ),
@@ -2172,12 +2346,7 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
     );
   }
 
-  Widget _buildChecklist({
-    required List<String> options,
-    required Set<int> selected,
-    required bool positive,
-    required void Function(int) onToggle,
-  }) {
+  Widget _buildConditionChoices() {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLow,
@@ -2185,14 +2354,14 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
       ),
       child: Column(
         children: [
-          for (var i = 0; i < options.length; i++) ...[
+          for (final entry in _conditionLabels.entries) ...[
             _ChecklistTile(
-              label: options[i],
-              value: selected.contains(i),
-              accent: positive ? AppColors.primary : AppColors.error,
-              onChanged: (v) => onToggle(i),
+              label: entry.value,
+              value: _condition == entry.key,
+              accent: entry.key == 'baik' ? AppColors.primary : AppColors.error,
+              onChanged: (_) => setState(() => _condition = entry.key),
             ),
-            if (i != options.length - 1)
+            if (entry.key != _conditionLabels.keys.last)
               Divider(
                 height: 1,
                 thickness: 1,
@@ -2205,29 +2374,50 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
     );
   }
 
-  void _togglePositive(int i) => setState(
-    () => _positive.contains(i) ? _positive.remove(i) : _positive.add(i),
-  );
+  Widget _buildLateInfo() {
+    final dueAt = widget.item.dueAt;
+    final returnRequestedAt = widget.item.returnRequestedAt;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _amberBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        'Batas pengembalian: ${_formatInspectionTime(dueAt)}\n'
+        'Waktu pengajuan pengembalian: '
+        '${_formatInspectionTime(returnRequestedAt)}',
+        style: AppTextStyles.bodySm(weight: FontWeight.w600, color: _amberFg),
+      ),
+    );
+  }
 
-  void _toggleNegative(int i) {
-    setState(() {
-      if (_negative.contains(i)) {
-        _negative.remove(i);
-      } else {
-        _negative.add(i);
-      }
-    });
+  String _formatInspectionTime(DateTime? value) {
+    if (value == null) return '-';
+    final local = value.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$day/$month/${local.year} $hour:$minute';
   }
 
   Widget _buildDescriptionField() {
     return TextField(
       controller: _descCtrl,
+      onChanged: (_) => setState(() {}),
       maxLines: 3,
       minLines: 2,
       textCapitalization: TextCapitalization.sentences,
       style: AppTextStyles.bodyMd(color: AppColors.onSurface),
       decoration: InputDecoration(
-        hintText: 'Contoh: goresan kecil di bodi, kabel rapi, dsb.',
+        hintText: switch (_condition) {
+          'rusak' => 'Jelaskan bagian atau jenis kerusakan.',
+          'hilang' => 'Jelaskan barang atau komponen yang hilang.',
+          'terlambat' => 'Keterangan tambahan (opsional).',
+          _ => 'Catatan tambahan (opsional).',
+        },
         hintStyle: AppTextStyles.bodyMd(color: AppColors.slate500),
         filled: true,
         fillColor: AppColors.surfaceContainerLow,
@@ -2244,15 +2434,19 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
     return TextField(
       controller: _fineCtrl,
       onChanged: (_) => setState(() => _touched = true),
-      textCapitalization: TextCapitalization.sentences,
+      keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       style: AppTextStyles.bodyMd(color: AppColors.onSurface),
       decoration: InputDecoration(
-        hintText: 'Contoh: denda Rp50.000 / penggantian komponen',
+        hintText: 'Masukkan nominal dalam rupiah',
         hintStyle: AppTextStyles.bodyMd(color: AppColors.slate500),
         filled: true,
         fillColor: AppColors.surfaceContainerLow,
-        errorText: _touched && _fineCtrl.text.trim().isEmpty
-            ? 'Wajib diisi karena ada temuan kerusakan.'
+        errorText:
+            _touched &&
+                _hasViolation &&
+                (int.tryParse(_fineCtrl.text.trim()) ?? 0) <= 0
+            ? 'Nominal harus lebih besar dari nol.'
             : null,
         prefixIcon: const MsIcon(
           Symbols.payments,
@@ -2290,19 +2484,17 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
     );
   }
 
-  Widget _buildSubmitButton(bool canSubmit) {
-    final hasNegative = _hasNegative;
-    final bg = hasNegative ? AppColors.error : AppColors.primary;
+  Widget _buildSubmitButton() {
+    final hasViolation = _hasViolation;
+    final bg = hasViolation ? AppColors.error : AppColors.primary;
     final fg = Colors.white;
-    final icon = hasNegative ? Symbols.close : Symbols.check;
-    final label = hasNegative
-        ? 'Tolak Pengembalian'
-        : 'Konfirmasi Pengembalian';
+    const icon = Symbols.check;
+    const label = 'Konfirmasi Pemeriksaan';
     return SizedBox(
       width: double.infinity,
       height: 52,
       child: ElevatedButton.icon(
-        onPressed: _submitting || !canSubmit ? null : _submit,
+        onPressed: _submitting ? null : _submit,
         icon: _submitting
             ? const SizedBox(
                 width: 18,
@@ -2331,25 +2523,18 @@ class _ConditionInspectionSheetState extends State<_ConditionInspectionSheet> {
 
   Future<void> _submit() async {
     setState(() => _touched = true);
-
-    // Validasi: minimal satu kondisi positif.
-    if (_positive.isEmpty) return;
-
-    // Validasi: jika ada temuan negatif, denda/sanksi wajib diisi.
-    if (_hasNegative && _fineCtrl.text.trim().isEmpty) return;
+    final fine = int.tryParse(_fineCtrl.text.trim()) ?? 0;
+    if ((_requiresDescription && _descCtrl.text.trim().isEmpty) ||
+        (_hasViolation && fine <= 0)) {
+      return;
+    }
 
     setState(() => _submitting = true);
-    // Simulasi proses (backend akan menggantikan di sini).
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-
     if (!mounted) return;
     final result = InspectionResult(
-      isApproved: !_hasNegative,
-      positiveChecks: [for (final i in _positive) _positiveOptions[i]],
-      negativeChecks: [for (final i in _negative) _negativeOptions[i]],
+      condition: _condition,
       description: _descCtrl.text.trim(),
-      fine: _fineCtrl.text.trim(),
-      checkedAt: '24 Okt 2024, 17:05 WIB',
+      fine: _hasViolation ? fine : 0,
       documentationPhotos: List.of(_docPhotos),
       documentationVideo: _docVideo,
     );
@@ -2449,6 +2634,43 @@ class _ActionButton extends StatelessWidget {
           foregroundColor: foreground,
           elevation: 0,
           shape: const StadiumBorder(),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoanStatusInfo extends StatelessWidget {
+  const _LoanStatusInfo({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: label,
+      enabled: false,
+      child: Container(
+        width: double.infinity,
+        height: 52,
+        decoration: const BoxDecoration(
+          color: AppColors.primaryFixed,
+          borderRadius: BorderRadius.all(Radius.circular(28)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 20, color: AppColors.primary),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: AppTextStyles.labelLg(
+                weight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -77,7 +77,9 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
         (p) =>
             p.status == StatusPeminjaman.disetujui ||
             p.status == StatusPeminjaman.dipinjam ||
-            p.status == StatusPeminjaman.terlambat,
+            p.status == StatusPeminjaman.terlambat ||
+            p.status == StatusPeminjaman.menungguPengembalian ||
+            p.status == StatusPeminjaman.pelanggaran,
       )
       .toList();
 
@@ -127,7 +129,6 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
           activity: p.namaKegiatan,
           schedule:
               '${_formatDate(p.mulaiPada)} • ${_formatTime(p.mulaiPada)} - ${_formatTime(p.estimasiKembaliPada)} WIB',
-          picName: 'Petugas Sarpras',
           qrPayload: payload,
           borrowerName: p.namaPeminjam ?? 'Peminjam LAPAK8',
           isReturn: isReturn,
@@ -185,12 +186,251 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
     }
   }
 
+  Future<void> _confirmReturn(Peminjaman p) async {
+    var confirmed = false;
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => ConfirmDialog(
+        icon: Icons.assignment_return,
+        title: 'Kembalikan Barang Sekarang?',
+        message:
+            'Apakah kamu yakin ingin mengembalikan barang ini? '
+            'Pastikan barang sudah siap untuk dikembalikan.',
+        cancelText: 'Batal',
+        confirmText: 'Ya, Kembalikan',
+        confirmIcon: null,
+        confirmColor: AppColors.primary,
+        iconColor: AppColors.primary,
+        iconBackground: AppColors.primaryFixed,
+        onConfirm: () => confirmed = true,
+      ),
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _qrLoadingIds.add(p.id));
+    try {
+      await peminjamanService.ajukanPengembalian(p.id);
+      if (!mounted) return;
+      _snack('Pengembalian diajukan. QR dapat ditampilkan untuk admin.');
+      await _load();
+    } on PeminjamanException catch (error) {
+      if (mounted) _snack(error.pesan, error: true);
+    } finally {
+      if (mounted) setState(() => _qrLoadingIds.remove(p.id));
+    }
+  }
+
+  Future<void> _showPenaltyPayment(Peminjaman p) async {
+    final inspection = p.pemeriksaanPengembalian;
+    if (inspection == null || inspection.denda <= 0) {
+      _snack(
+        'Informasi tagihan belum tersedia. Muat ulang halaman.',
+        error: true,
+      );
+      return;
+    }
+    if (inspection.statusPembayaran != 'menunggu_pembayaran') {
+      _snack('Konfirmasi pembayaran sedang menunggu admin.');
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
+      builder: (_) => _buildPenaltyPaymentSheet(
+        peminjaman: p,
+        onConfirm: () async {
+          try {
+            await peminjamanService.konfirmasiPembayaranDenda(p.id);
+            if (!mounted) return false;
+            _snack(
+              'Konfirmasi pembayaran terkirim. Menunggu konfirmasi admin.',
+            );
+            await _load();
+            return true;
+          } on PeminjamanException catch (error) {
+            if (mounted) _snack(error.pesan, error: true);
+            return false;
+          }
+        },
+      ),
+    );
+  }
+
   void _snack(String msg, {bool error = false}) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(content: Text(msg), backgroundColor: error ? cError : null),
       );
+  }
+
+  String _formatRupiah(int amount) {
+    final digits = amount.toString();
+    final grouped = StringBuffer();
+    for (var index = 0; index < digits.length; index++) {
+      if (index > 0 && (digits.length - index) % 3 == 0) grouped.write('.');
+      grouped.write(digits[index]);
+    }
+    return 'Rp$grouped';
+  }
+
+  Widget _buildPenaltyPaymentSheet({
+    required Peminjaman peminjaman,
+    required Future<bool> Function() onConfirm,
+  }) {
+    var loading = false;
+    return StatefulBuilder(
+      builder: (context, setSheetState) {
+        final inspection = peminjaman.pemeriksaanPengembalian!;
+        return SafeArea(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: cOutlineVariant,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Pembayaran Denda',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: cOnSurface,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: cErrorContainer.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${peminjaman.kodeBooking} • '
+                          '${inspection.jenisPelanggaran ?? 'Pelanggaran'}',
+                          style: const TextStyle(
+                            color: cOnErrorContainer,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (inspection.keterangan?.trim().isNotEmpty ==
+                            true) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            inspection.keterangan!,
+                            style: const TextStyle(color: cOnErrorContainer),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        Text(
+                          _formatRupiah(inspection.denda),
+                          style: const TextStyle(
+                            color: cError,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cSurfaceLow,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      children: [
+                        Image.asset(
+                          'qrisnya.jpeg',
+                          height: 220,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const SizedBox(
+                            height: 220,
+                            child: Center(
+                              child: Text('QRIS tidak dapat ditampilkan.'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Pembayaran dilakukan manual. Tombol di bawah hanya '
+                          'mencatat konfirmasi simulasi, bukan memverifikasi '
+                          'pembayaran QRIS.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cOnSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: loading
+                          ? null
+                          : () async {
+                              setSheetState(() => loading = true);
+                              final completed = await onConfirm();
+                              if (completed) {
+                                if (context.mounted) {
+                                  Navigator.of(context).pop();
+                                }
+                              } else {
+                                setSheetState(() => loading = false);
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: cPrimaryContainer,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      child: loading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Konfirmasi Pembayaran'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   String _facilityTitle(Peminjaman p) {
@@ -297,7 +537,6 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
             right: 0,
             child: LapakHeader(
               avatarUrl: authProvider.user?.fotoUrl ?? '',
-              onNotificationTap: () => _snack('Belum ada notifikasi baru.'),
               onAvatarTap: () => context.push('/profile'),
             ),
           ),
@@ -381,7 +620,9 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
     return switch (p.status) {
       StatusPeminjaman.disetujui ||
       StatusPeminjaman.dipinjam ||
-      StatusPeminjaman.terlambat => _cardAktif(p),
+      StatusPeminjaman.terlambat ||
+      StatusPeminjaman.menungguPengembalian ||
+      StatusPeminjaman.pelanggaran => _cardAktif(p),
       StatusPeminjaman.menungguPersetujuan => _cardMenunggu(p),
       _ => _cardHistoryOrRejected(p),
     };
@@ -445,7 +686,15 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
   Widget _cardAktif(Peminjaman p) {
     final isCancelling = _cancellingIds.contains(p.id);
     final isQrLoading = _qrLoadingIds.contains(p.id);
-    final isReturnQr = p.status != StatusPeminjaman.disetujui;
+    final isReturnRequest =
+        p.status == StatusPeminjaman.dipinjam ||
+        p.status == StatusPeminjaman.terlambat;
+    final isReturnQr = p.status == StatusPeminjaman.menungguPengembalian;
+    final isPenalty = p.status == StatusPeminjaman.pelanggaran;
+    final isWaitingAdminConfirmation =
+        isPenalty &&
+        p.pemeriksaanPengembalian?.statusPembayaran ==
+            'menunggu_konfirmasi_admin';
     final image = p.items.isNotEmpty ? p.items.first.fotoUrl : null;
     final statusBadge = switch (p.status) {
       StatusPeminjaman.dipinjam => _statusPill(
@@ -460,6 +709,26 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
         cOnErrorContainer,
         Icons.warning_amber_rounded,
       ),
+      StatusPeminjaman.menungguPengembalian => _statusPill(
+        'Menunggu Pengembalian',
+        cSecondaryContainer,
+        cOnSecondaryContainer,
+        Icons.assignment_return_outlined,
+      ),
+      StatusPeminjaman.pelanggaran =>
+        isWaitingAdminConfirmation
+            ? _statusPill(
+                'Menunggu Konfirmasi Admin',
+                cSurfaceContainer,
+                cSecondary,
+                Icons.hourglass_top,
+              )
+            : _statusPill(
+                'Pelanggaran',
+                cErrorContainer,
+                cOnErrorContainer,
+                Icons.warning_amber_rounded,
+              ),
       _ => _statusApproved(),
     };
 
@@ -482,12 +751,22 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
           cPrimary,
           Icons.calendar_today,
         ),
+        if (isPenalty && p.pemeriksaanPengembalian != null) ...[
+          const SizedBox(height: 12),
+          _returnPenaltyNotice(p.pemeriksaanPengembalian!),
+        ],
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
           height: 44,
           child: ElevatedButton.icon(
-            onPressed: isQrLoading ? null : () => _showQrModal(p),
+            onPressed: isQrLoading || isWaitingAdminConfirmation
+                ? null
+                : isPenalty
+                ? () => _showPenaltyPayment(p)
+                : isReturnRequest
+                ? () => _confirmReturn(p)
+                : () => _showQrModal(p),
             icon: isQrLoading
                 ? const SizedBox(
                     width: 18,
@@ -497,17 +776,42 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
                       color: Colors.white,
                     ),
                   )
-                : const Icon(Icons.qr_code_scanner, size: 20),
+                : Icon(
+                    isPenalty
+                        ? isWaitingAdminConfirmation
+                              ? Icons.hourglass_top
+                              : Icons.payments_outlined
+                        : isReturnRequest
+                        ? Icons.assignment_return
+                        : isReturnQr
+                        ? Icons.qr_code_2
+                        : Icons.qr_code_scanner,
+                    size: 20,
+                  ),
             label: Text(
               isQrLoading
                   ? 'Menyiapkan QR...'
+                  : isPenalty
+                  ? isWaitingAdminConfirmation
+                        ? 'Menunggu Konfirmasi Admin'
+                        : 'Bayar Denda Sekarang'
+                  : isReturnRequest
+                  ? 'Kembalikan Sekarang'
                   : isReturnQr
                   ? 'Tampilkan QR Pengembalian'
-                  : 'Tampilkan QR Pengambilan',
+                  : 'Tampilkan QR Peminjaman',
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: cPrimaryContainer,
-              foregroundColor: Colors.white,
+              backgroundColor: isWaitingAdminConfirmation
+                  ? cSurfaceHigh
+                  : isPenalty
+                  ? cError
+                  : cPrimaryContainer,
+              foregroundColor: isWaitingAdminConfirmation
+                  ? cSecondary
+                  : Colors.white,
+              disabledBackgroundColor: cSurfaceHigh,
+              disabledForegroundColor: cSecondary,
               elevation: 2,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(999),
@@ -566,6 +870,36 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _returnPenaltyNotice(PemeriksaanPengembalian inspection) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cErrorContainer.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Denda ${_formatRupiah(inspection.denda)}',
+            style: const TextStyle(
+              color: cOnErrorContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (inspection.keterangan?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 4),
+            Text(
+              inspection.keterangan!,
+              style: const TextStyle(color: cOnErrorContainer, fontSize: 12),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -705,13 +1039,18 @@ class _MyBorrowingsScreenState extends State<MyBorrowingsScreen> {
   Widget _cardHistoryOrRejected(Peminjaman p) {
     final image = p.items.isNotEmpty ? p.items.first.fotoUrl : null;
     final isRejected = p.status == StatusPeminjaman.ditolak;
+    final inspection = p.pemeriksaanPengembalian;
     final statusWidget = switch (p.status) {
       StatusPeminjaman.ditolak => _statusRejected(),
       StatusPeminjaman.dikembalikan => _statusPill(
-        'Dikembalikan',
-        const Color(0xFFD1FAE5),
-        cTertiary,
-        Icons.check_circle_outline,
+        inspection?.labelStatusAkhir ?? 'Selesai',
+        inspection?.hasPelanggaran == true
+            ? cErrorContainer
+            : const Color(0xFFD1FAE5),
+        inspection?.hasPelanggaran == true ? cError : cTertiary,
+        inspection?.hasPelanggaran == true
+            ? Icons.warning_amber_rounded
+            : Icons.check_circle_outline,
       ),
       _ => _statusPill(
         'Dibatalkan',

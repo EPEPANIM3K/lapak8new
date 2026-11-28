@@ -7,6 +7,7 @@ import 'package:lapak8new/core/constants/app_text_styles.dart';
 import 'package:lapak8new/features/borrowings/models/peminjaman.dart';
 import 'package:lapak8new/features/borrowings/services/peminjaman_service.dart';
 import 'package:lapak8new/shared/widgets/app_bottom_nav.dart';
+import 'package:lapak8new/shared/widgets/user_avatar.dart';
 
 enum _HistoryFilter { all, onTime, lateReturned }
 
@@ -404,13 +405,6 @@ class _HistoryCard extends StatelessWidget {
       ? history.namaPeminjam!
       : 'Pengguna';
 
-  String get _initials {
-    final parts = _borrowerName.trim().split(RegExp(r'\s+'));
-    final a = parts.isNotEmpty && parts.first.isNotEmpty ? parts.first[0] : '';
-    final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
-    return (a + b).toUpperCase();
-  }
-
   String get _subtitle {
     final kelas = history.kelasPeminjam;
     final nomor = history.nomorIndukPeminjam;
@@ -434,6 +428,14 @@ class _HistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final inspection = history.pemeriksaanPengembalian;
+    final hasViolation = inspection?.hasPelanggaran == true;
+    final statusLabel =
+        inspection?.labelStatusAkhir ?? (isOnTime ? 'Selesai' : 'Terlambat');
+    final statusColor = hasViolation || !isOnTime
+        ? AppColors.error
+        : AppColors.slate600;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -467,25 +469,27 @@ class _HistoryCard extends StatelessWidget {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: isOnTime
-                      ? AppColors.surfaceContainerLow
-                      : AppColors.errorContainer,
+                  color: hasViolation || !isOnTime
+                      ? AppColors.errorContainer
+                      : AppColors.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(AppRadius.full),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      isOnTime ? Symbols.check_circle : Symbols.warning,
+                      hasViolation || !isOnTime
+                          ? Symbols.warning
+                          : Symbols.check_circle,
                       size: 14,
-                      color: isOnTime ? AppColors.slate600 : AppColors.error,
+                      color: statusColor,
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      isOnTime ? 'Selesai' : 'Terlambat',
+                      statusLabel,
                       style: AppTextStyles.labelSm(
                         weight: FontWeight.w700,
-                        color: isOnTime ? AppColors.slate600 : AppColors.error,
+                        color: statusColor,
                       ),
                     ),
                   ],
@@ -497,20 +501,9 @@ class _HistoryCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: AppColors.primaryFixed,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  _initials.isEmpty ? '?' : _initials,
-                  style: AppTextStyles.headlineSm(
-                    color: AppColors.primary,
-                  ).copyWith(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
+              UserAvatar(
+                name: _borrowerName,
+                imageUrl: history.fotoUrlPeminjam,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -623,6 +616,65 @@ class _HistoryCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (inspection != null) ...[
+                  const Divider(height: 16),
+                  Text(
+                    inspection.labelHasil,
+                    style: AppTextStyles.labelMd(
+                      weight: FontWeight.w700,
+                      color: hasViolation
+                          ? AppColors.error
+                          : AppColors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 68,
+                        child: Text(
+                          'Kondisi:',
+                          style: AppTextStyles.bodySm(
+                            weight: FontWeight.w500,
+                            color: AppColors.slate600,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          inspection.labelKondisi,
+                          style: AppTextStyles.bodySm(
+                            weight: FontWeight.w600,
+                            color: AppColors.slate700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 68,
+                        child: Text(
+                          'Denda:',
+                          style: AppTextStyles.bodySm(
+                            weight: FontWeight.w500,
+                            color: AppColors.slate600,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          inspection.labelDenda,
+                          style: AppTextStyles.bodySm(
+                            weight: FontWeight.w600,
+                            color: AppColors.slate700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

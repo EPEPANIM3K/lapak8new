@@ -44,6 +44,15 @@ const PHOTO_RULES = {
   jpeg: ['image/jpeg'],
   png: ['image/png'],
   webp: ['image/webp'],
+  gif: ['image/gif'],
+  bmp: ['image/bmp'],
+  tif: ['image/tiff'],
+  tiff: ['image/tiff'],
+  heic: ['image/heic', 'image/heic-sequence', 'image/heif', 'image/heif-sequence'],
+  heif: ['image/heif', 'image/heif-sequence', 'image/heic', 'image/heic-sequence'],
+  avif: ['image/avif', 'image/avif-sequence'],
+  ico: ['image/vnd.microsoft.icon', 'image/x-icon'],
+  jxl: ['image/jxl'],
 };
 const VIDEO_RULES = {
   mp4: ['video/mp4'],
@@ -299,7 +308,7 @@ function detectKind(fileName, contentType) {
   throw new HttpError(
     415,
     'unsupported_format',
-    'Format tidak didukung. Foto: JPG/JPEG/PNG/WEBP. Video: MP4/MOV/WEBM.',
+    'Format tidak didukung. Foto: JPG/JPEG/PNG/WEBP/GIF/BMP/TIFF/HEIC/HEIF/AVIF/ICO/JXL. Video: MP4/MOV/WEBM.',
   );
 }
 
@@ -334,6 +343,46 @@ function assertSignature(kind, ext, data) {
       const riff = data.subarray(0, 4).toString('ascii') === 'RIFF';
       const webp = data.subarray(8, 12).toString('ascii') === 'WEBP';
       if (!riff || !webp) throw signatureError();
+      return;
+    }
+    if (ext === 'gif') {
+      const signature = data.subarray(0, 6).toString('ascii');
+      if (signature !== 'GIF87a' && signature !== 'GIF89a') throw signatureError();
+      return;
+    }
+    if (ext === 'bmp') {
+      if (!sniff([0x42, 0x4d])) throw signatureError();
+      return;
+    }
+    if (ext === 'tif' || ext === 'tiff') {
+      const littleEndian = sniff([0x49, 0x49, 0x2a, 0x00]) ||
+        sniff([0x49, 0x49, 0x2b, 0x00]);
+      const bigEndian = sniff([0x4d, 0x4d, 0x00, 0x2a]) ||
+        sniff([0x4d, 0x4d, 0x00, 0x2b]);
+      if (!littleEndian && !bigEndian) throw signatureError();
+      return;
+    }
+    if (ext === 'heic' || ext === 'heif' || ext === 'avif') {
+      const hasFtyp = data.subarray(4, 8).toString('ascii') === 'ftyp';
+      const header = data.subarray(8, 64).toString('ascii');
+      const brands = ext === 'avif'
+        ? ['avif', 'avis']
+        : ['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1'];
+      if (!hasFtyp || !brands.some((brand) => header.includes(brand))) {
+        throw signatureError();
+      }
+      return;
+    }
+    if (ext === 'ico') {
+      if (!sniff([0x00, 0x00, 0x01, 0x00])) throw signatureError();
+      return;
+    }
+    if (ext === 'jxl') {
+      const codestream = sniff([0xff, 0x0a]);
+      const container = sniff(
+        [0x00, 0x00, 0x00, 0x0c, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a],
+      );
+      if (!codestream && !container) throw signatureError();
       return;
     }
   } else {
