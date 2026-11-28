@@ -18,6 +18,12 @@
 -- Jika ada trigger/RPC notifikasi lama, hentikan dan hapus/ganti trigger lama
 -- sebelum menjalankan migrasi ini agar satu kejadian tidak menghasilkan dua notifikasi.
 
+-- Hapus trigger notifikasi warisan yang masih aktif. Keduanya memanggil
+-- public.notifikasi_peminjaman_trigger() dan menulis related_entity='peminjaman'
+-- tanpa event_key, sehingga badge tidak pernah bisa di-auto-read.
+DROP TRIGGER IF EXISTS peminjaman_notifikasi_insert ON public.peminjaman;
+DROP TRIGGER IF EXISTS peminjaman_notifikasi_status ON public.peminjaman;
+
 -- ----------------------------------------------------------------------------
 -- Kolom deduplikasi
 -- ----------------------------------------------------------------------------
@@ -332,3 +338,13 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- ----------------------------------------------------------------------------
+-- Bersihkan badge warisan (sekali jalan, aman diulang).
+-- Notifikasi lama tidak punya event_key dan tidak bisa dicocokkan dengan
+-- transaksi pada halaman Aktifitas/Pinjaman, jadi ditandai dibaca agar badge
+-- hanya menghitung notifikasi baru yang memang relevan.
+-- ----------------------------------------------------------------------------
+UPDATE public.notifications
+SET sudah_dibaca = true
+WHERE event_key IS NULL;
