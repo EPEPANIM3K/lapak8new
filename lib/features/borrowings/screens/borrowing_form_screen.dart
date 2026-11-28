@@ -121,7 +121,7 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
     ),
     child: Scaffold(
       backgroundColor: _background,
-      body: Column(
+      body: SafeArea(child: Column(
         children: [
           SizedBox(
             height: 56,
@@ -140,7 +140,7 @@ class _BorrowingFormScreenState extends State<BorrowingFormScreen> {
           ),
           Expanded(child: content),
         ],
-      ),
+      )),
     ),
   );
 
@@ -523,7 +523,10 @@ class _RoomBookingFormState extends State<_RoomBookingForm> {
             Positioned.fill(
               child: SingleChildScrollView(
                 controller: _scrollController,
-                padding: const EdgeInsets.only(top: 56 + 12, bottom: 96),
+                padding: EdgeInsets.only(
+                  top: MediaQuery.paddingOf(context).top + 56 + 12,
+                  bottom: MediaQuery.paddingOf(context).bottom + 96,
+                ),
                 child: Center(
                   child: Container(
                     width: double.infinity,
@@ -1368,7 +1371,10 @@ class _ItemBookingFormState extends State<_ItemBookingForm> {
             Positioned.fill(
               child: SingleChildScrollView(
                 controller: _scrollController,
-                padding: const EdgeInsets.only(top: 56 + 12, bottom: 96),
+                padding: EdgeInsets.only(
+                  top: MediaQuery.paddingOf(context).top + 56 + 12,
+                  bottom: MediaQuery.paddingOf(context).bottom + 96,
+                ),
                 child: Center(
                   child: Container(
                     width: double.infinity,

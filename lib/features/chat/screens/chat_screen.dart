@@ -238,7 +238,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final promptIndex = _messages.length;
     final typingIndex = _messages.length + (showPrompts ? 1 : 0);
 
-    return Scaffold(
+    return SafeArea(bottom: false, child: Scaffold(
       backgroundColor: AppColors.surface,
       appBar: widget.passwordResetHelp
           ? AppBar(titleSpacing: 0, title: _buildChatTitle())
@@ -371,7 +371,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
         ],
       ),
-    );
+    ));
   }
 }
 

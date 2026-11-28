@@ -239,7 +239,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: cSurface,
-      body: Column(
+      body: SafeArea(child: Column(
         children: [
           Expanded(
             child: ListView(
@@ -689,7 +689,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 

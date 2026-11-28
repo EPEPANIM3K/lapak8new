@@ -238,7 +238,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: Column(
+      body: SafeArea(child: Column(
         children: [
           Expanded(
             child: ListView(
@@ -284,7 +284,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 

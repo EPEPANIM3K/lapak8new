@@ -237,7 +237,7 @@ class _IntroScreenState extends State<IntroScreen>
       color: Colors.white,
       width: double.infinity,
       height: double.infinity,
-      child: Column(
+      child: SafeArea(child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
@@ -303,7 +303,7 @@ class _IntroScreenState extends State<IntroScreen>
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 }

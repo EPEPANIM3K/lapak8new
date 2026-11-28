@@ -137,7 +137,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           return Column(
             children: [
               _buildHeader(unread),
-              Expanded(child: content),
+              Expanded(
+                child: SafeArea(
+                  top: false,
+                  left: false,
+                  right: false,
+                  child: content,
+                ),
+              ),
             ],
           );
         },
